@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import { getServerEnv } from "@/shared/config/env";
 import { AppError, getErrorMessage } from "@/shared/utils/errors";
 import { generateCharacterFromYandexWebhook } from "@/features/webhooks/pipeline";
-import { normalizeYandexFormWebhookPayload } from "@/features/webhooks/yandex-form.adapter";
+import { createYandexFormWebhookEnvelope } from "@/features/webhooks/yandex-form.adapter";
 
 function isAuthorized(request: NextRequest, secret?: string) {
   if (!secret) {
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: unknown = await request.json();
-    const payload = normalizeYandexFormWebhookPayload(body, {
+    const envelope = createYandexFormWebhookEnvelope(body, {
       folderId:
         request.nextUrl.searchParams.get("folderId") ??
         request.headers.get("x-folder-id") ??
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         request.headers.get("x-form-answer-id") ??
         request.nextUrl.searchParams.get("deliveryId")
     });
-    const result = await generateCharacterFromYandexWebhook(payload);
+    const result = await generateCharacterFromYandexWebhook(envelope);
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {

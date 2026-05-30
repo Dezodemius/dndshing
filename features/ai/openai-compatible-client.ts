@@ -1,5 +1,7 @@
 import type { GeneratedCharacter } from "@/features/characters/domain";
 import { GeneratedCharacterSchema } from "@/features/characters/domain";
+import type { FormIntake } from "@/features/webhooks/yandex-form.schema";
+import { FormIntakeSchema } from "@/features/webhooks/yandex-form.schema";
 
 import type { AiSettings } from "./domain";
 
@@ -55,31 +57,32 @@ function resolveChatCompletionsUrl(apiBaseUrl: string): string {
   return `${trimmed}/v1/chat/completions`;
 }
 
-export async function generateCharacterWithOpenAiCompatibleApi(
-  settings: AiSettings,
-  prompt: string
-): Promise<GeneratedCharacter> {
-  const response = await fetch(resolveChatCompletionsUrl(settings.apiBaseUrl), {
+async function requestJsonWithOpenAiCompatibleApi(input: {
+  settings: AiSettings;
+  systemPrompt: string;
+  userPrompt: string;
+  temperature: number;
+}): Promise<unknown> {
+  const response = await fetch(resolveChatCompletionsUrl(input.settings.apiBaseUrl), {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${settings.apiKey}`,
+      Authorization: `Bearer ${input.settings.apiKey}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: settings.modelName,
-      temperature: 0.7,
+      model: input.settings.modelName,
+      temperature: input.temperature,
       response_format: {
         type: "json_object"
       },
       messages: [
         {
           role: "system",
-          content:
-            "Ты генерируешь D&D 5e персонажей и отвечаешь только валидным JSON по запрошенной схеме."
+          content: input.systemPrompt
         },
         {
           role: "user",
-          content: prompt
+          content: input.userPrompt
         }
       ]
     })
@@ -97,7 +100,35 @@ export async function generateCharacterWithOpenAiCompatibleApi(
     throw new Error("AI returned an empty message.");
   }
 
-  const generatedJson: unknown = JSON.parse(content);
+  return JSON.parse(content) as unknown;
+}
+
+export async function extractFormIntakeWithOpenAiCompatibleApi(
+  settings: AiSettings,
+  prompt: string
+): Promise<FormIntake> {
+  const generatedJson = await requestJsonWithOpenAiCompatibleApi({
+    settings,
+    systemPrompt:
+      "Ты анализируешь ответы из формы игрока и отвечаешь только валидным JSON по запрошенной схеме.",
+    userPrompt: prompt,
+    temperature: 0
+  });
+
+  return FormIntakeSchema.parse(generatedJson);
+}
+
+export async function generateCharacterWithOpenAiCompatibleApi(
+  settings: AiSettings,
+  prompt: string
+): Promise<GeneratedCharacter> {
+  const generatedJson = await requestJsonWithOpenAiCompatibleApi({
+    settings,
+    systemPrompt:
+      "Ты генерируешь D&D 5e персонажей и отвечаешь только валидным JSON по запрошенной схеме.",
+    userPrompt: prompt,
+    temperature: 0.7
+  });
 
   return GeneratedCharacterSchema.parse(generatedJson);
 }

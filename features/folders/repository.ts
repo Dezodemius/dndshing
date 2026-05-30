@@ -101,6 +101,24 @@ export async function createFolder(
   return mapFolder(data);
 }
 
+export async function setFolderGameDateIfMissing(
+  supabase: TypedSupabaseClient,
+  userId: string,
+  folderId: string,
+  gameDate: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("folders")
+    .update({ game_date: gameDate })
+    .eq("user_id", userId)
+    .eq("id", folderId)
+    .is("game_date", null);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function deleteFolder(
   supabase: TypedSupabaseClient,
   userId: string,
