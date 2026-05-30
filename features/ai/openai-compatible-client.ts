@@ -1,5 +1,7 @@
 import type { GeneratedCharacter } from "@/features/characters/domain";
 import { GeneratedCharacterSchema } from "@/features/characters/domain";
+import type { LssCharacterJson } from "@/features/lss/schema";
+import { LssCharacterJsonSchema, parseLssCharacterData } from "@/features/lss/schema";
 import type { FormIntake } from "@/features/webhooks/yandex-form.schema";
 import { FormIntakeSchema } from "@/features/webhooks/yandex-form.schema";
 
@@ -131,4 +133,36 @@ export async function generateCharacterWithOpenAiCompatibleApi(
   });
 
   return GeneratedCharacterSchema.parse(generatedJson);
+}
+
+export async function generateLssCharacterJsonWithOpenAiCompatibleApi(
+  settings: AiSettings,
+  prompt: string
+): Promise<LssCharacterJson> {
+  const generatedJson = await requestJsonWithOpenAiCompatibleApi({
+    settings,
+    systemPrompt:
+      "Ты генерируешь персонажа D&D 5e и отвечаешь только валидным Long Story Short JSON без markdown.",
+    userPrompt: prompt,
+    temperature: 0.7
+  });
+  const lssJson = LssCharacterJsonSchema.parse(normalizeLssJsonCandidate(generatedJson));
+
+  parseLssCharacterData(lssJson.data);
+
+  return lssJson;
+}
+
+function normalizeLssJsonCandidate(value: unknown): unknown {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const candidate = { ...value } as Record<string, unknown>;
+
+  if (candidate.data && typeof candidate.data === "object") {
+    candidate.data = JSON.stringify(candidate.data);
+  }
+
+  return candidate;
 }

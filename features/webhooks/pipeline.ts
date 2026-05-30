@@ -1,25 +1,24 @@
 import type { Json } from "@/shared/supabase/database.types";
 import { createSupabaseServiceClient } from "@/shared/supabase/server";
-import { AppError } from "@/shared/utils/errors";
-import { buildCharacterPrompt, buildFormIntakePrompt } from "@/features/ai/prompt-builder";
-import {
-  extractFormIntakeWithOpenAiCompatibleApi,
-  generateCharacterWithOpenAiCompatibleApi
-} from "@/features/ai/openai-compatible-client";
+import { AppError, getErrorMessage } from "@/shared/utils/errors";
+import { buildLssCharacterPrompt } from "@/features/ai/prompt-builder";
+import { generateLssCharacterJsonWithOpenAiCompatibleApi } from "@/features/ai/openai-compatible-client";
 import { getAiSettingsForGeneration } from "@/features/ai/settings.repository";
-import { createInternalCharacter } from "@/features/characters/factory";
-import { createGeneratedCharacter } from "@/features/characters/repository";
+import {
+  completeCharacterWithLssJson,
+  createDraftCharacter,
+  updateCharacterProcessingStep
+} from "@/features/characters/repository";
 import { uploadCharacterJson } from "@/features/characters/storage.repository";
-import { getFolderForWebhook, setFolderGameDateIfMissing } from "@/features/folders/repository";
-import { internalToLssJson } from "@/features/lss/mapper";
+import { getFolderForWebhook } from "@/features/folders/repository";
+import { lssJsonToInternal } from "@/features/lss/mapper";
 
 import type { YandexFormWebhookEnvelope } from "./yandex-form.schema";
-import { YandexFormWebhookSchema } from "./yandex-form.schema";
 
 export type WebhookGenerationResult = {
   characterId: string;
   downloadUrl: string;
-  gameDate: string | null;
+  processingStatus: "received" | "processing" | "lss_ready" | "failed";
 };
 
 export async function generateCharacterFromYandexWebhook(
@@ -38,60 +37,114 @@ export async function generateCharacterFromYandexWebhook(
     throw new AppError("Webhook user does not own target folder.", 403);
   }
 
-  const aiSettings = await getAiSettingsForGeneration(supabase, userId);
-
-  if (!aiSettings) {
-    throw new AppError("AI settings are not configured for this user.", 422);
-  }
-
-  const intakePrompt = buildFormIntakePrompt(envelope);
-  const intake = await extractFormIntakeWithOpenAiCompatibleApi(aiSettings, intakePrompt);
-  const payload = YandexFormWebhookSchema.parse({
-    folderId: envelope.folderId,
-    userId,
-    playerName: intake.playerName,
-    gameDate: intake.gameDate,
-    answers: intake.answers,
-    rawAnswers: envelope.rawAnswers,
-    deliveryId: envelope.deliveryId
-  });
-
-  if (payload.gameDate && !folder.gameDate) {
-    await setFolderGameDateIfMissing(supabase, userId, envelope.folderId, payload.gameDate);
-  }
-
-  const rawPrompt = buildCharacterPrompt(payload);
-  const generated = await generateCharacterWithOpenAiCompatibleApi(aiSettings, rawPrompt);
-  const createdAt = new Date().toISOString();
-  const internalCharacter = createInternalCharacter({
-    generated,
-    playerName: payload.playerName,
-    avatarUrl: null,
-    rawPrompt,
-    createdAt
-  });
-  const lssJson = internalToLssJson(internalCharacter, createdAt);
   const characterId = crypto.randomUUID();
-  const generatedJson = lssJson as unknown as Json;
-  const generatedJsonPath = await uploadCharacterJson(supabase, {
-    userId,
-    characterId,
-    json: generatedJson
-  });
+  const receivedAt = new Date().toISOString();
 
-  await createGeneratedCharacter(supabase, {
+  await createDraftCharacter(supabase, {
     id: characterId,
     folderId: envelope.folderId,
     userId,
-    playerName: payload.playerName,
-    internalCharacter,
-    generatedJson,
-    generatedJsonPath
+    rawWebhookBody: envelope.rawText,
+    receivedAt
   });
 
-  return {
-    characterId,
-    downloadUrl: `/api/characters/${characterId}/download`,
-    gameDate: payload.gameDate
-  };
+  let activeStage: "generatingCharacter" | "formingLssJson" = "generatingCharacter";
+
+  try {
+    const aiSettings = await getAiSettingsForGeneration(supabase, userId);
+
+    if (!aiSettings) {
+      throw new AppError("AI settings are not configured for this user.", 422);
+    }
+
+    await updateCharacterProcessingStep(supabase, {
+      characterId,
+      userId,
+      stage: "generatingCharacter",
+      status: "running",
+      processingStatus: "processing",
+      updatedAt: new Date().toISOString()
+    });
+
+    const rawPrompt = buildLssCharacterPrompt({
+      rawWebhookBody: envelope.rawBody,
+      rawWebhookText: envelope.rawText,
+      rawAnswers: envelope.rawAnswers
+    });
+    const lssJson = await generateLssCharacterJsonWithOpenAiCompatibleApi(aiSettings, rawPrompt);
+
+    await updateCharacterProcessingStep(supabase, {
+      characterId,
+      userId,
+      stage: "generatingCharacter",
+      status: "completed",
+      processingStatus: "processing",
+      updatedAt: new Date().toISOString()
+    });
+
+    activeStage = "formingLssJson";
+
+    await updateCharacterProcessingStep(supabase, {
+      characterId,
+      userId,
+      stage: "formingLssJson",
+      status: "running",
+      processingStatus: "processing",
+      updatedAt: new Date().toISOString()
+    });
+
+    const internalCharacter = lssJsonToInternal(lssJson, rawPrompt);
+    const generatedJson = lssJson as unknown as Json;
+    const generatedJsonPath = await uploadCharacterJson(supabase, {
+      userId,
+      characterId,
+      json: generatedJson
+    });
+
+    await completeCharacterWithLssJson(supabase, {
+      characterId,
+      userId,
+      internalCharacter,
+      generatedJson,
+      generatedJsonPath,
+      rawPrompt,
+      completedAt: new Date().toISOString()
+    });
+
+    return {
+      characterId,
+      downloadUrl: `/api/characters/${characterId}/download`,
+      processingStatus: "lss_ready"
+    };
+  } catch (error) {
+    await markGenerationFailed({
+      characterId,
+      userId,
+      stage: activeStage,
+      message: getErrorMessage(error)
+    });
+
+    throw error;
+  }
+}
+
+async function markGenerationFailed(input: {
+  characterId: string;
+  userId: string;
+  stage: "generatingCharacter" | "formingLssJson";
+  message: string;
+}): Promise<void> {
+  try {
+    await updateCharacterProcessingStep(createSupabaseServiceClient(), {
+      characterId: input.characterId,
+      userId: input.userId,
+      stage: input.stage,
+      status: "failed",
+      processingStatus: "failed",
+      message: input.message,
+      updatedAt: new Date().toISOString()
+    });
+  } catch {
+    // Preserve the original generation error for the webhook response.
+  }
 }

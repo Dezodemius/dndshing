@@ -50,6 +50,7 @@ export const YandexFormWebhookSchema = z.object({
 export const YandexFormWebhookEnvelopeSchema = z.object({
   folderId: z.string().uuid(),
   userId: z.string().uuid().optional(),
+  rawText: z.string().min(1),
   rawBody: z.unknown(),
   rawAnswers: z.record(z.string()).optional(),
   deliveryId: z.string().trim().min(1).max(200).optional()

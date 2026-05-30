@@ -9,6 +9,7 @@ type NormalizeContext = {
   folderId?: string | null;
   userId?: string | null;
   deliveryId?: string | null;
+  rawText: string;
 };
 
 type RawField = {
@@ -77,6 +78,7 @@ export function createYandexFormWebhookEnvelope(
   return YandexFormWebhookEnvelopeSchema.parse({
     folderId,
     userId,
+    rawText: context.rawText,
     rawBody: body,
     rawAnswers,
     deliveryId:

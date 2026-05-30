@@ -20,7 +20,12 @@ function isAuthorized(request: NextRequest, secret?: string) {
   );
 }
 
-async function parseWebhookBody(request: NextRequest): Promise<unknown> {
+type ParsedWebhookBody = {
+  rawText: string;
+  body: unknown;
+};
+
+async function parseWebhookBody(request: NextRequest): Promise<ParsedWebhookBody> {
   const text = (await request.text()).trim();
 
   if (!text) {
@@ -30,23 +35,35 @@ async function parseWebhookBody(request: NextRequest): Promise<unknown> {
   const parsed = tryParseJson(text);
 
   if (parsed.ok) {
-    return unwrapNestedJsonString(parsed.value);
+    return {
+      rawText: text,
+      body: unwrapNestedJsonString(parsed.value)
+    };
   }
 
   const unescapedJson = text.replace(/\\"/g, "\"");
   const parsedUnescaped = tryParseJson(unescapedJson);
 
   if (parsedUnescaped.ok) {
-    return unwrapNestedJsonString(parsedUnescaped.value);
+    return {
+      rawText: text,
+      body: unwrapNestedJsonString(parsedUnescaped.value)
+    };
   }
 
   const formPayload = parseFormEncodedJson(text);
 
   if (formPayload !== null) {
-    return formPayload;
+    return {
+      rawText: text,
+      body: formPayload
+    };
   }
 
-  throw new AppError(`Invalid webhook JSON body: ${parsed.error.message}`, 400);
+  return {
+    rawText: text,
+    body: text
+  };
 }
 
 function tryParseJson(text: string): { ok: true; value: unknown } | { ok: false; error: SyntaxError } {
@@ -112,8 +129,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await parseWebhookBody(request);
-    const envelope = createYandexFormWebhookEnvelope(body, {
+    const parsedBody = await parseWebhookBody(request);
+    const envelope = createYandexFormWebhookEnvelope(parsedBody.body, {
+      rawText: parsedBody.rawText,
       folderId:
         request.nextUrl.searchParams.get("folderId") ??
         request.headers.get("x-folder-id") ??
