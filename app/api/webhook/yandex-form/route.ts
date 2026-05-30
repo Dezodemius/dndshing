@@ -20,6 +20,90 @@ function isAuthorized(request: NextRequest, secret?: string) {
   );
 }
 
+async function parseWebhookBody(request: NextRequest): Promise<unknown> {
+  const text = (await request.text()).trim();
+
+  if (!text) {
+    throw new AppError("Webhook request body is empty.", 400);
+  }
+
+  const parsed = tryParseJson(text);
+
+  if (parsed.ok) {
+    return unwrapNestedJsonString(parsed.value);
+  }
+
+  const unescapedJson = text.replace(/\\"/g, "\"");
+  const parsedUnescaped = tryParseJson(unescapedJson);
+
+  if (parsedUnescaped.ok) {
+    return unwrapNestedJsonString(parsedUnescaped.value);
+  }
+
+  const formPayload = parseFormEncodedJson(text);
+
+  if (formPayload !== null) {
+    return formPayload;
+  }
+
+  throw new AppError(`Invalid webhook JSON body: ${parsed.error.message}`, 400);
+}
+
+function tryParseJson(text: string): { ok: true; value: unknown } | { ok: false; error: SyntaxError } {
+  try {
+    return { ok: true, value: JSON.parse(text) as unknown };
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      return { ok: false, error };
+    }
+
+    throw error;
+  }
+}
+
+function unwrapNestedJsonString(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+
+  if (!looksLikeJson(trimmed)) {
+    return value;
+  }
+
+  const parsed = tryParseJson(trimmed);
+
+  return parsed.ok ? parsed.value : value;
+}
+
+function parseFormEncodedJson(text: string): unknown | null {
+  const params = new URLSearchParams(text);
+
+  for (const key of ["payload", "body", "json", "data"]) {
+    const value = params.get(key);
+
+    if (!value) {
+      continue;
+    }
+
+    const parsed = tryParseJson(value);
+
+    if (parsed.ok) {
+      return unwrapNestedJsonString(parsed.value);
+    }
+  }
+
+  return null;
+}
+
+function looksLikeJson(value: string): boolean {
+  return (
+    (value.startsWith("{") && value.endsWith("}")) ||
+    (value.startsWith("[") && value.endsWith("]"))
+  );
+}
+
 export async function POST(request: NextRequest) {
   const env = getServerEnv();
 
@@ -28,7 +112,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body: unknown = await request.json();
+    const body = await parseWebhookBody(request);
     const envelope = createYandexFormWebhookEnvelope(body, {
       folderId:
         request.nextUrl.searchParams.get("folderId") ??
