@@ -59,6 +59,9 @@ export type Database = {
           internal_json: Json;
           generated_json: Json;
           generated_json_path: string | null;
+          pdf_path: string | null;
+          processing_status: string;
+          processing_steps: Json;
           created_at: string;
           updated_at: string;
           user_id: string;
@@ -82,6 +85,9 @@ export type Database = {
           internal_json: Json;
           generated_json: Json;
           generated_json_path?: string | null;
+          pdf_path?: string | null;
+          processing_status?: string;
+          processing_steps?: Json;
           created_at?: string;
           updated_at?: string;
           user_id: string;
@@ -105,6 +111,9 @@ export type Database = {
           internal_json?: Json;
           generated_json?: Json;
           generated_json_path?: string | null;
+          pdf_path?: string | null;
+          processing_status?: string;
+          processing_steps?: Json;
           created_at?: string;
           updated_at?: string;
           user_id?: string;

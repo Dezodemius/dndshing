@@ -57,6 +57,40 @@ export const InternalCharacterSchema = z.object({
   })
 });
 
+export const CharacterProcessingStageSchema = z.enum([
+  "receivedYandexForm",
+  "generatingCharacter",
+  "formingLssJson",
+  "formingPdf"
+]);
+
+export const CharacterProcessingStepStatusSchema = z.enum([
+  "pending",
+  "running",
+  "completed",
+  "failed"
+]);
+
+export const CharacterProcessingStatusSchema = z.enum([
+  "received",
+  "processing",
+  "lss_ready",
+  "failed"
+]);
+
+export const CharacterProcessingStepSchema = z.object({
+  status: CharacterProcessingStepStatusSchema,
+  message: z.string().nullable(),
+  updatedAt: z.string().datetime().nullable()
+});
+
+export const CharacterProcessingStepsSchema = z.object({
+  receivedYandexForm: CharacterProcessingStepSchema,
+  generatingCharacter: CharacterProcessingStepSchema,
+  formingLssJson: CharacterProcessingStepSchema,
+  formingPdf: CharacterProcessingStepSchema
+});
+
 export const CharacterSummarySchema = z.object({
   id: z.string().uuid(),
   folderId: z.string().uuid(),
@@ -73,6 +107,9 @@ export const CharacterSummarySchema = z.object({
   goals: z.string(),
   avatarUrl: z.string().nullable(),
   generatedJsonPath: z.string().nullable(),
+  pdfPath: z.string().nullable(),
+  processingStatus: CharacterProcessingStatusSchema,
+  processingSteps: CharacterProcessingStepsSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
   userId: z.string().uuid()
@@ -81,4 +118,48 @@ export const CharacterSummarySchema = z.object({
 export type AbilityScores = z.infer<typeof AbilityScoresSchema>;
 export type GeneratedCharacter = z.infer<typeof GeneratedCharacterSchema>;
 export type InternalCharacter = z.infer<typeof InternalCharacterSchema>;
+export type CharacterProcessingStage = z.infer<typeof CharacterProcessingStageSchema>;
+export type CharacterProcessingStepStatus = z.infer<typeof CharacterProcessingStepStatusSchema>;
+export type CharacterProcessingStatus = z.infer<typeof CharacterProcessingStatusSchema>;
+export type CharacterProcessingStep = z.infer<typeof CharacterProcessingStepSchema>;
+export type CharacterProcessingSteps = z.infer<typeof CharacterProcessingStepsSchema>;
 export type CharacterSummary = z.infer<typeof CharacterSummarySchema>;
+
+export const CHARACTER_PROCESSING_STAGE_LABELS = {
+  receivedYandexForm: "Получен ответ с Яндекс.Форм",
+  generatingCharacter: "Генерация персонажа",
+  formingLssJson: "Формирование LSS JSON",
+  formingPdf: "Формирование PDF"
+} satisfies Record<CharacterProcessingStage, string>;
+
+export const CHARACTER_PROCESSING_STAGES: CharacterProcessingStage[] = [
+  "receivedYandexForm",
+  "generatingCharacter",
+  "formingLssJson",
+  "formingPdf"
+];
+
+export function createInitialProcessingSteps(now: string): CharacterProcessingSteps {
+  return CharacterProcessingStepsSchema.parse({
+    receivedYandexForm: {
+      status: "completed",
+      message: null,
+      updatedAt: now
+    },
+    generatingCharacter: {
+      status: "pending",
+      message: null,
+      updatedAt: null
+    },
+    formingLssJson: {
+      status: "pending",
+      message: null,
+      updatedAt: null
+    },
+    formingPdf: {
+      status: "pending",
+      message: null,
+      updatedAt: null
+    }
+  });
+}
