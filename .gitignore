@@ -19,6 +19,10 @@ dist/
 # vercel
 .vercel/
 
+# local tooling
+.idea/
+supabase/.temp/
+
 # logs
 npm-debug.log*
 yarn-debug.log*
