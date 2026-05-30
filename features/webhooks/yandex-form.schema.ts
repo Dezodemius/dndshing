@@ -26,4 +26,5 @@ export const YandexFormWebhookSchema = z.object({
   deliveryId: z.string().trim().min(1).max(200).optional()
 });
 
+export type YandexFormAnswers = z.infer<typeof YandexFormAnswersSchema>;
 export type YandexFormWebhookPayload = z.infer<typeof YandexFormWebhookSchema>;
