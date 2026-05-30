@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { CharacterAutoRefresh } from "@/features/characters/components/character-auto-refresh";
 import { CharacterGrid } from "@/features/characters/components/character-grid";
 import { listCharactersByFolder } from "@/features/characters/repository";
 import { getFolderById } from "@/features/folders/repository";
@@ -35,8 +36,13 @@ export default async function FolderPage({ params }: FolderPageProps) {
     notFound();
   }
 
+  const hasActiveProcessing = characters.some((character) =>
+    ["received", "processing"].includes(character.processingStatus)
+  );
+
   return (
     <div className="space-y-6">
+      <CharacterAutoRefresh enabled={hasActiveProcessing} />
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <Button asChild className="-ml-3 mb-3" size="sm" variant="ghost">

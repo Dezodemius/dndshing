@@ -13,8 +13,8 @@ function toFileName(characterName: string) {
   return `${characterName
     .trim()
     .toLowerCase()
-    .replace(/[^a-zа-яё0-9]+/gi, "-")
-    .replace(/^-+|-+$/g, "") || "character"}.json`;
+    .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
+    .replace(/^-+|-+$/g, "") || "character"}-lss.json`;
 }
 
 export async function GET(_request: NextRequest, context: RouteContext) {

@@ -7,7 +7,7 @@ export function CharacterGrid({ characters }: { characters: CharacterSummary[] }
     return (
       <div className="rounded-lg border border-dashed bg-background p-8 text-center">
         <p className="text-sm text-muted-foreground">
-          В этой папке пока нет персонажей. Новые карточки появятся после успешного webhook.
+          В этой папке пока нет персонажей. Новые иконки появятся после входящего webhook.
         </p>
       </div>
     );
