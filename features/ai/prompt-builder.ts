@@ -17,11 +17,16 @@ export function buildCharacterPrompt(payload: YandexFormWebhookPayload): string 
     answers.racePreference ? `Предпочтение по расе: ${answers.racePreference}` : null,
     answers.classPreference ? `Предпочтение по классу: ${answers.classPreference}` : null,
     answers.gender ? `Пол/гендер: ${answers.gender}` : null,
+    answers.age ? `Возраст: ${answers.age}` : null,
+    answers.origin ? `Происхождение: ${answers.origin}` : null,
     answers.backstory ? `Идея истории: ${answers.backstory}` : null,
     answers.appearance ? `Внешность: ${answers.appearance}` : null,
     answers.personality ? `Характер: ${answers.personality}` : null,
     answers.fears ? `Страхи: ${answers.fears}` : null,
-    answers.goals ? `Цели: ${answers.goals}` : null
+    answers.goals ? `Цели: ${answers.goals}` : null,
+    answers.reference ? `Референс: ${answers.reference}` : null,
+    answers.playstyle ? `Желаемый стиль отыгрыша: ${answers.playstyle}` : null,
+    answers.extraNotes ? `Дополнительные ответы формы: ${answers.extraNotes}` : null
   ];
 
   return lines.filter((line): line is string => line !== null).join("\n");
