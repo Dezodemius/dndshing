@@ -23,6 +23,11 @@ dist/
 .idea/
 supabase/.temp/
 
+# playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
 # logs
 npm-debug.log*
 yarn-debug.log*

@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+# Fake-but-valid public env so `next dev` / `next build` boot in CI.
+# /test-sheet bypasses Supabase middleware, so these values never hit the network.
+env:
+  NEXT_PUBLIC_SITE_URL: http://localhost:3000
+  NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+  SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+
+jobs:
+  # ── Gate 1: lint + types ─────────────────────────────────────────────────────
+  lint:
+    name: Lint & types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+
+  # ── Gate 2: unit tests ───────────────────────────────────────────────────────
+  unit:
+    name: Unit tests (Vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  # ── Gate 3: production build ─────────────────────────────────────────────────
+  build:
+    name: Build (next build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  # ── Gate 4: e2e (deterministic structural/layout checks) ─────────────────────
+  e2e:
+    name: E2e tests (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run e2e tests
+        run: npm run test:e2e
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # ── Visual snapshots (non-gating — uploads screenshots for review) ───────────
+  visual:
+    name: Visual snapshots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run visual snapshots
+        id: visual
+        # Doesn't fail the pipeline: on the first run there is no Linux baseline yet.
+        continue-on-error: true
+        run: npm run test:e2e:visual
+      - name: Upload snapshots (download & commit to tests/snapshots/ to enable regressions)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-snapshots
+          path: |
+            tests/snapshots/
+            test-results/
+          retention-days: 14
+
+  # ── Deploy: Supabase migrations + Vercel — only on develop, only if all gates pass
+  deploy:
+    name: Deploy (Supabase + Vercel)
+    needs: [lint, unit, build, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # 1. Apply database migrations first so the schema is ready for new code.
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Apply Supabase migrations
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      # 2. Build and deploy to Vercel production.
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+      - name: Build project
+        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+      - name: Deploy to Vercel
+        run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
