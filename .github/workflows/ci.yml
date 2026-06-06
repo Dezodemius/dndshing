@@ -6,13 +6,10 @@ on:
   pull_request:
     branches: [develop, main]
 
-# Fake-but-valid public env so `next dev` / `next build` boot in CI.
-# /test-sheet bypasses Supabase middleware, so these values never hit the network.
-env:
-  NEXT_PUBLIC_SITE_URL: http://localhost:3000
-  NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
-  SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+# NOTE: placeholder NEXT_PUBLIC_* env is set per-job only on the check jobs
+# (build / e2e / visual). It must NOT be set on the deploy job — NEXT_PUBLIC_*
+# values are inlined into the client bundle at build time, so a placeholder in
+# the deploy environment would override the real values pulled from Vercel.
 
 jobs:
   # ── Gate 1: lint + types ─────────────────────────────────────────────────────
@@ -46,6 +43,12 @@ jobs:
   build:
     name: Build (next build)
     runs-on: ubuntu-latest
+    # Placeholder public env just so `next build` boots; never deployed.
+    env:
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -59,6 +62,11 @@ jobs:
   e2e:
     name: E2e tests (Playwright)
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -84,6 +92,11 @@ jobs:
   visual:
     name: Visual snapshots
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
