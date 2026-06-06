@@ -8,7 +8,7 @@ import { createYandexFormWebhookEnvelope } from "@/features/webhooks/yandex-form
 
 function isAuthorized(request: NextRequest, secret?: string) {
   if (!secret) {
-    return true;
+    return false;
   }
 
   const authorization = request.headers.get("authorization");

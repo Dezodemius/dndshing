@@ -1,9 +1,5 @@
-import type { GeneratedCharacter } from "@/features/characters/domain";
-import { GeneratedCharacterSchema } from "@/features/characters/domain";
 import type { LssCharacterJson } from "@/features/lss/schema";
 import { LssCharacterJsonSchema, parseLssCharacterData } from "@/features/lss/schema";
-import type { FormIntake } from "@/features/webhooks/yandex-form.schema";
-import { FormIntakeSchema } from "@/features/webhooks/yandex-form.schema";
 
 import type { AiSettings } from "./domain";
 
@@ -103,36 +99,6 @@ async function requestJsonWithOpenAiCompatibleApi(input: {
   }
 
   return JSON.parse(content) as unknown;
-}
-
-export async function extractFormIntakeWithOpenAiCompatibleApi(
-  settings: AiSettings,
-  prompt: string
-): Promise<FormIntake> {
-  const generatedJson = await requestJsonWithOpenAiCompatibleApi({
-    settings,
-    systemPrompt:
-      "Ты анализируешь ответы из формы игрока и отвечаешь только валидным JSON по запрошенной схеме.",
-    userPrompt: prompt,
-    temperature: 0
-  });
-
-  return FormIntakeSchema.parse(generatedJson);
-}
-
-export async function generateCharacterWithOpenAiCompatibleApi(
-  settings: AiSettings,
-  prompt: string
-): Promise<GeneratedCharacter> {
-  const generatedJson = await requestJsonWithOpenAiCompatibleApi({
-    settings,
-    systemPrompt:
-      "Ты генерируешь D&D 5e персонажей и отвечаешь только валидным JSON по запрошенной схеме.",
-    userPrompt: prompt,
-    temperature: 0.7
-  });
-
-  return GeneratedCharacterSchema.parse(generatedJson);
 }
 
 export async function generateLssCharacterJsonWithOpenAiCompatibleApi(

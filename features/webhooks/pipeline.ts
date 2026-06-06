@@ -31,9 +31,9 @@ export async function generateCharacterFromYandexWebhook(
     throw new AppError("Folder not found.", 404);
   }
 
-  const userId = envelope.userId ?? folder.userId;
+  const userId = folder.userId;
 
-  if (folder.userId !== userId) {
+  if (envelope.userId !== undefined && envelope.userId !== userId) {
     throw new AppError("Webhook user does not own target folder.", 403);
   }
 
@@ -144,7 +144,7 @@ async function markGenerationFailed(input: {
       message: input.message,
       updatedAt: new Date().toISOString()
     });
-  } catch {
-    // Preserve the original generation error for the webhook response.
+  } catch (dbError) {
+    console.error("Failed to mark character generation as failed:", dbError);
   }
 }
