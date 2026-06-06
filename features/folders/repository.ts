@@ -78,6 +78,32 @@ export async function getFolderForWebhook(
   return data ? mapFolder(data) : null;
 }
 
+export async function findOrCreateFolderByGameDate(
+  supabase: TypedSupabaseClient,
+  userId: string,
+  gameDate: string
+): Promise<Folder> {
+  const { data: existing, error: findError } = await supabase
+    .from("folders")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("game_date", gameDate)
+    .maybeSingle();
+
+  if (findError) throw new Error(findError.message);
+  if (existing) return mapFolder(existing);
+
+  const { data: created, error: createError } = await supabase
+    .from("folders")
+    .insert({ user_id: userId, name: `Игра ${gameDate}`, game_date: gameDate })
+    .select("*")
+    .single();
+
+  if (createError) throw new Error(createError.message);
+
+  return mapFolder(created);
+}
+
 export async function createFolder(
   supabase: TypedSupabaseClient,
   userId: string,

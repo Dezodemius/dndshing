@@ -1,12 +1,14 @@
 import { z } from "zod";
 
 import {
+  GameDateSchema,
   type YandexFormWebhookEnvelope,
   YandexFormWebhookEnvelopeSchema
 } from "./yandex-form.schema";
 
 type NormalizeContext = {
   folderId?: string | null;
+  gameDate?: string | null;
   userId?: string | null;
   deliveryId?: string | null;
   rawText: string;
@@ -74,9 +76,14 @@ export function createYandexFormWebhookEnvelope(
     context.userId,
     findFieldValue(fields, [/^userId$/i, /user id/i, /id пользователя/i])
   ]);
+  const gameDate = resolveGameDate([
+    context.gameDate,
+    findFieldValue(fields, [/gameDate/i, /game.?date/i, /дата.*(игр)/i, /игр.*дата/i])
+  ]);
 
   return YandexFormWebhookEnvelopeSchema.parse({
     folderId,
+    gameDate,
     userId,
     rawText: context.rawText,
     rawBody: body,
@@ -186,6 +193,10 @@ function findFieldValue(fields: RawField[], patterns: RegExp[]): string | undefi
 
 function resolveUuid(values: Array<string | null | undefined>): string | undefined {
   return values.find((value): value is string => UUID_SCHEMA.safeParse(value).success);
+}
+
+function resolveGameDate(values: Array<string | null | undefined>): string | undefined {
+  return values.find((value): value is string => GameDateSchema.safeParse(value).success);
 }
 
 function joinSections(values: Array<string | undefined>): string | undefined {

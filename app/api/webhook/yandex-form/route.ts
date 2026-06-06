@@ -136,6 +136,9 @@ export async function POST(request: NextRequest) {
         request.nextUrl.searchParams.get("folderId") ??
         request.headers.get("x-folder-id") ??
         env.WEBHOOK_DEFAULT_FOLDER_ID,
+      gameDate:
+        request.nextUrl.searchParams.get("gameDate") ??
+        request.headers.get("x-game-date"),
       userId:
         request.nextUrl.searchParams.get("userId") ??
         request.headers.get("x-user-id") ??

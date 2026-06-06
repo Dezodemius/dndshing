@@ -10,7 +10,7 @@ import {
   updateCharacterProcessingStep
 } from "@/features/characters/repository";
 import { uploadCharacterJson } from "@/features/characters/storage.repository";
-import { getFolderForWebhook } from "@/features/folders/repository";
+import { findOrCreateFolderByGameDate, getFolderForWebhook } from "@/features/folders/repository";
 import { lssJsonToInternal } from "@/features/lss/mapper";
 
 import type { YandexFormWebhookEnvelope } from "./yandex-form.schema";
@@ -25,16 +25,23 @@ export async function generateCharacterFromYandexWebhook(
   envelope: YandexFormWebhookEnvelope
 ): Promise<WebhookGenerationResult> {
   const supabase = createSupabaseServiceClient();
-  const folder = await getFolderForWebhook(supabase, envelope.folderId);
 
-  if (!folder) {
-    throw new AppError("Folder not found.", 404);
+  const userId = envelope.userId;
+
+  if (!userId) {
+    throw new AppError("User ID is required (set WEBHOOK_DEFAULT_USER_ID).", 422);
   }
 
-  const userId = folder.userId;
+  let folder;
 
-  if (envelope.userId !== undefined && envelope.userId !== userId) {
-    throw new AppError("Webhook user does not own target folder.", 403);
+  if (envelope.folderId) {
+    folder = await getFolderForWebhook(supabase, envelope.folderId);
+    if (!folder) throw new AppError("Folder not found.", 404);
+    if (folder.userId !== userId) throw new AppError("Webhook user does not own target folder.", 403);
+  } else if (envelope.gameDate) {
+    folder = await findOrCreateFolderByGameDate(supabase, userId, envelope.gameDate);
+  } else {
+    throw new AppError("Either folderId or gameDate is required.", 422);
   }
 
   const characterId = crypto.randomUUID();
@@ -42,7 +49,7 @@ export async function generateCharacterFromYandexWebhook(
 
   await createDraftCharacter(supabase, {
     id: characterId,
-    folderId: envelope.folderId,
+    folderId: folder.id,
     userId,
     rawWebhookBody: envelope.rawText,
     receivedAt

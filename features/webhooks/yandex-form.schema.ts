@@ -48,7 +48,8 @@ export const YandexFormWebhookSchema = z.object({
 });
 
 export const YandexFormWebhookEnvelopeSchema = z.object({
-  folderId: z.string().uuid(),
+  folderId: z.string().uuid().optional(),
+  gameDate: GameDateSchema.optional(),
   userId: z.string().uuid().optional(),
   rawText: z.string().min(1),
   rawBody: z.unknown(),
