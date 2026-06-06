@@ -53,6 +53,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"
+    // Skip static files, images, and the auth-free test-sheet page used by e2e tests
+    "/((?!_next/static|_next/image|favicon.ico|test-sheet|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"
   ]
 };

@@ -24,5 +24,6 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 60_000,
   },
-  snapshotPathTemplate: "tests/snapshots/{testFilePath}/{arg}{ext}",
+  // Include platform so Linux (CI) and Windows (local) snapshots don't collide.
+  snapshotPathTemplate: "tests/snapshots/{testFilePath}/{arg}-{platform}{ext}",
 });
