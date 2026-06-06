@@ -196,7 +196,9 @@ function resolveUuid(values: Array<string | null | undefined>): string | undefin
 }
 
 function resolveGameDate(values: Array<string | null | undefined>): string | undefined {
-  return values.find((value): value is string => GameDateSchema.safeParse(value).success);
+  return values.find(
+    (value): value is string => typeof value === "string" && GameDateSchema.safeParse(value).success
+  );
 }
 
 function joinSections(values: Array<string | undefined>): string | undefined {
