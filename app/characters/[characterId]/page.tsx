@@ -3,6 +3,7 @@ import { Download, FileText } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 
 import { CharacterAutoRefresh } from "@/features/characters/components/character-auto-refresh";
+import { GenerateButton } from "@/features/characters/components/generate-button";
 import {
   CHARACTER_PROCESSING_STAGE_LABELS,
   CHARACTER_PROCESSING_STAGES
@@ -39,6 +40,7 @@ export default async function CharacterPage({ params }: CharacterPageProps) {
 
   const canDownloadLss = Boolean(character.generatedJsonPath);
   const canDownloadPdf = Boolean(character.pdfPath);
+  const canGenerate = character.processingStatus === "received";
   const hasActiveProcessing = ["received", "processing"].includes(character.processingStatus);
 
   return (
@@ -67,6 +69,8 @@ export default async function CharacterPage({ params }: CharacterPageProps) {
             <p className="text-sm text-muted-foreground">{character.playerName}</p>
           </CardHeader>
           <CardContent className="space-y-3">
+            {canGenerate ? <GenerateButton characterId={character.id} /> : null}
+
             {canDownloadLss ? (
               <Button asChild className="w-full" variant="outline">
                 <a href={`/api/characters/${character.id}/download`}>

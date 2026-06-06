@@ -7,6 +7,7 @@ import { getAiSettingsForGeneration } from "@/features/ai/settings.repository";
 import {
   completeCharacterWithLssJson,
   createDraftCharacter,
+  getCharacterForGeneration,
   updateCharacterProcessingStep
 } from "@/features/characters/repository";
 import { uploadCharacterJson } from "@/features/characters/storage.repository";
@@ -70,13 +71,15 @@ export type CharacterGenerationResult = {
 
 export async function generateCharacterFromDraft(
   characterId: string,
-  userId: string,
-  folderId: string,
-  rawText: string,
-  rawBody: unknown,
-  rawAnswers?: Record<string, string>
+  userId: string
 ): Promise<CharacterGenerationResult> {
   const supabase = createSupabaseServiceClient();
+
+  const draft = await getCharacterForGeneration(supabase, userId, characterId);
+
+  if (!draft) {
+    throw new AppError("Character not found.", 404);
+  }
 
   let activeStage: "generatingCharacter" | "formingLssJson" = "generatingCharacter";
 
@@ -96,9 +99,12 @@ export async function generateCharacterFromDraft(
       updatedAt: new Date().toISOString()
     });
 
-    console.log(`[generate:start] characterId=${characterId} folderId=${folderId}`);
+    console.log(`[generate:start] characterId=${characterId} folderId=${draft.folderId}`);
 
-    const rawPrompt = buildLssCharacterPrompt({ rawWebhookBody: rawBody, rawWebhookText: rawText, rawAnswers });
+    const rawPrompt = buildLssCharacterPrompt({
+      rawWebhookBody: draft.rawPrompt,
+      rawWebhookText: draft.rawPrompt
+    });
     const lssJson = await generateLssCharacterJsonWithOpenAiCompatibleApi(aiSettings, rawPrompt);
 
     await updateCharacterProcessingStep(supabase, {

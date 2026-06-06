@@ -91,6 +91,24 @@ export async function listCharactersByFolder(
   return data.map(mapCharacterSummary);
 }
 
+export async function getCharacterForGeneration(
+  supabase: TypedSupabaseClient,
+  userId: string,
+  characterId: string
+): Promise<{ rawPrompt: string; folderId: string } | null> {
+  const { data, error } = await supabase
+    .from("characters")
+    .select("raw_prompt, folder_id")
+    .eq("user_id", userId)
+    .eq("id", characterId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  return { rawPrompt: data.raw_prompt, folderId: data.folder_id };
+}
+
 export async function getCharacterJsonForDownload(
   supabase: TypedSupabaseClient,
   userId: string,
