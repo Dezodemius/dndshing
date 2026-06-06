@@ -1,7 +1,3 @@
 {
-  "buildCommand": "npx supabase db push && npm run build",
-  "env": {
-    "SUPABASE_DB_URL": "@supabase_db_url",
-    "SUPABASE_ACCESS_TOKEN": "@supabase_access_token"
-  }
+  "buildCommand": "npx supabase db push && npm run build"
 }
