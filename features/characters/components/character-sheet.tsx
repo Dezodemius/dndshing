@@ -420,9 +420,9 @@ function Page1({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
     10 + skillBonus("perception", "wis");
 
   return (
-    <div className="sheet-page flex flex-col gap-2">
+    <div className="h-full flex flex-col gap-2">
       {/* ── Header ── */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: "200px 1fr" }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "minmax(200px, 260px) 1fr" }}>
         <div>
           <input
             type="text"
@@ -738,9 +738,9 @@ function Page1({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
 
 function Page2({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) => void }) {
   return (
-    <div className="sheet-page flex flex-col gap-2">
+    <div className="h-full flex flex-col gap-2">
       {/* Header */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: "200px 1fr" }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "minmax(200px, 260px) 1fr" }}>
         <div>
           <input
             type="text"
@@ -803,7 +803,7 @@ function Page2({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
 
 function Page3({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) => void }) {
   return (
-    <div className="sheet-page flex flex-col gap-2">
+    <div className="h-full flex flex-col gap-2">
       {/* Header */}
       <div>
         <input
@@ -837,7 +837,7 @@ function Page3({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
 
 function Page4({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) => void }) {
   return (
-    <div className="sheet-page flex flex-col gap-2">
+    <div className="h-full flex flex-col gap-2">
       {/* Header */}
       <div className="flex gap-4 border-b border-gray-400 pb-2">
         <div className="flex-1">
@@ -950,13 +950,16 @@ export function CharacterSheet({
       <style>{`
         .sheet-page {
           width: 794px;
-          min-height: 1122px;
-          padding: 32px 36px;
+          height: 1122px;
+          padding: 28px 32px;
           background: white;
           font-family: Arial, Helvetica, sans-serif;
           font-size: 10px;
           line-height: 1.3;
           box-sizing: border-box;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
         }
         @media print {
           @page { size: A4; margin: 0; }
@@ -967,11 +970,12 @@ export function CharacterSheet({
           }
           .sheet-page {
             width: 210mm;
-            min-height: 297mm;
+            height: 297mm;
             padding: 10mm 12mm;
             page-break-after: always;
             break-after: page;
             box-shadow: none !important;
+            overflow: hidden;
           }
         }
       `}</style>
@@ -996,18 +1000,18 @@ export function CharacterSheet({
         </button>
       </div>
 
-      {/* Pages */}
+      {/* Pages — each .sheet-page is exactly A4; inner Page components fill via h-full */}
       <div className="print-wrapper -mx-4 bg-gray-200 px-4 pb-8 space-y-8">
-        <div className="sheet-page shadow-lg mx-auto">
+        <div className="sheet-page shadow-lg mx-auto" data-page="1">
           <Page1 s={s} upd={upd} />
         </div>
-        <div className="sheet-page shadow-lg mx-auto">
+        <div className="sheet-page shadow-lg mx-auto" data-page="2">
           <Page2 s={s} upd={upd} />
         </div>
-        <div className="sheet-page shadow-lg mx-auto">
+        <div className="sheet-page shadow-lg mx-auto" data-page="3">
           <Page3 s={s} upd={upd} />
         </div>
-        <div className="sheet-page shadow-lg mx-auto">
+        <div className="sheet-page shadow-lg mx-auto" data-page="4">
           <Page4 s={s} upd={upd} />
         </div>
       </div>
