@@ -34,9 +34,11 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const fileName = toFileName(character.characterName);
+
   return new NextResponse(JSON.stringify(character.generatedJson, null, 2), {
     headers: {
-      "Content-Disposition": `attachment; filename="${toFileName(character.characterName)}"`,
+      "Content-Disposition": `attachment; filename="character-lss.json"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
       "Content-Type": "application/json; charset=utf-8"
     }
   });
