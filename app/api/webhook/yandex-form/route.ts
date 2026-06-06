@@ -51,6 +51,18 @@ async function parseWebhookBody(request: NextRequest): Promise<ParsedWebhookBody
     };
   }
 
+  // Some webhooks send JSON with literal newlines inside string values (invalid JSON).
+  // Escape them and retry.
+  const sanitized = text.replace(/\r\n/g, "\\n").replace(/\r/g, "\\n").replace(/\n/g, "\\n");
+  const parsedSanitized = tryParseJson(sanitized);
+
+  if (parsedSanitized.ok) {
+    return {
+      rawText: text,
+      body: unwrapNestedJsonString(parsedSanitized.value)
+    };
+  }
+
   const formPayload = parseFormEncodedJson(text);
 
   if (formPayload !== null) {
