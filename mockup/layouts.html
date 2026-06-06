@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Сравнение схем расположения панелей управления для лагеря мастера."
+    />
+    <title>Схемы интерфейса лагеря</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./layouts.css" />
+    <script src="./layouts.js" defer></script>
+  </head>
+  <body>
+    <header class="page-header">
+      <a class="back-link" href="./index.html">
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M16 10H4M9 5l-5 5 5 5" />
+        </svg>
+        Вернуться в лагерь
+      </a>
+
+      <div class="header-copy">
+        <span class="eyebrow">Архитектура интерфейса</span>
+        <h1>Как расположить панели управления</h1>
+        <p>
+          Восемь схем для игр, персонажей, журнала генерации и настроек.
+          Нажмите на вариант, чтобы посмотреть его назначение и ограничения.
+        </p>
+      </div>
+
+      <div class="legend" aria-label="Условные обозначения">
+        <span><i class="legend-nav"></i> Навигация</span>
+        <span><i class="legend-content"></i> Контент</span>
+        <span><i class="legend-context"></i> Контекстная панель</span>
+        <span><i class="legend-action"></i> Действия</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="layout-grid" aria-label="Варианты компоновки">
+        <button
+          class="layout-card selected"
+          type="button"
+          data-layout="left-sidebar"
+          aria-pressed="true"
+        >
+          <span class="card-number">01</span>
+          <span class="recommendation">Подходит для MVP</span>
+          <span class="wireframe frame-left-sidebar" aria-hidden="true">
+            <i class="wf-sidebar">
+              <b></b><b></b><b></b><b></b>
+            </i>
+            <i class="wf-main">
+              <b class="wf-top"></b>
+              <b class="wf-hero"></b>
+              <span class="wf-grid">
+                <em></em><em></em><em></em>
+              </span>
+            </i>
+          </span>
+          <span class="card-copy">
+            <strong>Левый постоянный sidebar</strong>
+            <small>Привычный кабинет с быстрым доступом ко всем разделам.</small>
+          </span>
+        </button>
+
+        <button
+          class="layout-card"
+          type="button"
+          data-layout="right-sidebar"
+          aria-pressed="false"
+        >
+          <span class="card-number">02</span>
+          <span class="wireframe frame-right-sidebar" aria-hidden="true">
+            <i class="wf-main">
+              <b class="wf-top"></b>
+              <b class="wf-hero"></b>
+              <span class="wf-grid">
+                <em></em><em></em><em></em>
+              </span>
+            </i>
+            <i class="wf-sidebar">
+              <b></b><b></b><b></b><b></b>
+            </i>
+          </span>
+          <span class="card-copy">
+            <strong>Правый sidebar</strong>
+            <small>Контент открывается первым, управление остаётся под правой рукой.</small>
+          </span>
+        </button>
+
+        <button
+          class="layout-card"
+          type="button"
+          data-layout="top-navigation"
+          aria-pressed="false"
+        >
+          <span class="card-number">03</span>
+          <span class="recommendation subtle">Самый лёгкий</span>
+          <span class="wireframe frame-top-navigation" aria-hidden="true">
+            <i class="wf-topbar">
+              <b></b><b></b><b></b><b></b>
+            </i>
+            <i class="wf-wide-main">
+              <b class="wf-hero"></b>
+              <span class="wf-grid four">
+                <em></em><em></em><em></em><em></em>
+              </span>
+            </i>
+          </span>
+          <span class="card-copy">
+            <strong>Верхняя навигация</strong>
+            <small>Максимум места для лагеря и карточек приключений.</small>
+          </span>
+        </button>
+
+        <button
+          class="layout-card"
+          type="button"
+          data-layout="dual-sidebar"
+          aria-pressed="false"
+        >
+          <span class="card-number">04</span>
+          <span class="recommendation future">Для редактора</span>
+          <span class="wireframe frame-dual-sidebar" aria-hidden="true">
+            <i class="wf-rail">
+              <b></b><b></b><b></b>
+            </i>
+            <i class="wf-main">
+              <b class="wf-top"></b>
+              <span class="wf-list">
+                <em></em><em></em><em></em><em></em>
+              </span>
+            </i>
+            <i class="wf-inspector">
+              <b></b><b></b><b></b>
+            </i>
+          </span>
+          <span class="card-copy">
+            <strong>Навигация + инспектор</strong>
+            <small>Разделы слева, свойства выбранного персонажа справа.</small>
+          </span>
+        </button>
+
+        <button
+          class="layout-card"
+          type="button"
+          data-layout="master-detail"
+          aria-pressed="false"
+        >
+          <span class="card-number">05</span>
+          <span class="recommendation future">Много данных</span>
+          <span class="wireframe frame-master-detail" aria-hidden="true">
+            <i class="wf-master">
+              <b class="wf-search"></b>
+              <span>
+                <em></em><em></em><em></em><em></em><em></em>
+              </span>
+            </i>
+            <i class="wf-detail">
+              <b class="wf-detail-title"></b>
+              <b class="wf-detail-portrait"></b>
+              <span class="wf-detail-lines">
+                <em></em><em></em><em></em>
+              </span>
+            </i>
+          </span>
+          <span class="card-copy">
+            <strong>Master-detail</strong>
+            <small>Список игр или героев слева, подробности выбранного объекта справа.</small>
+          </span>
+        </button>
+
+        <button
+          class="layout-card"
+          type="button"
+          data-layout="bottom-dock"
+          aria-pressed="false"
+        >
+          <span class="card-number">06</span>
+          <span class="wireframe frame-bottom-dock" aria-hidden="true">
+            <i class="wf-wide-main">
+              <b class="wf-hero large"></b>
+              <span class="wf-grid">
+                <em></em><em></em><em></em>
+              </span>
+            </i>
+            <i class="wf-dock">
+              <b></b><b></b><b></b><b></b><b></b>
+            </i>
+          </span>
+          <span class="card-copy">
+            <strong>Нижний dock</strong>
+            <small>Навигация как набор предметов на краю стола мастера.</small>
+          </span>
+        </button>
+
+        <button
+          class="layout-card"
+          type="button"
+          data-layout="contextual-drawer"
+          aria-pressed="false"
+        >
+          <span class="card-number">07</span>
+          <span class="recommendation">Рекомендую</span>
+          <span class="wireframe frame-contextual" aria-hidden="true">
+            <i class="wf-rail compact">
+              <b></b><b></b><b></b><b></b>
+            </i>
+            <i class="wf-main">
+              <b class="wf-top"></b>
+              <b class="wf-hero"></b>
+              <span class="wf-grid">
+                <em></em><em></em><em></em>
+              </span>
+            </i>
+            <i class="wf-drawer">
+              <b></b><b></b><b></b>
+            </i>
+          </span>
+          <span class="card-copy">
+            <strong>Компактный rail + drawer</strong>
+            <small>Иконки всегда видны, журнал и настройки выезжают по необходимости.</small>
+          </span>
+        </button>
+
+        <button
+          class="layout-card"
+          type="button"
+          data-layout="camp-map"
+          aria-pressed="false"
+        >
+          <span class="card-number">08</span>
+          <span class="recommendation atmosphere">Больше атмосферы</span>
+          <span class="wireframe frame-camp-map" aria-hidden="true">
+            <i class="map-object map-tent"></i>
+            <i class="map-object map-fire"></i>
+            <i class="map-object map-bag"></i>
+            <i class="map-object map-book"></i>
+            <span class="map-tooltip"></span>
+          </span>
+          <span class="card-copy">
+            <strong>Интерактивная карта лагеря</strong>
+            <small>Разделы открываются через палатку, костёр, сумку и книгу.</small>
+          </span>
+        </button>
+      </section>
+
+      <section class="detail-panel" aria-live="polite">
+        <div class="detail-heading">
+          <span class="detail-index">Вариант 01</span>
+          <h2 class="detail-title">Левый постоянный sidebar</h2>
+          <p class="detail-summary">
+            Наиболее предсказуемая схема для рабочего кабинета мастера.
+          </p>
+        </div>
+
+        <div class="detail-columns">
+          <div class="detail-block">
+            <span class="detail-label">Расположение</span>
+            <p class="detail-placement">
+              Слева находятся разделы, профиль и настройки. Центральная область
+              полностью принадлежит выбранной игре.
+            </p>
+          </div>
+          <div class="detail-block">
+            <span class="detail-label">Сильная сторона</span>
+            <p class="detail-strength">
+              Пользователь всегда понимает, где он находится, и быстро
+              переключается между играми, журналом и настройками.
+            </p>
+          </div>
+          <div class="detail-block">
+            <span class="detail-label">Ограничение</span>
+            <p class="detail-weakness">
+              Постоянно занимает 220–260 px и немного ослабляет ощущение
+              открытой лагерной сцены.
+            </p>
+          </div>
+        </div>
+
+        <div class="fit-row">
+          <span class="detail-label">Лучше всего подходит</span>
+          <div class="fit-tags">
+            <span class="fit-tag">Dashboard</span>
+            <span class="fit-tag">Игры</span>
+            <span class="fit-tag">Настройки</span>
+            <span class="fit-tag muted">Будущий редактор</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="comparison">
+        <div>
+          <span class="eyebrow">Короткий вывод</span>
+          <h2>Какие варианты я бы развивал</h2>
+        </div>
+        <div class="comparison-items">
+          <article>
+            <span>Для MVP</span>
+            <strong>01. Левый sidebar</strong>
+            <p>Самый понятный и дешёвый в реализации вариант.</p>
+          </article>
+          <article class="primary">
+            <span>Оптимальный баланс</span>
+            <strong>07. Rail + drawer</strong>
+            <p>Оставляет больше места лагерю и хорошо масштабируется.</p>
+          </article>
+          <article>
+            <span>Для будущего редактора</span>
+            <strong>04. Две боковые панели</strong>
+            <p>Подходит для сложной работы с выбранным персонажем.</p>
+          </article>
+          <article>
+            <span>Эксперимент</span>
+            <strong>08. Карта лагеря</strong>
+            <p>Атмосферно, но требует дублирующей обычной навигации.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
