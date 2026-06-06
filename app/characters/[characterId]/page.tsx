@@ -3,6 +3,7 @@ import { Download, Edit } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 
 import { CharacterAutoRefresh } from "@/features/characters/components/character-auto-refresh";
+import { DeleteCharacterButton } from "@/features/characters/components/delete-character-button";
 import { GenerateButton } from "@/features/characters/components/generate-button";
 import {
   CHARACTER_PROCESSING_STAGE_LABELS,
@@ -97,6 +98,8 @@ export default async function CharacterPage({ params }: CharacterPageProps) {
                 Редактировать лист
               </Button>
             )}
+
+            <DeleteCharacterButton characterId={character.id} className="w-full" />
           </CardContent>
         </Card>
 

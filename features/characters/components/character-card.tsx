@@ -21,6 +21,8 @@ import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/shared/ui/card";
 import { cn } from "@/shared/utils/cn";
 
+import { DeleteCharacterButton } from "./delete-character-button";
+
 const STEP_STATUS_LABELS = {
   pending: "Ожидает",
   running: "В работе",
@@ -120,24 +122,32 @@ export function CharacterCard({ character }: { character: CharacterSummary }) {
           })}
         </div>
       </CardContent>
-      <CardFooter className="grid grid-cols-2 gap-2">
-        {canDownloadLss ? (
-          <Button asChild size="sm" variant="outline">
-            <a href={`/api/characters/${character.id}/download`}>
+      <CardFooter className="flex flex-col gap-2">
+        <div className="grid w-full grid-cols-2 gap-2">
+          {canDownloadLss ? (
+            <Button asChild size="sm" variant="outline">
+              <a href={`/api/characters/${character.id}/download`}>
+                <Download className="h-4 w-4" />
+                LSS JSON
+              </a>
+            </Button>
+          ) : (
+            <Button disabled size="sm" variant="outline">
               <Download className="h-4 w-4" />
               LSS JSON
-            </a>
+            </Button>
+          )}
+          <Button disabled={!canDownloadPdf} size="sm" variant="outline">
+            <FileText className="h-4 w-4" />
+            PDF
           </Button>
-        ) : (
-          <Button disabled size="sm" variant="outline">
-            <Download className="h-4 w-4" />
-            LSS JSON
-          </Button>
-        )}
-        <Button disabled={!canDownloadPdf} size="sm" variant="outline">
-          <FileText className="h-4 w-4" />
-          PDF
-        </Button>
+        </div>
+        <DeleteCharacterButton
+          characterId={character.id}
+          size="sm"
+          label="Удалить"
+          className="w-full"
+        />
       </CardFooter>
     </Card>
   );

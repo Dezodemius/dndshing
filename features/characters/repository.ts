@@ -353,6 +353,69 @@ export async function completeCharacterWithLssJson(
   }
 }
 
+export async function updateCharacterGeneratedJson(
+  supabase: TypedSupabaseClient,
+  input: {
+    characterId: string;
+    userId: string;
+    generatedJson: Json;
+    characterName: string;
+    playerName: string;
+    race: string;
+    charClass: string;
+    level: number;
+  }
+): Promise<void> {
+  const { error } = await supabase
+    .from("characters")
+    .update({
+      generated_json: input.generatedJson,
+      character_name: input.characterName,
+      player_name: input.playerName,
+      race: input.race,
+      class: input.charClass,
+      level: input.level
+    })
+    .eq("user_id", input.userId)
+    .eq("id", input.characterId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function deleteCharacter(
+  supabase: TypedSupabaseClient,
+  input: { characterId: string; userId: string }
+): Promise<{ folderId: string; generatedJsonPath: string | null } | null> {
+  const { data, error: selectError } = await supabase
+    .from("characters")
+    .select("folder_id, generated_json_path")
+    .eq("user_id", input.userId)
+    .eq("id", input.characterId)
+    .maybeSingle();
+
+  if (selectError) {
+    throw new Error(selectError.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const { error: deleteError } = await supabase
+    .from("characters")
+    .delete()
+    .eq("user_id", input.userId)
+    .eq("id", input.characterId);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
+  return { folderId: data.folder_id, generatedJsonPath: data.generated_json_path };
+}
+
 async function getCharacterProcessingSteps(
   supabase: TypedSupabaseClient,
   userId: string,

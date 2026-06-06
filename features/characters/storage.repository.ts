@@ -29,3 +29,15 @@ export async function uploadCharacterJson(
 
   return path;
 }
+
+export async function deleteCharacterJson(
+  supabase: TypedSupabaseClient,
+  path: string
+): Promise<void> {
+  const { error } = await supabase.storage.from(CHARACTER_JSON_BUCKET).remove([path]);
+
+  // A missing object is not a hard error — the row deletion is what matters.
+  if (error && !/not.*found/i.test(error.message)) {
+    throw new Error(error.message);
+  }
+}

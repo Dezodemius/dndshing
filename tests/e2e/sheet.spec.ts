@@ -117,7 +117,8 @@ test.describe("Page 1 — combat stats", () => {
 test.describe("Page 1 — saves and skills section labels", () => {
   test("'СПАСБРОСКИ' label visible", async ({ page }) => {
     await page.goto(URL);
-    await expect(page.getByText("СПАСБРОСКИ")).toBeVisible();
+    // exact: avoid matching "Спасброски от смерти" (death saves box)
+    await expect(page.getByText("Спасброски", { exact: true })).toBeVisible();
   });
 
   test("'НАВЫКИ' label visible", async ({ page }) => {
@@ -220,13 +221,6 @@ test.describe("Pages 2–4 section labels", () => {
   });
 });
 
-// ── Snapshot: full page 1 visual regression ───────────────────────────────────
-
-test("page 1 visual snapshot", async ({ page }) => {
-  await page.goto(URL);
-  // Crop to the first A4 page (~1122px tall) starting from the sheet content
-  const sheetPage = page.locator(".sheet-page").first();
-  await expect(sheetPage).toHaveScreenshot("page1.png", {
-    maxDiffPixelRatio: 0.02,
-  });
-});
+// Visual snapshot tests live in visual.spec.ts (tagged @visual) so they can be
+// run separately — they need committed per-platform baselines and therefore do
+// not gate the deploy pipeline.
