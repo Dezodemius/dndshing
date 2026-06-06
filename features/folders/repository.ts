@@ -99,9 +99,19 @@ export async function findOrCreateFolderByGameDate(
     .select("*")
     .single();
 
-  if (createError) throw new Error(createError.message);
+  if (!createError) return mapFolder(created);
 
-  return mapFolder(created);
+  // Race condition: another concurrent request created the folder first — re-fetch it.
+  const { data: raceWinner, error: refetchError } = await supabase
+    .from("folders")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("game_date", gameDate)
+    .single();
+
+  if (refetchError) throw new Error(refetchError.message);
+
+  return mapFolder(raceWinner);
 }
 
 export async function createFolder(

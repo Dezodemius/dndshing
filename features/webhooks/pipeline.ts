@@ -15,15 +15,15 @@ import { lssJsonToInternal } from "@/features/lss/mapper";
 
 import type { YandexFormWebhookEnvelope } from "./yandex-form.schema";
 
-export type WebhookGenerationResult = {
+export type WebhookReceiveResult = {
   characterId: string;
-  downloadUrl: string;
-  processingStatus: "received" | "processing" | "lss_ready" | "failed";
+  folderId: string;
+  status: "received";
 };
 
-export async function generateCharacterFromYandexWebhook(
+export async function receiveWebhookPayload(
   envelope: YandexFormWebhookEnvelope
-): Promise<WebhookGenerationResult> {
+): Promise<WebhookReceiveResult> {
   const supabase = createSupabaseServiceClient();
 
   const userId = envelope.userId;
@@ -55,6 +55,29 @@ export async function generateCharacterFromYandexWebhook(
     receivedAt
   });
 
+  console.log(
+    `[webhook:received] characterId=${characterId} folderId=${folder.id} gameDate=${envelope.gameDate ?? "none"} userId=${userId}`
+  );
+
+  return { characterId, folderId: folder.id, status: "received" };
+}
+
+export type CharacterGenerationResult = {
+  characterId: string;
+  downloadUrl: string;
+  processingStatus: "lss_ready";
+};
+
+export async function generateCharacterFromDraft(
+  characterId: string,
+  userId: string,
+  folderId: string,
+  rawText: string,
+  rawBody: unknown,
+  rawAnswers?: Record<string, string>
+): Promise<CharacterGenerationResult> {
+  const supabase = createSupabaseServiceClient();
+
   let activeStage: "generatingCharacter" | "formingLssJson" = "generatingCharacter";
 
   try {
@@ -73,11 +96,9 @@ export async function generateCharacterFromYandexWebhook(
       updatedAt: new Date().toISOString()
     });
 
-    const rawPrompt = buildLssCharacterPrompt({
-      rawWebhookBody: envelope.rawBody,
-      rawWebhookText: envelope.rawText,
-      rawAnswers: envelope.rawAnswers
-    });
+    console.log(`[generate:start] characterId=${characterId} folderId=${folderId}`);
+
+    const rawPrompt = buildLssCharacterPrompt({ rawWebhookBody: rawBody, rawWebhookText: rawText, rawAnswers });
     const lssJson = await generateLssCharacterJsonWithOpenAiCompatibleApi(aiSettings, rawPrompt);
 
     await updateCharacterProcessingStep(supabase, {
@@ -102,11 +123,7 @@ export async function generateCharacterFromYandexWebhook(
 
     const internalCharacter = lssJsonToInternal(lssJson, rawPrompt);
     const generatedJson = lssJson as unknown as Json;
-    const generatedJsonPath = await uploadCharacterJson(supabase, {
-      userId,
-      characterId,
-      json: generatedJson
-    });
+    const generatedJsonPath = await uploadCharacterJson(supabase, { userId, characterId, json: generatedJson });
 
     await completeCharacterWithLssJson(supabase, {
       characterId,
@@ -118,19 +135,15 @@ export async function generateCharacterFromYandexWebhook(
       completedAt: new Date().toISOString()
     });
 
+    console.log(`[generate:done] characterId=${characterId}`);
+
     return {
       characterId,
       downloadUrl: `/api/characters/${characterId}/download`,
       processingStatus: "lss_ready"
     };
   } catch (error) {
-    await markGenerationFailed({
-      characterId,
-      userId,
-      stage: activeStage,
-      message: getErrorMessage(error)
-    });
-
+    await markGenerationFailed({ characterId, userId, stage: activeStage, message: getErrorMessage(error) });
     throw error;
   }
 }
@@ -152,6 +165,6 @@ async function markGenerationFailed(input: {
       updatedAt: new Date().toISOString()
     });
   } catch (dbError) {
-    console.error("Failed to mark character generation as failed:", dbError);
+    console.error(`[generate:fail-update-error] characterId=${input.characterId}`, dbError);
   }
 }

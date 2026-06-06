@@ -3,7 +3,7 @@ import { ZodError } from "zod";
 
 import { getServerEnv } from "@/shared/config/env";
 import { AppError, getErrorMessage } from "@/shared/utils/errors";
-import { generateCharacterFromYandexWebhook } from "@/features/webhooks/pipeline";
+import { receiveWebhookPayload } from "@/features/webhooks/pipeline";
 import { createYandexFormWebhookEnvelope } from "@/features/webhooks/yandex-form.adapter";
 
 function isAuthorized(request: NextRequest, secret?: string) {
@@ -142,9 +142,6 @@ export async function POST(request: NextRequest) {
 
   try {
     const parsedBody = await parseWebhookBody(request);
-    console.log("[webhook] rawText:", parsedBody.rawText.slice(0, 500));
-    console.log("[webhook] body type:", typeof parsedBody.body, Array.isArray(parsedBody.body) ? "array" : "");
-    console.log("[webhook] body:", JSON.stringify(parsedBody.body).slice(0, 500));
     const envelope = createYandexFormWebhookEnvelope(parsedBody.body, {
       rawText: parsedBody.rawText,
       folderId:
@@ -163,10 +160,7 @@ export async function POST(request: NextRequest) {
         request.headers.get("x-form-answer-id") ??
         request.nextUrl.searchParams.get("deliveryId")
     });
-    console.log("[webhook] envelope.folderId:", envelope.folderId);
-    console.log("[webhook] envelope.gameDate:", envelope.gameDate);
-    console.log("[webhook] envelope.userId:", envelope.userId);
-    const result = await generateCharacterFromYandexWebhook(envelope);
+    const result = await receiveWebhookPayload(envelope);
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
