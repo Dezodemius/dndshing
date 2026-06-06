@@ -1,9 +1,10 @@
 import type { Json } from "@/shared/supabase/database.types";
 import { createSupabaseServiceClient } from "@/shared/supabase/server";
 import { AppError, getErrorMessage } from "@/shared/utils/errors";
-import { buildLssCharacterPrompt } from "@/features/ai/prompt-builder";
-import { generateLssCharacterJsonWithOpenAiCompatibleApi } from "@/features/ai/openai-compatible-client";
+import { buildCharacterGenerationPrompt } from "@/features/ai/prompt-builder";
+import { generateCharacterWithOpenAiCompatibleApi } from "@/features/ai/openai-compatible-client";
 import { getAiSettingsForGeneration } from "@/features/ai/settings.repository";
+import { createInternalCharacter } from "@/features/characters/factory";
 import {
   completeCharacterWithLssJson,
   createDraftCharacter,
@@ -12,7 +13,7 @@ import {
 } from "@/features/characters/repository";
 import { uploadCharacterJson } from "@/features/characters/storage.repository";
 import { findOrCreateFolderByGameDate, getFolderForWebhook } from "@/features/folders/repository";
-import { lssJsonToInternal } from "@/features/lss/mapper";
+import { internalToLssJson } from "@/features/lss/mapper";
 
 import type { YandexFormWebhookEnvelope } from "./yandex-form.schema";
 
@@ -101,11 +102,11 @@ export async function generateCharacterFromDraft(
 
     console.log(`[generate:start] characterId=${characterId} folderId=${draft.folderId}`);
 
-    const rawPrompt = buildLssCharacterPrompt({
+    const prompt = buildCharacterGenerationPrompt({
       rawWebhookBody: draft.rawPrompt,
       rawWebhookText: draft.rawPrompt
     });
-    const lssJson = await generateLssCharacterJsonWithOpenAiCompatibleApi(aiSettings, rawPrompt);
+    const generated = await generateCharacterWithOpenAiCompatibleApi(aiSettings, prompt);
 
     await updateCharacterProcessingStep(supabase, {
       characterId,
@@ -127,7 +128,14 @@ export async function generateCharacterFromDraft(
       updatedAt: new Date().toISOString()
     });
 
-    const internalCharacter = lssJsonToInternal(lssJson, rawPrompt);
+    const internalCharacter = createInternalCharacter({
+      generated,
+      playerName: generated.playerName,
+      avatarUrl: null,
+      rawPrompt: draft.rawPrompt,
+      createdAt: new Date().toISOString()
+    });
+    const lssJson = internalToLssJson(internalCharacter);
     const generatedJson = lssJson as unknown as Json;
     const generatedJsonPath = await uploadCharacterJson(supabase, { userId, characterId, json: generatedJson });
 
@@ -137,7 +145,7 @@ export async function generateCharacterFromDraft(
       internalCharacter,
       generatedJson,
       generatedJsonPath,
-      rawPrompt,
+      rawPrompt: draft.rawPrompt,
       completedAt: new Date().toISOString()
     });
 

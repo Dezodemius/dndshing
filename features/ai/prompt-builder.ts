@@ -1,48 +1,50 @@
 const MAX_RAW_WEBHOOK_CHARS = 16000;
 
-export function buildLssCharacterPrompt(input: {
+export function buildCharacterGenerationPrompt(input: {
   rawWebhookBody: unknown;
   rawWebhookText: string;
-  rawAnswers?: Record<string, string>;
 }): string {
   const rawBody = stringifyForPrompt(input.rawWebhookBody);
-  const rawAnswers = stringifyForPrompt(input.rawAnswers ?? {});
 
   return [
-    "На основе входящего текста/webhook-а с ответами игрока сгенерируй D&D 5e персонажа для Long Story Short.",
-    "Вход может быть plain text, JSON, экранированный JSON, form-urlencoded или любой другой текст. Сначала извлеки смысл ответов игрока, затем создай персонажа.",
+    "На основе входящего текста/webhook-а с ответами игрока сгенерируй D&D 5e персонажа.",
+    "Вход может быть plain text, JSON, экранированный JSON или любой другой текст. Извлеки смысл ответов игрока и создай персонажа.",
     "Персонаж должен быть логичным, не overpowered, пригодным для roleplay и соответствовать атмосфере D&D.",
-    "Не генерируй сложный spellbook, inventory, combat automation или dice logic. Достаточно базового листа и roleplay-секций.",
     "",
-    "Верни только валидный JSON без markdown.",
-    "Формат ответа - Long Story Short character JSON:",
-    "- top-level jsonType должен быть \"character\"",
-    "- version должен быть строкой",
-    "- edition должен быть строкой",
-    "- data должен быть JSON-строкой, а не объектом",
-    "- внутри data должны быть jsonType, name, info, stats, saves, skills, text, avatar, createdAt и остальные базовые поля LSS",
-    "- если картинки персонажа нет, оставь avatar пустым объектом или пустыми jpeg/webp",
-    "- не добавляй PDF, PDF будет формироваться отдельным этапом",
-    "",
-    "Минимальный top-level shape:",
+    "Верни только валидный JSON без markdown, строго по этой схеме:",
     "{",
-    '  "tags": [],',
-    '  "rooms": [],',
-    '  "disabledBlocks": { "info-left": [], "info-right": [], "subinfo-left": [], "subinfo-right": [], "notes-left": [], "notes-right": [], "_id": "string" },',
-    '  "edition": "2014",',
-    '  "spells": { "mode": "text", "prepared": [], "book": [], "edition": "2024" },',
-    '  "data": "{...stringified LSS character data...}",',
-    '  "lastWriterSessionId": "string",',
-    '  "jsonType": "character",',
-    '  "version": "2"',
+    '  "playerName": "имя реального игрока",',
+    '  "characterName": "имя персонажа",',
+    '  "race": "раса персонажа",',
+    '  "class": "класс персонажа",',
+    '  "level": 1,',
+    '  "gender": "пол или null",',
+    '  "shortBackstory": "краткая предыстория (2-5 предложений)",',
+    '  "appearance": "внешность персонажа (2-4 предложения)",',
+    '  "personality": "характер и личность (2-4 предложения)",',
+    '  "fears": "страхи и слабости (1-3 предложения)",',
+    '  "goals": "цели и мотивы (1-3 предложения)",',
+    '  "abilityScores": {',
+    '    "strength": 10,',
+    '    "dexterity": 10,',
+    '    "constitution": 10,',
+    '    "intelligence": 10,',
+    '    "wisdom": 10,',
+    '    "charisma": 10',
+    "  },",
+    '  "avatarPrompt": null',
     "}",
+    "",
+    "Правила:",
+    "- Все числовые характеристики от 1 до 30, сумма примерно 70-78",
+    "- level от 1 до 20",
+    "- Если playerName не указан в ответах, используй \"Игрок\"",
+    "- avatarPrompt можно заполнить коротким английским описанием для генерации аватара, или оставить null",
     "",
     "Сырой текст webhook-а:",
     input.rawWebhookText,
     "",
-    `Сырой JSON/body после лучшего парсинга:\n${rawBody}`,
-    "",
-    `Плоские извлечённые значения, если удалось:\n${rawAnswers}`
+    `Сырой JSON/body:\n${rawBody}`
   ].join("\n");
 }
 

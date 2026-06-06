@@ -1,5 +1,7 @@
-import type { LssCharacterJson } from "@/features/lss/schema";
-import { LssCharacterJsonSchema, parseLssCharacterData } from "@/features/lss/schema";
+import { z } from "zod";
+
+import { GeneratedCharacterSchema } from "@/features/characters/domain";
+import type { GeneratedCharacter } from "@/features/characters/domain";
 
 import type { AiSettings } from "./domain";
 
@@ -101,34 +103,26 @@ async function requestJsonWithOpenAiCompatibleApi(input: {
   return JSON.parse(content) as unknown;
 }
 
-export async function generateLssCharacterJsonWithOpenAiCompatibleApi(
+export type GeneratedCharacterWithPlayer = GeneratedCharacter & { playerName: string };
+
+const PlayerNameSchema = z.object({ playerName: z.string().min(1).default("Игрок") });
+
+export async function generateCharacterWithOpenAiCompatibleApi(
   settings: AiSettings,
   prompt: string
-): Promise<LssCharacterJson> {
-  const generatedJson = await requestJsonWithOpenAiCompatibleApi({
+): Promise<GeneratedCharacterWithPlayer> {
+  const raw = await requestJsonWithOpenAiCompatibleApi({
     settings,
     systemPrompt:
-      "Ты генерируешь персонажа D&D 5e и отвечаешь только валидным Long Story Short JSON без markdown.",
+      "Ты генерируешь персонажа D&D 5e. Отвечай только валидным JSON без markdown по заданной схеме.",
     userPrompt: prompt,
-    temperature: 0.7
+    temperature: 0.8
   });
-  const lssJson = LssCharacterJsonSchema.parse(normalizeLssJsonCandidate(generatedJson));
 
-  parseLssCharacterData(lssJson.data);
+  const playerNameResult = PlayerNameSchema.safeParse(raw);
+  const playerName = playerNameResult.success ? playerNameResult.data.playerName : "Игрок";
 
-  return lssJson;
-}
+  const generated = GeneratedCharacterSchema.parse(raw);
 
-function normalizeLssJsonCandidate(value: unknown): unknown {
-  if (!value || typeof value !== "object") {
-    return value;
-  }
-
-  const candidate = { ...value } as Record<string, unknown>;
-
-  if (candidate.data && typeof candidate.data === "object") {
-    candidate.data = JSON.stringify(candidate.data);
-  }
-
-  return candidate;
+  return { ...generated, playerName };
 }
