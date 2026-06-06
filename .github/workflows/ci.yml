@@ -133,9 +133,21 @@ jobs:
         with:
           version: latest
       - name: Apply Supabase migrations
-        run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::error::SUPABASE_DB_URL secret is not set."
+            exit 1
+          fi
+          case "$SUPABASE_DB_URL" in
+            postgres://*|postgresql://*) ;;
+            *)
+              echo "::error::SUPABASE_DB_URL must be a Postgres connection URI starting with postgresql:// — use the Supabase session pooler with a URL-encoded password, no surrounding quotes and no [YOUR-PASSWORD] placeholder. Tip: copy the exact value from the Vercel project env."
+              exit 1
+              ;;
+          esac
+          supabase db push --db-url "$SUPABASE_DB_URL" --yes
 
       # 2. Build and deploy to Vercel production.
       - name: Install Vercel CLI
