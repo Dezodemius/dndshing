@@ -20,7 +20,7 @@ export default function RootLayout({
     <html lang="ru">
       <body>
         <div className="min-h-screen">
-          <header className="border-b bg-background/80 backdrop-blur">
+          <header className="border-b bg-background/80 backdrop-blur print:hidden">
             <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
               <Link className="text-sm font-semibold tracking-normal" href="/dashboard">
                 D&D Generator

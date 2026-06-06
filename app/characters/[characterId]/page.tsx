@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Download, FileText } from "lucide-react";
+import { Download, Edit } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 
 import { CharacterAutoRefresh } from "@/features/characters/components/character-auto-refresh";
@@ -39,7 +39,6 @@ export default async function CharacterPage({ params }: CharacterPageProps) {
   }
 
   const canDownloadLss = Boolean(character.generatedJsonPath);
-  const canDownloadPdf = Boolean(character.pdfPath);
   const canGenerate = character.processingStatus === "received";
   const hasActiveProcessing = ["received", "processing"].includes(character.processingStatus);
 
@@ -85,10 +84,19 @@ export default async function CharacterPage({ params }: CharacterPageProps) {
               </Button>
             )}
 
-            <Button className="w-full" disabled={!canDownloadPdf} variant="outline">
-              <FileText className="h-4 w-4" />
-              Скачать PDF
-            </Button>
+            {canDownloadLss ? (
+              <Button asChild className="w-full" variant="outline">
+                <Link href={`/characters/${character.id}/sheet`}>
+                  <Edit className="h-4 w-4" />
+                  Редактировать лист
+                </Link>
+              </Button>
+            ) : (
+              <Button className="w-full" disabled variant="outline">
+                <Edit className="h-4 w-4" />
+                Редактировать лист
+              </Button>
+            )}
           </CardContent>
         </Card>
 

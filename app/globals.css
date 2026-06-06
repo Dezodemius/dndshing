@@ -33,3 +33,10 @@ body {
     hsl(var(--background));
   color: hsl(var(--foreground));
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+}
