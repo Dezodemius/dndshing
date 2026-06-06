@@ -11,8 +11,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test --grep-invert @visual",
     "test:e2e:visual": "playwright test --grep @visual",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:update": "playwright test --update-snapshots"
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
@@ -39,6 +38,7 @@
     "eslint": "^9.27.0",
     "eslint-config-next": "^15.3.2",
     "postcss": "^8.5.3",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "vitest": "^4.1.8"

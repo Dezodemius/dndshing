@@ -93,18 +93,18 @@ jobs:
       - run: npm ci
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
-      - name: Run visual snapshots
-        id: visual
-        # Doesn't fail the pipeline: on the first run there is no Linux baseline yet.
+      - name: Compare render against etalon images
+        # Non-gating: compares the HTML render to the PDF etalons and attaches
+        # actual/diff images. See tests/e2e/visual.spec.ts.
         continue-on-error: true
         run: npm run test:e2e:visual
-      - name: Upload snapshots (download & commit to tests/snapshots/ to enable regressions)
+      - name: Upload visual diff artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: visual-snapshots
+          name: visual-diffs
           path: |
-            tests/snapshots/
+            playwright-report/
             test-results/
           retention-days: 14
 
