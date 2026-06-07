@@ -619,67 +619,102 @@ function Page3({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
 
 // ── Page 4 ────────────────────────────────────────────────────────────────────
 
+const SPELL_LEVEL_NAMES = [
+  "Заговоры",
+  "1 уровень", "2 уровень", "3 уровень",
+  "4 уровень", "5 уровень", "6 уровень",
+  "7 уровень", "8 уровень", "9 уровень",
+];
+
+function SpellSection({
+  levelIdx,
+  sl,
+  onChange,
+}: {
+  levelIdx: number;
+  sl: SheetState["spellLevels"][number];
+  onChange: (updated: SheetState["spellLevels"][number]) => void;
+}) {
+  const level = levelIdx + 1;
+  return (
+    <div className="cs-spell-section cs-spell-section--grow">
+      <div className="cs-spell-section__head">
+        <span className="cs-spell-section__num">{level}</span>
+        <span className="cs-spell-section__title">{SPELL_LEVEL_NAMES[level]}</span>
+        <span className="cs-spell-section__slots">
+          Ячеек:
+          <NumInput
+            v={sl.total}
+            set={(v) => onChange({ ...sl, total: v })}
+            cls="cs-spell-section__slots-input"
+          />
+        </span>
+        <span className="cs-spell-section__dots">
+          {Array.from({ length: Math.max(sl.total, 0) }).map((_, j) => (
+            <button
+              key={j}
+              type="button"
+              className={`cs-checkdot cs-checkdot--sm ${j < sl.used ? "cs-checkdot--on" : ""}`}
+              onClick={() =>
+                onChange({ ...sl, used: sl.used === j + 1 ? j : j + 1 })
+              }
+            />
+          ))}
+        </span>
+      </div>
+      <TextBlock
+        v={sl.spells}
+        set={(v) => onChange({ ...sl, spells: v })}
+        label=""
+      />
+    </div>
+  );
+}
+
 function Page4({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) => void }) {
+  function updLevel(i: number, updated: SheetState["spellLevels"][number]) {
+    const spellLevels = [...s.spellLevels];
+    spellLevels[i] = updated;
+    upd({ spellLevels });
+  }
+
   return (
     <>
       <header className="cs-header cs-header--spells">
         <Field v={s.casterClass} set={(v) => upd({ casterClass: v })} label="Класс заклинателя" cls="cs-field--grow" />
         <Field v={s.spellBaseAbility} set={(v) => upd({ spellBaseAbility: v })} label="Базовая характеристика" />
         <Field v={s.spellSaveDc} set={(v) => upd({ spellSaveDc: v })} label="СЛ спасброска" />
-        <Field v={s.spellAttackBonus} set={(v) => upd({ spellAttackBonus: v })} label="Бонус атаки" />
+        <Field v={s.spellAttackBonus} set={(v) => upd({ spellAttackBonus: v })} label="Бонус атаки заклинаний" />
       </header>
 
+      {/* 3-column WotC-style spell layout */}
       <section className="cs-body cs-body--spells">
-        <div className="cs-spell-cantrips">
-          <TextBlock v={s.cantrips} set={(v) => upd({ cantrips: v })} label="0 — Заговоры" grow />
+        {/* Column 1: Cantrips + levels 1–2 */}
+        <div className="cs-spell-col">
+          <div className="cs-spell-section cs-spell-section--grow">
+            <div className="cs-spell-section__head">
+              <span className="cs-spell-section__num">0</span>
+              <span className="cs-spell-section__title">Заговоры</span>
+            </div>
+            <TextBlock v={s.cantrips} set={(v) => upd({ cantrips: v })} label="" />
+          </div>
+          {s.spellLevels.slice(0, 2).map((sl, i) => (
+            <SpellSection key={i} levelIdx={i} sl={sl} onChange={(u) => updLevel(i, u)} />
+          ))}
         </div>
-        <div className="cs-spell-grid">
-          {s.spellLevels.map((sl, i) => {
-            const level = i + 1;
-            return (
-              <div key={i} className="cs-spell-level">
-                <div className="cs-spell-level__head">
-                  <span className="cs-spell-level__num">{level}</span>
-                  <span className="cs-spell-level__slots">
-                    Ячеек:
-                    <NumInput
-                      v={sl.total}
-                      set={(v) => {
-                        const spellLevels = [...s.spellLevels];
-                        spellLevels[i] = { ...sl, total: v };
-                        upd({ spellLevels });
-                      }}
-                      cls="cs-spell-level__slots-input"
-                    />
-                  </span>
-                  <span className="cs-spell-level__dots">
-                    {Array.from({ length: Math.max(sl.total, 0) }).map((_, j) => (
-                      <button
-                        key={j}
-                        type="button"
-                        className={`cs-checkdot cs-checkdot--sm ${j < sl.used ? "cs-checkdot--on" : ""}`}
-                        onClick={() => {
-                          const spellLevels = [...s.spellLevels];
-                          spellLevels[i] = { ...sl, used: sl.used === j + 1 ? j : j + 1 };
-                          upd({ spellLevels });
-                        }}
-                      />
-                    ))}
-                  </span>
-                </div>
-                <TextBlock
-                  v={sl.spells}
-                  set={(v) => {
-                    const spellLevels = [...s.spellLevels];
-                    spellLevels[i] = { ...sl, spells: v };
-                    upd({ spellLevels });
-                  }}
-                  label={`${level} уровень`}
-                  grow
-                />
-              </div>
-            );
-          })}
+
+        {/* Column 2: levels 3–5 */}
+        <div className="cs-spell-col">
+          {s.spellLevels.slice(2, 5).map((sl, i) => (
+            <SpellSection key={i + 2} levelIdx={i + 2} sl={sl} onChange={(u) => updLevel(i + 2, u)} />
+          ))}
+        </div>
+
+        {/* Column 3: levels 6–9 */}
+        <div className="cs-spell-col">
+          {s.spellLevels.slice(5, 9).map((sl, i) => (
+            <SpellSection key={i + 5} levelIdx={i + 5} sl={sl} onChange={(u) => updLevel(i + 5, u)} />
+          ))}
         </div>
       </section>
 
@@ -832,6 +867,7 @@ const SHEET_CSS = `
 .sheet-page input[type=number]::-webkit-inner-spin-button,
 .sheet-page input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .sheet-page input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.cs-numinput { border: none; background: transparent; padding: 0; }
 
 /* ── Header ── */
 .cs-header { display: flex; gap: 20px; align-items: flex-end; padding-bottom: 2px; }
@@ -859,7 +895,7 @@ const SHEET_CSS = `
 .cs-stat { display: flex; flex-direction: column; align-items: center; width: 50px; border: 1px solid #8a8a8a; border-radius: 7px; background: #fff; padding: 3px 0 3px; }
 .cs-stat__label { font-size: 6px; font-weight: 700; text-transform: uppercase; line-height: 1; text-align: center; }
 .cs-stat__mod { font-size: 19px; font-weight: 700; line-height: 1.1; }
-.cs-stat__score { width: 26px; height: 26px; border: 1px solid #8a8a8a; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+.cs-stat__score { width: 26px; height: 26px; border: 1px solid #8a8a8a; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; margin-top: 1px; overflow: hidden; }
 .cs-stat__score-input { font-size: 11px; font-weight: 600; }
 
 .cs-skills { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
@@ -943,18 +979,19 @@ const SHEET_CSS = `
 /* ── Page 3 notes ── */
 .cs-body--notes { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 1fr); gap: 8px; }
 
-/* ── Page 4 spells ── */
-.cs-body--spells { gap: 10px; }
-.cs-spell-cantrips { flex: 0 0 165px; display: flex; }
-.cs-spell-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 6px; }
-.cs-spell-level { border: 1px solid #8a8a8a; border-radius: 5px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.cs-spell-level__head { display: flex; align-items: center; gap: 6px; padding: 2px 6px; border-bottom: 1px solid #ccc; }
-.cs-spell-level__num { font-size: 14px; font-weight: 700; }
-.cs-spell-level__slots { flex: 1; font-size: 7.5px; color: #777; display: flex; align-items: center; gap: 3px; }
-.cs-spell-level__slots-input { width: 26px; font-size: 10px; font-weight: 700; text-align: center; border: none; border-bottom: 1px solid #bbb; background: transparent; }
-.cs-spell-level__dots { display: flex; gap: 2px; flex-wrap: wrap; max-width: 70px; justify-content: flex-end; }
-.cs-spell-level .cs-textblock { flex: 1; min-height: 0; border: none; border-radius: 0; }
-.cs-spell-level .cs-textblock__label { display: none; }
+/* ── Page 4 spells — 3-column WotC layout ── */
+.cs-body--spells { gap: 8px; }
+.cs-spell-col { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 5px; }
+.cs-spell-section { border: 1px solid #8a8a8a; border-radius: 5px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.cs-spell-section--grow { flex: 1; }
+.cs-spell-section__head { display: flex; align-items: center; gap: 5px; padding: 2px 6px; border-bottom: 1px solid #ccc; background: #f7f7f7; flex-shrink: 0; }
+.cs-spell-section__num { font-size: 16px; font-weight: 700; min-width: 12px; line-height: 1; }
+.cs-spell-section__title { font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; flex: 1; }
+.cs-spell-section__slots { font-size: 7px; color: #777; display: flex; align-items: center; gap: 3px; }
+.cs-spell-section__slots-input { width: 22px; font-size: 9px; font-weight: 700; text-align: center; border: none; border-bottom: 1px solid #bbb; background: transparent; }
+.cs-spell-section__dots { display: flex; gap: 2px; flex-wrap: wrap; max-width: 55px; justify-content: flex-end; align-items: center; }
+.cs-spell-section .cs-textblock { flex: 1; min-height: 0; border: none; border-radius: 0; }
+.cs-spell-section .cs-textblock__label { display: none; }
 
 /* ── Footer ── */
 .cs-undertext { text-align: center; font-size: 8px; color: #777; margin: 2px 0 0; }
@@ -964,10 +1001,13 @@ const SHEET_CSS = `
 @media print {
   @page { size: A4; margin: 0; }
   .no-print { display: none !important; }
-  .print-wrapper { background: #fff !important; padding: 0 !important; }
+  .print-wrapper { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+  .print-wrapper > * { margin: 0 !important; }
   .sheet-page {
     width: 210mm; height: 297mm; padding: 8mm 9mm 5mm;
-    page-break-after: always; break-after: page; box-shadow: none !important;
+    break-after: page; page-break-after: always; box-shadow: none !important;
+    margin: 0 !important;
   }
+  .sheet-page:last-child { break-after: avoid; page-break-after: avoid; }
 }
 `;
