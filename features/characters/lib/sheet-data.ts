@@ -134,12 +134,19 @@ export function parseSheetState(d: LssCharacterData): SheetState {
     skillProficiencies[key] = (skill.isProf ?? 0) as 0 | 1 | 2;
   }
 
+  const storedSlotsUsed = (
+    d as unknown as { sheetSpellSlotsUsed?: unknown }
+  ).sheetSpellSlotsUsed;
+
   const spellLevels = Array.from({ length: 9 }, (_, i) => {
     const k = `slots-${i + 1}`;
     const s = d.spells[k] as { value?: unknown } | undefined;
     const total = getNum(s?.value);
     const spells = getTextSection(d, `spells-level-${i + 1}`);
-    return { total, used: 0, spells };
+    const storedUsed = Array.isArray(storedSlotsUsed)
+      ? getNum(storedSlotsUsed[i])
+      : 0;
+    return { total, used: Math.min(Math.max(storedUsed, 0), total), spells };
   });
 
   return {
@@ -359,6 +366,11 @@ export function applySheetState(
     spells[key] = { ...existing, value: sl.total };
   });
   d.spells = spells;
+  (
+    d as unknown as { sheetSpellSlotsUsed: number[] }
+  ).sheetSpellSlotsUsed = s.spellLevels.map((sl) =>
+    Math.min(Math.max(sl.used, 0), sl.total)
+  );
 
   // Text sections.
   const text = { ...d.text } as Record<string, unknown>;

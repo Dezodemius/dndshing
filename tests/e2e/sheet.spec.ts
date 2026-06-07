@@ -133,6 +133,14 @@ test.describe("Page 1 — saves and skills section labels", () => {
     await expect(page.getByText("11").first()).toBeVisible();
   });
 
+  test("passive perception has no manual controls", async ({ page }) => {
+    await page.goto(URL);
+    const passiveWisdom = page.getByLabel("Пассивная мудрость");
+
+    await expect(passiveWisdom).toBeVisible();
+    await expect(passiveWisdom.getByRole("button")).toHaveCount(0);
+  });
+
   test("all 18 skill labels visible", async ({ page }) => {
     await page.goto(URL);
     for (const label of [
@@ -158,6 +166,35 @@ test.describe("Page 1 — roleplay section labels", () => {
 // ── Page 1 — layout: 3 columns must all be visible (regression for double-nesting bug) ──
 
 test.describe("Page 1 — layout", () => {
+  test("ability cards use a 3:4 ratio", async ({ page }) => {
+    await page.goto(URL);
+    const box = await page.locator(".cs-stat").first().boundingBox();
+
+    expect(box).not.toBeNull();
+    expect(box!.width / box!.height).toBeCloseTo(3 / 4, 2);
+  });
+
+  test("inspiration dot is centered in its frame", async ({ page }) => {
+    await page.goto(URL);
+    const marker = page.locator(".cs-modblock__marker--square");
+    const dot = marker.locator(".cs-checkdot");
+    const [markerBox, dotBox] = await Promise.all([
+      marker.boundingBox(),
+      dot.boundingBox(),
+    ]);
+
+    expect(markerBox).not.toBeNull();
+    expect(dotBox).not.toBeNull();
+    expect(dotBox!.x + dotBox!.width / 2).toBeCloseTo(
+      markerBox!.x + markerBox!.width / 2,
+      1
+    );
+    expect(dotBox!.y + dotBox!.height / 2).toBeCloseTo(
+      markerBox!.y + markerBox!.height / 2,
+      1
+    );
+  });
+
   test("КЗ (AC) box is visible within the first 1122px", async ({ page }) => {
     await page.goto(URL);
     const el = page.getByText("КЗ").first();
@@ -219,6 +256,30 @@ test.describe("Pages 2–4 section labels", () => {
   test("page 4: КЛАСС ЗАКЛИНАТЕЛЯ label visible", async ({ page }) => {
     await page.goto(URL);
     await expect(page.getByText("КЛАСС ЗАКЛИНАТЕЛЯ")).toBeVisible();
+  });
+});
+
+test.describe("Page 4 — spell slots", () => {
+  test("uses one input and clickable slot dots", async ({ page }) => {
+    await page.goto(URL);
+
+    const totalInput = page.getByLabel("Количество ячеек 1 уровня");
+    await totalInput.fill("3");
+
+    const slots = page.getByRole("button", {
+      name: /Ячейка \d из 3, 1 уровень/,
+    });
+    await expect(slots).toHaveCount(3);
+
+    const slotBoxes = await slots.evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().y)
+    );
+    expect(new Set(slotBoxes).size).toBe(1);
+
+    await slots.nth(1).click();
+    await expect(slots.nth(0)).toHaveAttribute("aria-pressed", "true");
+    await expect(slots.nth(1)).toHaveAttribute("aria-pressed", "true");
+    await expect(slots.nth(2)).toHaveAttribute("aria-pressed", "false");
   });
 });
 

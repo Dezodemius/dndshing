@@ -66,6 +66,18 @@ describe("sheet-data: applySheetState", () => {
     expect(next.saves.str.bonus).toBe(5);
   });
 
+  it("round-trips used spell slots", () => {
+    const state = parseSheetState(KEILIN_LSS_DATA);
+    const spellLevels = state.spellLevels.map((level) => ({ ...level }));
+    spellLevels[0] = { ...spellLevels[0], total: 4, used: 2 };
+
+    const reparsed = parseSheetState(
+      applySheetState(KEILIN_LSS_DATA, { ...state, spellLevels })
+    );
+
+    expect(reparsed.spellLevels[0]).toMatchObject({ total: 4, used: 2 });
+  });
+
   it("does not mutate the original data", () => {
     const before = JSON.stringify(KEILIN_LSS_DATA);
     const state = parseSheetState(KEILIN_LSS_DATA);
