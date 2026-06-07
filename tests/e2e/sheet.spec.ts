@@ -266,10 +266,24 @@ test.describe("Page 4 — spell slots", () => {
     const totalInput = page.getByLabel("Количество ячеек 1 уровня");
     await totalInput.fill("3");
 
+    await expect(page.getByText("ВСЕГО ЯЧЕЕК")).toBeVisible();
+    await expect(page.getByText("ПОТРАЧЕНО ЯЧЕЕК")).toBeVisible();
+    await expect(page.locator(".cs-spell-section__level-label")).toHaveText("уровень");
+
     const slots = page.getByRole("button", {
       name: /Ячейка \d из 3, 1 уровень/,
     });
     await expect(slots).toHaveCount(3);
+
+    const totalCapsule = page.locator(".cs-spell-section__total").first();
+    const firstSlot = slots.first();
+    const [capsuleBox, firstSlotBox] = await Promise.all([
+      totalCapsule.boundingBox(),
+      firstSlot.boundingBox(),
+    ]);
+    expect(capsuleBox).not.toBeNull();
+    expect(firstSlotBox).not.toBeNull();
+    expect(firstSlotBox!.x).toBeGreaterThan(capsuleBox!.x + capsuleBox!.width);
 
     const slotBoxes = await slots.evaluateAll((elements) =>
       elements.map((element) => element.getBoundingClientRect().y)
