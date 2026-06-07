@@ -12,7 +12,9 @@
       "Bash(git restore *)",
       "Bash(node -e \"console.log\\('sharp', require\\('sharp/package.json'\\).version\\)\")",
       "Bash(node tests/_compare.mjs)",
-      "PowerShell($conn = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if \\($conn\\) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue; \"stopped\" } else { \"no server\" })"
+      "PowerShell($conn = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if \\($conn\\) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue; \"stopped\" } else { \"no server\" })",
+      "Read(//c/Users/gladk/Downloads/**)",
+      "Bash(powershell -Command ' *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\gladk\\Downloads\\pdf2png (1)\\�⠫��"
