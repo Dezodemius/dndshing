@@ -35,7 +35,7 @@ export async function generateCharacterAction(characterId: string): Promise<void
 export async function saveCharacterSheetAction(
   characterId: string,
   state: SheetState
-): Promise<void> {
+): Promise<{ error: string } | null> {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user }
@@ -43,39 +43,45 @@ export async function saveCharacterSheetAction(
 
   if (!user) redirect("/login");
 
-  const character = await getCharacterDetail(supabase, user.id, characterId);
+  try {
+    const character = await getCharacterDetail(supabase, user.id, characterId);
 
-  if (!character || !character.generatedJsonPath) {
-    throw new Error("У персонажа ещё нет LSS JSON — нечего сохранять.");
+    if (!character || !character.generatedJsonPath) {
+      return { error: "У персонажа ещё нет LSS JSON — нечего сохранять." };
+    }
+
+    const lssJson = LssCharacterJsonSchema.parse(character.generatedJson);
+    const original = parseLssCharacterData(lssJson.data);
+    const updated = applySheetState(original, state);
+
+    const nextJson = { ...lssJson, data: JSON.stringify(updated) } as unknown as Json;
+
+    // Keep the downloadable storage object in sync with the DB copy.
+    await uploadCharacterJson(supabase, {
+      userId: user.id,
+      characterId,
+      json: nextJson
+    });
+
+    await updateCharacterGeneratedJson(supabase, {
+      characterId,
+      userId: user.id,
+      generatedJson: nextJson,
+      characterName: state.characterName,
+      playerName: state.playerName,
+      race: state.race,
+      charClass: state.charClass,
+      level: Number(state.level) || 1
+    });
+
+    // The sheet page uses force-dynamic so no need to revalidate it.
+    revalidatePath(`/characters/${characterId}`);
+    revalidatePath(`/folders/${character.folderId}`);
+
+    return null;
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Не удалось сохранить" };
   }
-
-  const lssJson = LssCharacterJsonSchema.parse(character.generatedJson);
-  const original = parseLssCharacterData(lssJson.data);
-  const updated = applySheetState(original, state);
-
-  const nextJson = { ...lssJson, data: JSON.stringify(updated) } as unknown as Json;
-
-  // Keep the downloadable storage object in sync with the DB copy.
-  await uploadCharacterJson(supabase, {
-    userId: user.id,
-    characterId,
-    json: nextJson
-  });
-
-  await updateCharacterGeneratedJson(supabase, {
-    characterId,
-    userId: user.id,
-    generatedJson: nextJson,
-    characterName: state.characterName,
-    playerName: state.playerName,
-    race: state.race,
-    charClass: state.charClass,
-    level: Number(state.level) || 1
-  });
-
-  revalidatePath(`/characters/${characterId}`);
-  revalidatePath(`/characters/${characterId}/sheet`);
-  revalidatePath(`/folders/${character.folderId}`);
 }
 
 export async function deleteCharacterAction(characterId: string): Promise<void> {

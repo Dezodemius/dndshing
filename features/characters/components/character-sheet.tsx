@@ -777,11 +777,11 @@ export function CharacterSheet({
   function handleSave() {
     setError(null);
     startSave(async () => {
-      try {
-        await saveCharacterSheetAction(characterId, s);
+      const result = await saveCharacterSheetAction(characterId, s);
+      if (result?.error) {
+        setError(result.error);
+      } else {
         setSavedAt(Date.now());
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Не удалось сохранить");
       }
     });
   }
