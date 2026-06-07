@@ -19,12 +19,12 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STAT_LABELS: Record<StatKey, string> = {
-  str: "СИЛА",
-  dex: "ЛОВКОСТЬ",
-  con: "ТЕЛОСЛОЖЕНИЕ",
-  int: "ИНТЕЛЛЕКТ",
-  wis: "МУДРОСТЬ",
-  cha: "ХАРИЗМА",
+  str: "Сила",
+  dex: "Ловкость",
+  con: "Телосложение",
+  int: "Интеллект",
+  wis: "Мудрость",
+  cha: "Харизма",
 };
 
 const STAT_SHORT: Record<StatKey, string> = {
@@ -64,48 +64,42 @@ function mod(score: number): number {
 }
 
 function fmtMod(n: number): string {
-  return n >= 0 ? `+${n}` : String(n);
+  return n >= 0 ? `+${n}` : `−${Math.abs(n)}`;
 }
 
 // ── Micro-components ──────────────────────────────────────────────────────────
 
-function FI({
+// Header field: input with a small label underneath (LSS char-sheet__info-box).
+function Field({
   v,
   set,
-  center,
-  bold,
-  size,
-  placeholder,
+  label,
+  number,
+  big,
   cls,
 }: {
   v: string;
   set: (s: string) => void;
-  center?: boolean;
-  bold?: boolean;
-  size?: string;
-  placeholder?: string;
+  label: string;
+  number?: boolean;
+  big?: boolean;
   cls?: string;
 }) {
   return (
-    <input
-      type="text"
-      value={v}
-      onChange={(e) => set(e.target.value)}
-      placeholder={placeholder}
-      className={[
-        "bg-transparent border-0 border-b border-gray-400 focus:outline-none focus:border-gray-700 w-full overflow-hidden text-ellipsis whitespace-nowrap",
-        center ? "text-center" : "",
-        bold ? "font-bold" : "",
-        size ?? "text-[10px]",
-        cls ?? "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    />
+    <div className={`cs-field ${cls ?? ""}`}>
+      <input
+        type={number ? "number" : "text"}
+        value={v}
+        onChange={(e) => set(e.target.value)}
+        className={`cs-field__input ${big ? "cs-field__input--big" : ""}`}
+      />
+      <span className="cs-field__label">{label}</span>
+    </div>
   );
 }
 
-function NI({
+// Number input used inside boxes (AC, speed, HP, coins…).
+function NumInput({
   v,
   set,
   cls,
@@ -117,61 +111,61 @@ function NI({
   return (
     <input
       type="number"
-      value={v}
+      value={v === 0 ? "" : v}
       onChange={(e) => set(Number(e.target.value) || 0)}
-      className={[
-        "bg-transparent border-0 focus:outline-none text-center w-full p-0 leading-none",
-        cls ?? "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      className={`cs-numinput ${cls ?? ""}`}
     />
   );
 }
 
-// A textarea that always fills its container and never scrolls — overflow is
-// clipped so the printed sheet matches the screen exactly (WYSIWYG).
-function TA({
+// Lined-paper text block with font-size controls and a bottom label (LSS).
+function TextBlock({
   v,
   set,
-  cls,
+  label,
+  grow,
+  minHeight,
 }: {
   v: string;
   set: (s: string) => void;
-  cls?: string;
+  label: string;
+  grow?: boolean;
+  minHeight?: number;
 }) {
+  const [fs, setFs] = useState(8);
+  const lh = Math.round(fs * 1.6);
   return (
-    <textarea
-      value={v}
-      onChange={(e) => set(e.target.value)}
-      className={[
-        "bg-transparent border-0 focus:outline-none resize-none block w-full h-full flex-1 min-h-0 leading-snug text-[9px] overflow-hidden",
-        cls ?? "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    />
+    <div className={`cs-textblock ${grow ? "cs-textblock--grow" : ""}`}>
+      <div className="cs-textblock__area-wrap" style={minHeight ? { minHeight } : undefined}>
+        <textarea
+          value={v}
+          onChange={(e) => set(e.target.value)}
+          className="cs-textblock__area"
+          style={{
+            fontSize: `${fs}px`,
+            lineHeight: `${lh}px`,
+            backgroundImage: `repeating-linear-gradient(#fff 0, #fff ${lh - 1}px, #dadada ${lh - 1}px, #dadada ${lh}px)`,
+          }}
+        />
+      </div>
+      <div className="cs-textblock__controls no-print">
+        <span className="cs-textblock__fs">{fs}</span>
+        <button type="button" onClick={() => setFs((f) => Math.min(f + 1, 16))}>+</button>
+        <button type="button" onClick={() => setFs((f) => Math.max(f - 1, 6))}>−</button>
+      </div>
+      <div className="cs-label cs-textblock__label">{label}</div>
+    </div>
   );
 }
 
-function SectionBox({
-  label,
-  children,
-  cls,
-}: {
-  label: string;
-  children: React.ReactNode;
-  cls?: string;
-}) {
+function CheckDot({ v, set }: { v: boolean; set: (b: boolean) => void }) {
   return (
-    <div
-      className={`border border-gray-400 rounded flex flex-col min-h-0 overflow-hidden ${cls ?? ""}`}
-    >
-      <div className="flex-1 min-h-0 p-1 flex flex-col">{children}</div>
-      <div className="text-[6px] font-bold tracking-wider text-center border-t border-gray-300 py-0.5 uppercase shrink-0">
-        {label}
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={() => set(!v)}
+      className={`cs-checkdot ${v ? "cs-checkdot--on" : ""}`}
+      aria-pressed={v}
+    />
   );
 }
 
@@ -182,76 +176,97 @@ function ProfDot({
   level: 0 | 1 | 2;
   set: (v: 0 | 1 | 2) => void;
 }) {
-  const icons = ["○", "●", "◉"];
   return (
     <button
       type="button"
       onClick={() => set(((level + 1) % 3) as 0 | 1 | 2)}
-      className="text-[9px] leading-none select-none cursor-pointer shrink-0 w-3 text-center"
-    >
-      {icons[level]}
-    </button>
+      className={`cs-checkdot ${level === 1 ? "cs-checkdot--on" : ""} ${level === 2 ? "cs-checkdot--exp" : ""}`}
+      title={["нет", "владение", "компетентность"][level]}
+    />
   );
 }
 
-function CheckDot({ v, set }: { v: boolean; set: (b: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => set(!v)}
-      className="text-[9px] leading-none select-none cursor-pointer shrink-0 w-3 text-center"
-    >
-      {v ? "●" : "○"}
-    </button>
-  );
-}
-
-function DeathCircles({
+function DeathRow({
+  label,
   count,
   set,
-  max = 3,
 }: {
+  label: string;
   count: number;
   set: (n: number) => void;
-  max?: number;
 }) {
   return (
-    <div className="flex gap-0.5">
-      {Array.from({ length: max }).map((_, i) => (
-        <button
-          key={i}
-          type="button"
-          onClick={() => set(count === i + 1 ? i : i + 1)}
-          className="text-[9px] leading-none select-none cursor-pointer"
-        >
-          {i < count ? "●" : "○"}
-        </button>
-      ))}
+    <div className="cs-death__row">
+      <span className="cs-death__label">{label}</span>
+      <div className="cs-death__dots">
+        {[0, 1, 2].map((i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => set(count === i + 1 ? i : i + 1)}
+            className={`cs-checkdot cs-checkdot--sm ${i < count ? "cs-checkdot--on" : ""}`}
+          />
+        ))}
+      </div>
     </div>
+  );
+}
+
+function StatBlock({
+  stat,
+  score,
+  set,
+}: {
+  stat: StatKey;
+  score: number;
+  set: (n: number) => void;
+}) {
+  return (
+    <div className="cs-stat">
+      <span className="cs-stat__label">{STAT_LABELS[stat]}</span>
+      <span className="cs-stat__mod">{fmtMod(mod(score))}</span>
+      <span className="cs-stat__score">
+        <NumInput v={score} set={set} cls="cs-stat__score-input" />
+      </span>
+    </div>
+  );
+}
+
+function Footer({ text }: { text: string }) {
+  return (
+    <p className="cs-undertext">
+      {text}{" "}
+      <a
+        className="cs-undertext__link"
+        href="https://longstoryshort.app/"
+        target="_blank"
+        rel="nofollow noopener noreferrer"
+      >
+        Long Story Short
+      </a>{" "}
+      <span className="cs-undertext__url">(https://longstoryshort.app/)</span>
+    </p>
   );
 }
 
 function NameHeader({
   s,
   upd,
-  maxWidth,
 }: {
   s: SheetState;
   upd: (patch: Partial<SheetState>) => void;
-  maxWidth?: number;
 }) {
   return (
-    <div style={maxWidth ? { maxWidth } : undefined}>
+    <h1 className="cs-name">
       <input
+        name="name"
         type="text"
+        className="cs-name__input"
         value={s.characterName}
         onChange={(e) => upd({ characterName: e.target.value })}
-        className="w-full bg-transparent border-0 border-b-2 border-gray-500 focus:outline-none font-bold text-2xl leading-tight overflow-hidden text-ellipsis whitespace-nowrap"
       />
-      <div className="text-[7px] text-gray-500 tracking-widest uppercase mt-0.5">
-        Имя персонажа
-      </div>
-    </div>
+      <span className="cs-field__label">Имя персонажа</span>
+    </h1>
   );
 }
 
@@ -267,304 +282,269 @@ function Page1({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
   const passiveWis = 10 + skillBonus("perception", "wis");
 
   return (
-    <div className="h-full flex flex-col gap-2">
-      {/* ── Header ── */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: "minmax(200px, 260px) 1fr" }}>
+    <>
+      {/* Header */}
+      <header className="cs-header">
         <NameHeader s={s} upd={upd} />
-        <div className="grid gap-x-4 gap-y-0" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
-          {/* Row 1 */}
-          <div>
-            <FI v={s.charClass} set={(v) => upd({ charClass: v })} />
-            <div className="text-[6px] text-gray-500 tracking-widest uppercase">Класс</div>
+        <div className="cs-info">
+          <div className="cs-info__row">
+            <Field v={s.charClass} set={(v) => upd({ charClass: v })} label="класс" />
+            <Field v={s.background} set={(v) => upd({ background: v })} label="предыстория" />
+            <Field v={s.playerName} set={(v) => upd({ playerName: v })} label="имя игрока" />
           </div>
-          <div>
-            <FI v={s.background} set={(v) => upd({ background: v })} />
-            <div className="text-[6px] text-gray-500 tracking-widest uppercase">Предыстория</div>
-          </div>
-          <div>
-            <FI v={s.playerName} set={(v) => upd({ playerName: v })} />
-            <div className="text-[6px] text-gray-500 tracking-widest uppercase">Имя игрока</div>
-          </div>
-          {/* Row 2 */}
-          <div>
-            <FI v={s.race} set={(v) => upd({ race: v })} />
-            <div className="text-[6px] text-gray-500 tracking-widest uppercase">Раса</div>
-          </div>
-          <div>
-            <FI v={s.alignment} set={(v) => upd({ alignment: v })} />
-            <div className="text-[6px] text-gray-500 tracking-widest uppercase">Мировоззрение</div>
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <FI v={s.experience} set={(v) => upd({ experience: v })} center />
-              <div className="text-[6px] text-gray-500 tracking-widest uppercase text-center">Опыт</div>
-            </div>
-            <div className="w-10">
-              <FI v={s.level} set={(v) => upd({ level: v })} center bold />
-              <div className="text-[6px] text-gray-500 tracking-widest uppercase text-center">Уровень</div>
-            </div>
+          <div className="cs-info__row">
+            <Field v={s.race} set={(v) => upd({ race: v })} label="раса" />
+            <Field v={s.alignment} set={(v) => upd({ alignment: v })} label="мировоззрение" />
+            <Field v={s.experience} set={(v) => upd({ experience: v })} label="опыт" />
+            <Field v={s.level} set={(v) => upd({ level: v })} label="уровень" cls="cs-field--xs" />
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* ── Body ── */}
-      <div className="flex gap-2 flex-1 min-h-0">
-        {/* ── Left column ── */}
-        <div style={{ width: 195 }} className="flex gap-1.5 shrink-0 min-h-0">
-          {/* Ability score pills */}
-          <div className="flex flex-col gap-1.5 shrink-0">
-            {STATS.map((stat) => (
-              <div
-                key={stat}
-                className="flex flex-col items-center rounded-lg border border-gray-400 bg-gray-50"
-                style={{ width: 54, paddingTop: 3, paddingBottom: 2 }}
-              >
-                <div className="text-[6px] font-bold tracking-wider text-center leading-none">
-                  {STAT_LABELS[stat]}
-                </div>
-                <div className="text-xl font-bold leading-none mt-0.5">
-                  {fmtMod(mod(s.scores[stat]))}
-                </div>
-                <div
-                  className="border border-gray-400 rounded-full flex items-center justify-center mt-0.5 bg-white"
-                  style={{ width: 28, height: 28 }}
-                >
-                  <NI
-                    v={s.scores[stat]}
-                    set={(n) => upd({ scores: { ...s.scores, [stat]: n } })}
-                    cls="text-[10px] font-semibold"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Saves / Skills / Passive / Languages */}
-          <div className="flex-1 flex flex-col gap-1.5 min-h-0 min-w-0">
-            {/* Inspiration */}
-            <div className="flex items-center gap-1 border border-gray-400 rounded px-1.5 py-1 shrink-0">
-              <CheckDot v={s.inspiration} set={(v) => upd({ inspiration: v })} />
-              <div className="text-[7px] font-bold tracking-wider flex-1 text-center uppercase">
-                Вдохновение
-              </div>
-            </div>
-
-            {/* Proficiency */}
-            <div className="flex items-center gap-1 border border-gray-400 rounded px-1.5 py-1 shrink-0">
-              <div className="text-[11px] font-bold">{fmtMod(s.proficiency)}</div>
-              <div className="text-[7px] font-bold tracking-wider flex-1 uppercase leading-tight">
-                Бонус владения
-              </div>
-            </div>
-
-            {/* Saving throws */}
-            <SectionBox label="Спасброски" cls="shrink-0">
+      {/* Body */}
+      <section className="cs-body">
+        {/* ── Column 1: stats + skills ── */}
+        <div className="cs-col">
+          <div className="cs-stats-skills">
+            <div className="cs-stats">
               {STATS.map((stat) => (
-                <div key={stat} className="flex items-center gap-1 py-0.5">
-                  <CheckDot
-                    v={s.saveProficiencies[stat]}
-                    set={(v) =>
-                      upd({ saveProficiencies: { ...s.saveProficiencies, [stat]: v } })
-                    }
-                  />
-                  <span className="text-[9px] w-6 text-right shrink-0">
-                    {fmtMod(saveBonus(stat))}
-                  </span>
-                  <span className="text-[9px] leading-none">
-                    {STAT_LABELS[stat].charAt(0) + STAT_LABELS[stat].slice(1).toLowerCase()}
-                  </span>
-                </div>
+                <StatBlock
+                  key={stat}
+                  stat={stat}
+                  score={s.scores[stat]}
+                  set={(n) => upd({ scores: { ...s.scores, [stat]: n } })}
+                />
               ))}
-            </SectionBox>
+            </div>
 
-            {/* Skills */}
-            <SectionBox label="Навыки" cls="flex-1">
-              {SKILLS_LIST.map(({ key, stat, label }) => (
-                <div key={key} className="flex items-center gap-1 py-px">
-                  <ProfDot
-                    level={s.skillProficiencies[key] ?? 0}
-                    set={(v) =>
-                      upd({ skillProficiencies: { ...s.skillProficiencies, [key]: v } })
-                    }
-                  />
-                  <span className="text-[9px] w-6 text-right shrink-0">
-                    {fmtMod(skillBonus(key, stat))}
-                  </span>
-                  <span className="text-[9px] leading-none truncate">
-                    {label} <span className="text-gray-400">({STAT_SHORT[stat]})</span>
-                  </span>
-                </div>
-              ))}
-            </SectionBox>
+            <div className="cs-skills">
+              <div className="cs-modblock">
+                <span className="cs-modblock__marker cs-modblock__marker--square">
+                  <CheckDot v={s.inspiration} set={(v) => upd({ inspiration: v })} />
+                </span>
+                <span className="cs-modblock__label">вдохновение</span>
+              </div>
 
-            {/* Passive wisdom */}
-            <div className="flex items-center gap-1.5 border border-gray-400 rounded px-1.5 py-1 shrink-0">
-              <div className="text-[12px] font-bold shrink-0">{passiveWis}</div>
-              <div className="text-[7px] font-bold tracking-wider uppercase leading-tight">
-                Пассивная мудрость (Восприятие)
+              <div className="cs-modblock">
+                <button
+                  type="button"
+                  className="cs-modblock__btn no-print"
+                  onClick={() => upd({ proficiency: s.proficiency + 1 })}
+                >
+                  +
+                </button>
+                <span className="cs-modblock__marker cs-modblock__marker--round">
+                  {fmtMod(s.proficiency)}
+                </span>
+                <button
+                  type="button"
+                  className="cs-modblock__btn no-print"
+                  onClick={() => upd({ proficiency: Math.max(s.proficiency - 1, 0) })}
+                >
+                  −
+                </button>
+                <span className="cs-modblock__label">Бонус владения</span>
+              </div>
+
+              {/* Saving throws */}
+              <div className="cs-saves">
+                {STATS.map((stat) => (
+                  <div key={stat} className="cs-skill">
+                    <CheckDot
+                      v={s.saveProficiencies[stat]}
+                      set={(v) =>
+                        upd({ saveProficiencies: { ...s.saveProficiencies, [stat]: v } })
+                      }
+                    />
+                    <span className="cs-skill__mod">{fmtMod(saveBonus(stat))}</span>
+                    <span className="cs-skill__label">{STAT_LABELS[stat]}</span>
+                  </div>
+                ))}
+                <span className="cs-label cs-label--centered">Спасброски</span>
+              </div>
+
+              {/* Skills */}
+              <div className="cs-saves">
+                {SKILLS_LIST.map(({ key, stat, label }) => (
+                  <div key={key} className="cs-skill cs-skill--sm">
+                    <ProfDot
+                      level={s.skillProficiencies[key] ?? 0}
+                      set={(v) =>
+                        upd({ skillProficiencies: { ...s.skillProficiencies, [key]: v } })
+                      }
+                    />
+                    <span className="cs-skill__mod">{fmtMod(skillBonus(key, stat))}</span>
+                    <span className="cs-skill__label">
+                      {label} <span className="cs-skill__base">({STAT_SHORT[stat]})</span>
+                    </span>
+                  </div>
+                ))}
+                <span className="cs-label cs-label--centered">Навыки</span>
               </div>
             </div>
-
-            {/* Languages */}
-            <SectionBox label="Прочие владения и языки" cls="shrink-0 h-24">
-              <TA v={s.profLanguages} set={(v) => upd({ profLanguages: v })} />
-            </SectionBox>
           </div>
+
+          <div className="cs-modblock cs-modblock--passive">
+            <button type="button" className="cs-modblock__btn no-print" tabIndex={-1}>+</button>
+            <span className="cs-modblock__marker cs-modblock__marker--ellipsis">{passiveWis}</span>
+            <button type="button" className="cs-modblock__btn no-print" tabIndex={-1}>−</button>
+            <span className="cs-modblock__label">пассивная мудрость (Восприятие)</span>
+          </div>
+
+          <TextBlock
+            v={s.profLanguages}
+            set={(v) => upd({ profLanguages: v })}
+            label="Прочие владения и языки"
+            grow
+          />
         </div>
 
-        {/* ── Middle column ── */}
-        <div className="flex flex-col gap-1.5 min-h-0" style={{ width: 220 }}>
-          {/* AC / Initiative / Speed */}
-          <div className="flex gap-1.5 shrink-0">
-            <div className="flex flex-col items-center border border-gray-400 rounded pb-1" style={{ width: 58 }}>
-              <div className="text-[6px] font-bold tracking-wider uppercase text-center mt-1">КЗ</div>
-              <NI v={s.ac} set={(v) => upd({ ac: v })} cls="text-xl font-bold" />
+        {/* ── Column 2: vitality + attacks + equipment ── */}
+        <div className="cs-col">
+          <div className="cs-vitality">
+            <div className="cs-vit-box cs-vit-box--shield">
+              <svg className="cs-shield" viewBox="0 0 48 60" fill="none" aria-hidden="true">
+                <path
+                  d="M23.8494 0.802124L1.86096 12.5092V36.2236L9.39125 50.3321L23.8494 59.0374L38.0063 50.3321L46.139 36.2236V12.5092L23.8494 0.802124Z"
+                  fill="#fff"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                />
+              </svg>
+              <span className="cs-label cs-shield__kz">КЗ</span>
+              <NumInput v={s.ac} set={(v) => upd({ ac: v })} cls="cs-shield__input" />
             </div>
-            <div className="flex flex-col items-center border border-gray-400 rounded flex-1 pb-1">
-              <div className="text-[6px] font-bold tracking-wider uppercase text-center mt-1">Инициатива</div>
-              <div className="text-xl font-bold text-center">{fmtMod(mod(s.scores.dex))}</div>
+            <div className="cs-vit-box">
+              <span className="cs-vit-box__value">{fmtMod(mod(s.scores.dex))}</span>
+              <span className="cs-label cs-vit-box__label">Инициатива</span>
             </div>
-            <div className="flex flex-col items-center border border-gray-400 rounded flex-1 pb-1">
-              <div className="text-[6px] font-bold tracking-wider uppercase text-center mt-1">Скорость</div>
-              <NI v={s.speed} set={(v) => upd({ speed: v })} cls="text-xl font-bold" />
+            <div className="cs-vit-box">
+              <NumInput v={s.speed} set={(v) => upd({ speed: v })} cls="cs-vit-box__value" />
+              <span className="cs-label cs-vit-box__label">Скорость</span>
             </div>
-          </div>
 
-          {/* HP max */}
-          <div className="border border-gray-400 rounded px-2 py-1 shrink-0">
-            <div className="flex items-center gap-1">
-              <div className="text-[8px] text-gray-500">Максимум хитов</div>
-              <NI v={s.hpMax} set={(v) => upd({ hpMax: v })} cls="text-[10px] font-semibold w-12" />
+            <div className="cs-vit-hp">
+              <label className="cs-vit-hp__max">
+                Максимум хитов
+                <NumInput v={s.hpMax} set={(v) => upd({ hpMax: v })} cls="cs-vit-hp__max-input" />
+              </label>
+              <NumInput v={s.hpCurrent} set={(v) => upd({ hpCurrent: v })} cls="cs-vit-hp__cur" />
+              <span className="cs-label cs-vit-hp__label">Текущие хиты</span>
             </div>
-            <NI v={s.hpCurrent} set={(v) => upd({ hpCurrent: v })} cls="text-2xl font-bold w-full" />
-            <div className="text-[6px] font-bold tracking-wider uppercase text-center border-t border-gray-300 mt-1 pt-0.5">
-              Текущие хиты
+
+            <div className="cs-vit-hp cs-vit-hp--temp">
+              <NumInput v={s.hpTemp} set={(v) => upd({ hpTemp: v })} cls="cs-vit-hp__cur" />
+              <span className="cs-label cs-vit-hp__label">Временные хиты</span>
             </div>
-          </div>
 
-          {/* Temp HP */}
-          <SectionBox label="Временные хиты" cls="shrink-0">
-            <NI v={s.hpTemp} set={(v) => upd({ hpTemp: v })} cls="text-xl font-bold w-full" />
-          </SectionBox>
-
-          {/* Hit dice + Death saves */}
-          <div className="flex gap-1.5 shrink-0">
-            <SectionBox label="Кость хитов" cls="flex-1">
-              <div className="text-[8px] text-gray-500">Всего: {s.hitDiceTotal}</div>
-              <div className="text-center">
+            <div className="cs-vit-medium">
+              <label className="cs-vit-hp__max">
+                Всего
                 <input
                   type="text"
-                  value={s.hitDie}
-                  onChange={(e) => upd({ hitDie: e.target.value })}
-                  className="bg-transparent border-0 focus:outline-none text-center font-bold text-xl w-full"
+                  value={s.hitDiceTotal}
+                  onChange={(e) => upd({ hitDiceTotal: Number(e.target.value) || 0 })}
+                  className="cs-vit-hp__max-input"
                 />
+              </label>
+              <input
+                type="text"
+                value={s.hitDie}
+                onChange={(e) => upd({ hitDie: e.target.value })}
+                className="cs-vit-die"
+              />
+              <span className="cs-label cs-vit-box__label">Кость хитов</span>
+            </div>
+
+            <div className="cs-vit-medium">
+              <div className="cs-death">
+                <DeathRow label="Успехи" count={s.deathSuccesses} set={(v) => upd({ deathSuccesses: v })} />
+                <DeathRow label="Провалы" count={s.deathFails} set={(v) => upd({ deathFails: v })} />
               </div>
-            </SectionBox>
-            <SectionBox label="Спасброски от смерти" cls="flex-1">
-              <div className="flex flex-col gap-1 p-0.5">
-                <div className="flex items-center gap-1.5">
-                  <div className="text-[8px] w-12">Успехи</div>
-                  <DeathCircles
-                    count={s.deathSuccesses}
-                    set={(v) => upd({ deathSuccesses: v })}
-                  />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="text-[8px] w-12">Провалы</div>
-                  <DeathCircles count={s.deathFails} set={(v) => upd({ deathFails: v })} />
-                </div>
-              </div>
-            </SectionBox>
+              <span className="cs-label cs-vit-box__label">Спасброски от смерти</span>
+            </div>
           </div>
 
           {/* Attacks */}
-          <SectionBox label="Атаки и заклинания" cls="shrink-0 h-28">
-            <div
-              className="grid text-[7px] font-bold text-gray-500 pb-0.5 border-b border-gray-300 shrink-0"
-              style={{ gridTemplateColumns: "1fr 54px 54px" }}
-            >
-              <div>Название</div>
-              <div className="text-center">Бонус</div>
-              <div className="text-center">Урон/Вид</div>
-            </div>
-            {s.attacks.map((atk, i) => (
-              <div
-                key={i}
-                className="grid py-0.5 border-b border-gray-200 shrink-0"
-                style={{ gridTemplateColumns: "1fr 54px 54px" }}
-              >
-                <FI
-                  v={atk.name}
-                  set={(v) => {
-                    const attacks = [...s.attacks];
-                    attacks[i] = { ...atk, name: v };
-                    upd({ attacks });
-                  }}
-                  cls="border-0 border-b-0"
-                />
-                <FI
-                  v={atk.bonus}
-                  set={(v) => {
-                    const attacks = [...s.attacks];
-                    attacks[i] = { ...atk, bonus: v };
-                    upd({ attacks });
-                  }}
-                  center
-                  cls="border-0 border-b-0"
-                />
-                <FI
-                  v={atk.damage}
-                  set={(v) => {
-                    const attacks = [...s.attacks];
-                    attacks[i] = { ...atk, damage: v };
-                    upd({ attacks });
-                  }}
-                  center
-                  cls="border-0 border-b-0"
-                />
+          <div className="cs-attacks">
+            <div className="cs-weapons">
+              <div className="cs-weapons__row cs-weapons__row--head">
+                <span>название</span>
+                <span>Бонус атаки</span>
+                <span>урон / вид</span>
               </div>
-            ))}
-            <TA v={s.attacksText} set={(v) => upd({ attacksText: v })} cls="mt-1" />
-          </SectionBox>
-
-          {/* Coins */}
-          <div className="flex gap-1 shrink-0">
-            {(["cp", "sp", "ep", "gp", "pp"] as const).map((coin, i) => (
-              <div key={coin} className="flex-1 flex flex-col items-center border border-gray-400 rounded py-1">
-                <NI v={s[coin]} set={(v) => upd({ [coin]: v })} cls="text-[10px] font-bold w-full" />
-                <div className="text-[6px] font-bold uppercase tracking-wide">
-                  {["ММ", "СМ", "ЭМ", "ЗМ", "ПМ"][i]}
+              {s.attacks.map((atk, i) => (
+                <div key={i} className="cs-weapons__row">
+                  <input
+                    className="cs-weapons__cell"
+                    value={atk.name}
+                    onChange={(e) => {
+                      const attacks = [...s.attacks];
+                      attacks[i] = { ...atk, name: e.target.value };
+                      upd({ attacks });
+                    }}
+                  />
+                  <input
+                    className="cs-weapons__cell cs-weapons__cell--c"
+                    value={atk.bonus}
+                    onChange={(e) => {
+                      const attacks = [...s.attacks];
+                      attacks[i] = { ...atk, bonus: e.target.value };
+                      upd({ attacks });
+                    }}
+                  />
+                  <input
+                    className="cs-weapons__cell cs-weapons__cell--c"
+                    value={atk.damage}
+                    onChange={(e) => {
+                      const attacks = [...s.attacks];
+                      attacks[i] = { ...atk, damage: e.target.value };
+                      upd({ attacks });
+                    }}
+                  />
                 </div>
+              ))}
+            </div>
+            <TextBlock
+              v={s.attacksText}
+              set={(v) => upd({ attacksText: v })}
+              label="Атаки и заклинания"
+              minHeight={48}
+            />
+          </div>
+
+          {/* Coins + equipment */}
+          <div className="cs-coins">
+            {(
+              [
+                ["cp", "мм"],
+                ["sp", "см"],
+                ["gp", "зм"],
+                ["ep", "эм"],
+                ["pp", "пм"],
+              ] as const
+            ).map(([coin, label]) => (
+              <div key={coin} className="cs-coin">
+                <span className="cs-coin__label">{label}</span>
+                <NumInput v={s[coin]} set={(v) => upd({ [coin]: v })} cls="cs-coin__input" />
               </div>
             ))}
           </div>
-
-          {/* Equipment */}
-          <SectionBox label="Снаряжение" cls="flex-1">
-            <TA v={s.equipment} set={(v) => upd({ equipment: v })} />
-          </SectionBox>
+          <TextBlock v={s.equipment} set={(v) => upd({ equipment: v })} label="Снаряжение" grow />
         </div>
 
-        {/* ── Right column ── */}
-        <div className="flex flex-col gap-1.5 flex-1 min-h-0 min-w-0">
-          <SectionBox label="Черты характера" cls="shrink-0 h-20">
-            <TA v={s.personality} set={(v) => upd({ personality: v })} />
-          </SectionBox>
-          <SectionBox label="Идеалы" cls="shrink-0 h-16">
-            <TA v={s.ideals} set={(v) => upd({ ideals: v })} />
-          </SectionBox>
-          <SectionBox label="Привязанности" cls="shrink-0 h-16">
-            <TA v={s.bonds} set={(v) => upd({ bonds: v })} />
-          </SectionBox>
-          <SectionBox label="Слабости" cls="shrink-0 h-16">
-            <TA v={s.flaws} set={(v) => upd({ flaws: v })} />
-          </SectionBox>
-          <SectionBox label="Умения и способности" cls="flex-1">
-            <TA v={s.features} set={(v) => upd({ features: v })} />
-          </SectionBox>
+        {/* ── Column 3: personality ── */}
+        <div className="cs-col">
+          <TextBlock v={s.personality} set={(v) => upd({ personality: v })} label="Черты характера" minHeight={72} />
+          <TextBlock v={s.ideals} set={(v) => upd({ ideals: v })} label="Идеалы" minHeight={56} />
+          <TextBlock v={s.bonds} set={(v) => upd({ bonds: v })} label="Привязанности" minHeight={56} />
+          <TextBlock v={s.flaws} set={(v) => upd({ flaws: v })} label="Слабости" minHeight={56} />
+          <TextBlock v={s.features} set={(v) => upd({ features: v })} label="Умения и способности" grow />
         </div>
-      </div>
-    </div>
+      </section>
+
+      <Footer text="Удачных приключений!" />
+    </>
   );
 }
 
@@ -572,54 +552,38 @@ function Page1({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
 
 function Page2({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) => void }) {
   return (
-    <div className="h-full flex flex-col gap-2">
-      {/* Header */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: "minmax(200px, 260px) 1fr" }}>
+    <>
+      <header className="cs-header">
         <NameHeader s={s} upd={upd} />
-        <div className="flex gap-6 items-end">
-          <div className="flex-1">
-            <FI v={s.age} set={(v) => upd({ age: v })} center />
-            <div className="text-[6px] text-gray-500 tracking-widest uppercase text-center">Возраст</div>
-          </div>
-          <div className="flex-1">
-            <FI v={s.height} set={(v) => upd({ height: v })} center />
-            <div className="text-[6px] text-gray-500 tracking-widest uppercase text-center">Рост</div>
-          </div>
-          <div className="flex-1">
-            <FI v={s.weight} set={(v) => upd({ weight: v })} center />
-            <div className="text-[6px] text-gray-500 tracking-widest uppercase text-center">Вес</div>
+        <div className="cs-info">
+          <div className="cs-info__row">
+            <Field v={s.age} set={(v) => upd({ age: v })} label="возраст" />
+            <Field v={s.height} set={(v) => upd({ height: v })} label="рост" />
+            <Field v={s.weight} set={(v) => upd({ weight: v })} label="вес" />
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Body */}
-      <div className="flex gap-3 flex-1 min-h-0">
-        <div className="flex flex-col gap-2 min-h-0" style={{ width: 220 }}>
-          <SectionBox label="Портрет персонажа" cls="flex-1">
-            <div className="h-full flex items-center justify-center text-[9px] text-gray-300">
-              Место для портрета
-            </div>
-          </SectionBox>
-          <SectionBox label="Предыстория персонажа" cls="flex-1">
-            <TA v={s.backstory} set={(v) => upd({ backstory: v })} />
-          </SectionBox>
-          <SectionBox label="Цели и задачи" cls="flex-1">
-            <TA v={s.goals} set={(v) => upd({ goals: v })} />
-          </SectionBox>
+      <section className="cs-body">
+        <div className="cs-col">
+          <div className="cs-avatar">Портрет</div>
+          <TextBlock v={s.backstory} set={(v) => upd({ backstory: v })} label="Предыстория персонажа" grow />
+          <TextBlock v={s.goals} set={(v) => upd({ goals: v })} label="Цели и задачи" grow />
         </div>
-        <div className="flex flex-col gap-2 flex-1 min-h-0 min-w-0">
-          <SectionBox label="Союзники и организации" cls="flex-1">
-            <TA v={s.allies} set={(v) => upd({ allies: v })} />
-          </SectionBox>
-          <SectionBox label="Дополнительные способности и умения" cls="flex-1">
-            <TA v={s.additionalFeatures} set={(v) => upd({ additionalFeatures: v })} />
-          </SectionBox>
-          <SectionBox label="Сокровища" cls="flex-1">
-            <TA v={s.treasures} set={(v) => upd({ treasures: v })} />
-          </SectionBox>
+        <div className="cs-col cs-col--wide">
+          <TextBlock v={s.allies} set={(v) => upd({ allies: v })} label="Союзники и организации" grow />
+          <TextBlock
+            v={s.additionalFeatures}
+            set={(v) => upd({ additionalFeatures: v })}
+            label="Дополнительные способности и умения"
+            grow
+          />
+          <TextBlock v={s.treasures} set={(v) => upd({ treasures: v })} label="Сокровища" grow />
         </div>
-      </div>
-    </div>
+      </section>
+
+      <Footer text="С тобой моя к10. И моя к8. И моя к12!" />
+    </>
   );
 }
 
@@ -627,28 +591,29 @@ function Page2({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
 
 function Page3({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) => void }) {
   return (
-    <div className="h-full flex flex-col gap-2">
-      {/* Header */}
-      <NameHeader s={s} upd={upd} maxWidth={200} />
+    <>
+      <header className="cs-header cs-header--notes">
+        <NameHeader s={s} upd={upd} />
+      </header>
 
-      <div
-        className="grid gap-2 flex-1 min-h-0"
-        style={{ gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr 1fr" }}
-      >
+      <section className="cs-body cs-body--notes">
         {s.notes.map((note, i) => (
-          <SectionBox key={i} label="Заметки" cls="h-full">
-            <TA
-              v={note}
-              set={(v) => {
-                const notes = [...s.notes] as SheetState["notes"];
-                notes[i] = v;
-                upd({ notes });
-              }}
-            />
-          </SectionBox>
+          <TextBlock
+            key={i}
+            v={note}
+            set={(v) => {
+              const notes = [...s.notes] as SheetState["notes"];
+              notes[i] = v;
+              upd({ notes });
+            }}
+            label="Заметки"
+            grow
+          />
         ))}
-      </div>
-    </div>
+      </section>
+
+      <Footer text="Записывай, не то забудешь!" />
+    </>
   );
 }
 
@@ -656,97 +621,70 @@ function Page3({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
 
 function Page4({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) => void }) {
   return (
-    <div className="h-full flex flex-col gap-2">
-      {/* Header */}
-      <div className="flex gap-4 border-b border-gray-400 pb-2 shrink-0">
-        <div className="flex-1">
-          <FI v={s.casterClass} set={(v) => upd({ casterClass: v })} />
-          <div className="text-[6px] text-gray-500 tracking-widest uppercase">Класс заклинателя</div>
-        </div>
-        <div className="w-28">
-          <FI v={s.spellBaseAbility} set={(v) => upd({ spellBaseAbility: v })} center />
-          <div className="text-[6px] text-gray-500 tracking-widest uppercase text-center">Базовая характеристика</div>
-        </div>
-        <div className="w-20">
-          <FI v={s.spellSaveDc} set={(v) => upd({ spellSaveDc: v })} center />
-          <div className="text-[6px] text-gray-500 tracking-widest uppercase text-center">СЛ спасброска</div>
-        </div>
-        <div className="w-20">
-          <FI v={s.spellAttackBonus} set={(v) => upd({ spellAttackBonus: v })} center />
-          <div className="text-[6px] text-gray-500 tracking-widest uppercase text-center">Бонус атаки</div>
-        </div>
-      </div>
+    <>
+      <header className="cs-header cs-header--spells">
+        <Field v={s.casterClass} set={(v) => upd({ casterClass: v })} label="Класс заклинателя" cls="cs-field--grow" />
+        <Field v={s.spellBaseAbility} set={(v) => upd({ spellBaseAbility: v })} label="Базовая характеристика" />
+        <Field v={s.spellSaveDc} set={(v) => upd({ spellSaveDc: v })} label="СЛ спасброска" />
+        <Field v={s.spellAttackBonus} set={(v) => upd({ spellAttackBonus: v })} label="Бонус атаки" />
+      </header>
 
-      {/* Spell grid: cantrips left, levels 1-9 in 2 columns */}
-      <div className="flex gap-3 flex-1 min-h-0">
-        {/* Cantrips */}
-        <div className="flex flex-col gap-1 shrink-0" style={{ width: 160 }}>
-          <SectionBox label="0 — Заговоры" cls="flex-1">
-            <TA v={s.cantrips} set={(v) => upd({ cantrips: v })} />
-          </SectionBox>
+      <section className="cs-body cs-body--spells">
+        <div className="cs-spell-cantrips">
+          <TextBlock v={s.cantrips} set={(v) => upd({ cantrips: v })} label="0 — Заговоры" grow />
         </div>
-
-        {/* Levels 1-9 */}
-        <div
-          className="grid gap-2 flex-1 min-h-0 min-w-0"
-          style={{ gridTemplateColumns: "1fr 1fr", gridAutoRows: "1fr" }}
-        >
+        <div className="cs-spell-grid">
           {s.spellLevels.map((sl, i) => {
             const level = i + 1;
             return (
-              <div key={i} className="border border-gray-400 rounded flex flex-col min-h-0 overflow-hidden">
-                {/* Slot header */}
-                <div className="flex items-center gap-2 px-2 py-1 border-b border-gray-300 shrink-0">
-                  <div className="text-sm font-bold w-4">{level}</div>
-                  <div className="flex-1 flex items-center gap-1 text-[8px] text-gray-500">
+              <div key={i} className="cs-spell-level">
+                <div className="cs-spell-level__head">
+                  <span className="cs-spell-level__num">{level}</span>
+                  <span className="cs-spell-level__slots">
                     Ячеек:
-                    <NI
+                    <NumInput
                       v={sl.total}
                       set={(v) => {
                         const spellLevels = [...s.spellLevels];
                         spellLevels[i] = { ...sl, total: v };
                         upd({ spellLevels });
                       }}
-                      cls="w-8 text-[10px] font-bold"
+                      cls="cs-spell-level__slots-input"
                     />
-                  </div>
-                  <div className="flex gap-0.5 flex-wrap">
+                  </span>
+                  <span className="cs-spell-level__dots">
                     {Array.from({ length: Math.max(sl.total, 0) }).map((_, j) => (
                       <button
                         key={j}
                         type="button"
+                        className={`cs-checkdot cs-checkdot--sm ${j < sl.used ? "cs-checkdot--on" : ""}`}
                         onClick={() => {
                           const spellLevels = [...s.spellLevels];
-                          spellLevels[i] = {
-                            ...sl,
-                            used: sl.used === j + 1 ? j : j + 1,
-                          };
+                          spellLevels[i] = { ...sl, used: sl.used === j + 1 ? j : j + 1 };
                           upd({ spellLevels });
                         }}
-                        className="text-[9px] leading-none cursor-pointer"
-                      >
-                        {j < sl.used ? "●" : "○"}
-                      </button>
+                      />
                     ))}
-                  </div>
+                  </span>
                 </div>
-                {/* Spell list */}
-                <div className="flex-1 min-h-0 p-1 flex flex-col">
-                  <TA
-                    v={sl.spells}
-                    set={(v) => {
-                      const spellLevels = [...s.spellLevels];
-                      spellLevels[i] = { ...sl, spells: v };
-                      upd({ spellLevels });
-                    }}
-                  />
-                </div>
+                <TextBlock
+                  v={sl.spells}
+                  set={(v) => {
+                    const spellLevels = [...s.spellLevels];
+                    spellLevels[i] = { ...sl, spells: v };
+                    upd({ spellLevels });
+                  }}
+                  label={`${level} уровень`}
+                  grow
+                />
               </div>
             );
           })}
         </div>
-      </div>
-    </div>
+      </section>
+
+      <Footer text="Магия — это просто математика с блёстками." />
+    </>
   );
 }
 
@@ -803,48 +741,7 @@ export function CharacterSheet({
 
   return (
     <>
-      <style>{`
-        .sheet-page {
-          width: 794px;
-          height: 1122px;
-          padding: 28px 32px;
-          background: white;
-          font-family: Arial, Helvetica, sans-serif;
-          font-size: 10px;
-          line-height: 1.3;
-          box-sizing: border-box;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-        }
-        /* Centre ability scores and other numeric fields — hide spin buttons */
-        .sheet-page input[type=number]::-webkit-inner-spin-button,
-        .sheet-page input[type=number]::-webkit-outer-spin-button {
-          -webkit-appearance: none;
-          margin: 0;
-        }
-        .sheet-page input[type=number] {
-          -moz-appearance: textfield;
-          appearance: textfield;
-        }
-        @media print {
-          @page { size: A4; margin: 0; }
-          .no-print { display: none !important; }
-          .print-wrapper {
-            background: white !important;
-            padding: 0 !important;
-          }
-          .sheet-page {
-            width: 210mm;
-            height: 297mm;
-            padding: 10mm 12mm;
-            page-break-after: always;
-            break-after: page;
-            box-shadow: none !important;
-            overflow: hidden;
-          }
-        }
-      `}</style>
+      <style>{SHEET_CSS}</style>
 
       {/* Toolbar */}
       <div className="no-print -mx-4 -mt-8 mb-6 flex items-center gap-3 bg-gray-100 border-b px-6 py-3 sticky top-0 z-10">
@@ -890,7 +787,7 @@ export function CharacterSheet({
         </button>
       </div>
 
-      {/* Pages — each .sheet-page is exactly A4; inner Page components fill via h-full */}
+      {/* Pages */}
       <div className="print-wrapper -mx-4 bg-gray-200 px-4 pb-8 space-y-8">
         <div className="sheet-page shadow-lg mx-auto" data-page="1">
           <Page1 s={s} upd={upd} />
@@ -908,3 +805,169 @@ export function CharacterSheet({
     </>
   );
 }
+
+// ── Styles (mirrors the longstoryshort.app character sheet) ─────────────────────
+
+const SHEET_CSS = `
+.sheet-page {
+  width: 794px;
+  height: 1122px;
+  padding: 24px 26px 14px;
+  background: #fff;
+  color: #1a1a1a;
+  font-family: "PT Sans", Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  line-height: 1.25;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sheet-page * { box-sizing: border-box; }
+.sheet-page input,
+.sheet-page textarea { color: inherit; font-family: inherit; }
+.sheet-page input:focus,
+.sheet-page textarea:focus { outline: none; }
+.sheet-page input[type=number]::-webkit-inner-spin-button,
+.sheet-page input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.sheet-page input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+
+/* ── Header ── */
+.cs-header { display: flex; gap: 20px; align-items: flex-end; padding-bottom: 2px; }
+.cs-header--notes { }
+.cs-header--spells { gap: 14px; align-items: flex-end; border: 1.5px solid #1a1a1a; border-radius: 8px; padding: 8px 14px 5px; }
+.cs-name { margin: 0 0 2px; flex: 0 0 auto; width: 250px; position: relative; }
+.cs-name__input { width: 100%; border: none; border-bottom: 2px solid #1a1a1a; background: transparent; font-family: Georgia, "Times New Roman", serif; font-size: 27px; font-weight: 700; line-height: 1.1; padding: 0 0 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-info { flex: 1; display: flex; flex-direction: column; gap: 7px; border: 1.5px solid #1a1a1a; border-radius: 8px; padding: 8px 16px 6px; }
+.cs-info__row { display: flex; gap: 22px; }
+.cs-field { flex: 1; position: relative; display: flex; flex-direction: column; }
+.cs-field--xs { flex: 0 0 50px; }
+.cs-field--grow { flex: 1; }
+.cs-field__input { width: 100%; border: none; border-bottom: 1px solid #b5b5b5; background: transparent; font-size: 15px; padding: 0 2px 1px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-field__input--big { font-size: 16px; font-weight: 700; }
+.cs-field__label, .cs-name .cs-field__label { font-size: 7px; letter-spacing: .06em; text-transform: uppercase; color: #777; text-align: left; margin-top: 2px; }
+
+/* ── Body grid ── */
+.cs-body { flex: 1; min-height: 0; display: flex; gap: 8px; }
+.cs-col { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.cs-col--wide { flex: 1.25; }
+
+/* ── Stats + skills ── */
+.cs-stats-skills { display: flex; gap: 6px; }
+.cs-stats { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; background: #ededed; border-radius: 26px; padding: 8px 5px; }
+.cs-stat { display: flex; flex-direction: column; align-items: center; width: 50px; border: 1px solid #8a8a8a; border-radius: 7px; background: #fff; padding: 3px 0 3px; }
+.cs-stat__label { font-size: 6px; font-weight: 700; text-transform: uppercase; line-height: 1; text-align: center; }
+.cs-stat__mod { font-size: 19px; font-weight: 700; line-height: 1.1; }
+.cs-stat__score { width: 26px; height: 26px; border: 1px solid #8a8a8a; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+.cs-stat__score-input { font-size: 11px; font-weight: 600; }
+
+.cs-skills { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.cs-modblock { display: flex; align-items: center; gap: 5px; border: 1px solid #8a8a8a; border-radius: 5px; padding: 2px 6px; }
+.cs-modblock--passive { margin-top: 2px; }
+.cs-modblock__marker { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; flex: 0 0 auto; }
+.cs-modblock__marker--square { width: 16px; height: 16px; border: 1px solid #8a8a8a; border-radius: 3px; }
+.cs-modblock__marker--round { width: 22px; height: 22px; border: 1px solid #8a8a8a; border-radius: 50%; }
+.cs-modblock__marker--ellipsis { min-width: 18px; font-size: 13px; }
+.cs-modblock__label { font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; line-height: 1.1; flex: 1; }
+.cs-modblock__btn { width: 12px; height: 14px; border: none; background: transparent; cursor: pointer; font-size: 11px; line-height: 1; color: #888; padding: 0; }
+
+.cs-saves { border: 1px solid #8a8a8a; border-radius: 5px; padding: 3px 5px 2px; position: relative; }
+.cs-skill { display: flex; align-items: center; gap: 4px; padding: 0.5px 0; }
+.cs-skill__mod { width: 18px; text-align: center; font-size: 9px; flex: 0 0 auto; }
+.cs-skill__label { font-size: 9px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-skill--sm .cs-skill__label { font-size: 8.5px; }
+.cs-skill__base { color: #999; }
+
+.cs-checkdot { width: 11px; height: 11px; border: 1.3px solid #555; border-radius: 50%; background: #fff; cursor: pointer; flex: 0 0 auto; padding: 0; position: relative; }
+.cs-checkdot--on { background: #333; }
+.cs-checkdot--exp { background: #333; box-shadow: inset 0 0 0 2px #fff; }
+.cs-checkdot--sm { width: 9px; height: 9px; }
+
+.cs-label { font-size: 6.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #444; }
+.cs-label--centered { display: block; text-align: center; margin-top: 2px; }
+
+/* ── Lined text block ── */
+.cs-textblock { display: flex; flex-direction: column; border: 1px solid #8a8a8a; border-radius: 5px; overflow: hidden; }
+.cs-textblock--grow { flex: 1; min-height: 0; }
+.cs-textblock__area-wrap { flex: 1; min-height: 0; padding: 2px 4px; display: flex; }
+.cs-textblock__area { width: 100%; height: 100%; resize: none; border: none; background-color: transparent; padding: 0; overflow: hidden; display: block; }
+.cs-textblock__controls { display: flex; align-items: center; justify-content: flex-end; gap: 3px; padding: 0 4px; }
+.cs-textblock__controls button { width: 12px; height: 12px; border: none; background: transparent; cursor: pointer; color: #999; font-size: 11px; line-height: 1; padding: 0; }
+.cs-textblock__fs { font-size: 7px; color: #aaa; margin-right: 2px; }
+.cs-textblock__label { text-align: center; border-top: 1px solid #d8d8d8; padding: 1px 0; }
+
+/* ── Vitality ── */
+.cs-vitality { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; background: #ededed; border-radius: 12px; padding: 8px; }
+.cs-vit-box { grid-column: span 2; border: 1px solid #8a8a8a; border-radius: 6px; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 2px 3px; position: relative; min-height: 50px; }
+.cs-vit-box__value { font-size: 19px; font-weight: 700; text-align: center; border: none; background: transparent; width: 100%; }
+.cs-vit-box__label { margin-top: auto; text-align: center; }
+.cs-vit-box--shield { border: none; background: transparent; justify-content: flex-start; }
+.cs-shield { position: absolute; inset: 0; width: 100%; height: 100%; color: #1a1a1a; }
+.cs-shield__kz { position: relative; z-index: 1; margin-top: 7px; font-size: 7px; }
+.cs-shield__input { position: relative; z-index: 1; font-size: 17px; font-weight: 700; }
+
+.cs-vit-hp { grid-column: 1 / -1; border: 1px solid #8a8a8a; border-radius: 6px; background: #fff; padding: 3px 8px 2px; display: flex; flex-direction: column; }
+.cs-vit-hp--temp { }
+.cs-vit-hp__max { font-size: 8px; color: #666; display: flex; align-items: center; gap: 6px; }
+.cs-vit-hp__max-input { width: 46px; border: none; border-bottom: 1px solid #bbb; background: transparent; text-align: center; font-size: 11px; font-weight: 600; }
+.cs-vit-hp__cur { font-size: 22px; font-weight: 700; text-align: center; border: none; background: transparent; width: 100%; }
+.cs-vit-hp__label { text-align: center; border-top: 1px solid #d8d8d8; padding-top: 1px; margin-top: 1px; }
+
+.cs-vitality .cs-vit-medium { grid-column: span 3; border: 1px solid #8a8a8a; border-radius: 6px; background: #fff; padding: 3px 6px 2px; display: flex; flex-direction: column; }
+.cs-vit-die { width: 100%; text-align: center; font-size: 17px; font-weight: 700; border: none; background: transparent; }
+
+.cs-death { display: flex; flex-direction: column; gap: 3px; padding: 2px 0; }
+.cs-death__row { display: flex; align-items: center; gap: 6px; }
+.cs-death__label { font-size: 8px; width: 42px; }
+.cs-death__dots { display: flex; gap: 3px; }
+
+/* ── Attacks / weapons ── */
+.cs-attacks { display: flex; flex-direction: column; gap: 3px; }
+.cs-weapons { border: 1px solid #8a8a8a; border-radius: 5px; padding: 2px 4px; }
+.cs-weapons__row { display: grid; grid-template-columns: 1fr 50px 52px; gap: 2px; align-items: center; }
+.cs-weapons__row--head { font-size: 6.5px; font-weight: 700; text-transform: uppercase; color: #777; border-bottom: 1px solid #ccc; padding-bottom: 1px; text-align: center; }
+.cs-weapons__row--head span:first-child { text-align: left; }
+.cs-weapons__cell { border: none; border-bottom: 1px solid #e3e3e3; background: transparent; font-size: 9px; padding: 1px 2px; }
+.cs-weapons__cell--c { text-align: center; }
+
+/* ── Coins ── */
+.cs-coins { display: flex; gap: 4px; }
+.cs-coin { flex: 1; border: 1px solid #8a8a8a; border-radius: 5px; display: flex; flex-direction: column; align-items: center; padding: 2px 0; }
+.cs-coin__label { font-size: 6.5px; font-weight: 700; text-transform: uppercase; }
+.cs-coin__input { font-size: 11px; font-weight: 700; text-align: center; border: none; background: transparent; width: 100%; }
+
+/* ── Page 2 ── */
+.cs-avatar { border: 1px solid #8a8a8a; border-radius: 5px; min-height: 150px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #c4c4c4; }
+
+/* ── Page 3 notes ── */
+.cs-body--notes { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 1fr); gap: 8px; }
+
+/* ── Page 4 spells ── */
+.cs-body--spells { gap: 10px; }
+.cs-spell-cantrips { flex: 0 0 165px; display: flex; }
+.cs-spell-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 6px; }
+.cs-spell-level { border: 1px solid #8a8a8a; border-radius: 5px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.cs-spell-level__head { display: flex; align-items: center; gap: 6px; padding: 2px 6px; border-bottom: 1px solid #ccc; }
+.cs-spell-level__num { font-size: 14px; font-weight: 700; }
+.cs-spell-level__slots { flex: 1; font-size: 7.5px; color: #777; display: flex; align-items: center; gap: 3px; }
+.cs-spell-level__slots-input { width: 26px; font-size: 10px; font-weight: 700; text-align: center; border: none; border-bottom: 1px solid #bbb; background: transparent; }
+.cs-spell-level__dots { display: flex; gap: 2px; flex-wrap: wrap; max-width: 70px; justify-content: flex-end; }
+.cs-spell-level .cs-textblock { flex: 1; min-height: 0; border: none; border-radius: 0; }
+.cs-spell-level .cs-textblock__label { display: none; }
+
+/* ── Footer ── */
+.cs-undertext { text-align: center; font-size: 8px; color: #777; margin: 2px 0 0; }
+.cs-undertext__link { color: #555; }
+.cs-undertext__url { color: #aaa; }
+
+@media print {
+  @page { size: A4; margin: 0; }
+  .no-print { display: none !important; }
+  .print-wrapper { background: #fff !important; padding: 0 !important; }
+  .sheet-page {
+    width: 210mm; height: 297mm; padding: 8mm 9mm 5mm;
+    page-break-after: always; break-after: page; box-shadow: none !important;
+  }
+}
+`;

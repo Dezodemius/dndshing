@@ -77,7 +77,8 @@ test.describe("Page 1 — ability scores", () => {
 
   test("CHA modifier '−1' is visible", async ({ page }) => {
     await page.goto(URL);
-    await expect(page.getByText("-1").first()).toBeVisible();
+    // proper minus sign (U+2212), matching the LSS render
+    await expect(page.getByText("−1").first()).toBeVisible();
   });
 });
 
