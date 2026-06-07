@@ -126,7 +126,13 @@ export const KEILIN_LSS_DATA: LssCharacterData = {
     },
     allies: { value: createLssRichText("", "allies").data },
     prof: { value: { data: "" } },
-    "notes-1": { size: 0, value: createLssRichText("", "notes-1").data },
+    "notes-1": {
+      size: 0,
+      value: createLssRichText(
+        "Кейлин ростом выше среднего, с подтянутой фигурой и пронзительными голубыми глазами. Его темные волосы часто завязаны в хвост, а на лице есть шрам над левым бровью. Он носит темную кожаную броню и несет с собой пару изношенных кинжалов.",
+        "notes-1"
+      ).data,
+    },
     "notes-2": { size: 0, value: createLssRichText("", "notes-2").data },
     "notes-3": { size: 0, value: createLssRichText("", "notes-3").data },
     "notes-4": { size: 0, value: createLssRichText("", "notes-4").data },

@@ -566,7 +566,7 @@ function Page2({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
 
       <section className="cs-body">
         <div className="cs-col">
-          <div className="cs-avatar">Портрет</div>
+          <div className="cs-avatar" aria-label="Портрет персонажа" />
           <TextBlock v={s.backstory} set={(v) => upd({ backstory: v })} label="Предыстория персонажа" grow />
           <TextBlock v={s.goals} set={(v) => upd({ goals: v })} label="Цели и задачи" grow />
         </div>
@@ -619,13 +619,6 @@ function Page3({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
 
 // ── Page 4 ────────────────────────────────────────────────────────────────────
 
-const SPELL_LEVEL_NAMES = [
-  "Заговоры",
-  "1 уровень", "2 уровень", "3 уровень",
-  "4 уровень", "5 уровень", "6 уровень",
-  "7 уровень", "8 уровень", "9 уровень",
-];
-
 function SpellSection({
   levelIdx,
   sl,
@@ -636,37 +629,37 @@ function SpellSection({
   onChange: (updated: SheetState["spellLevels"][number]) => void;
 }) {
   const level = levelIdx + 1;
+  const spellRows = level >= 6 ? 8 : 13;
+
   return (
     <div className="cs-spell-section cs-spell-section--grow">
       <div className="cs-spell-section__head">
         <span className="cs-spell-section__num">{level}</span>
-        <span className="cs-spell-section__title">{SPELL_LEVEL_NAMES[level]}</span>
-        <span className="cs-spell-section__slots">
-          Ячеек:
+        <span className="cs-spell-section__slots" aria-label={`Ячейки ${level} уровня`}>
           <NumInput
             v={sl.total}
             set={(v) => onChange({ ...sl, total: v })}
             cls="cs-spell-section__slots-input"
           />
-        </span>
-        <span className="cs-spell-section__dots">
-          {Array.from({ length: Math.max(sl.total, 0) }).map((_, j) => (
-            <button
-              key={j}
-              type="button"
-              className={`cs-checkdot cs-checkdot--sm ${j < sl.used ? "cs-checkdot--on" : ""}`}
-              onClick={() =>
-                onChange({ ...sl, used: sl.used === j + 1 ? j : j + 1 })
-              }
-            />
-          ))}
+          <NumInput
+            v={sl.used}
+            set={(v) => onChange({ ...sl, used: Math.min(Math.max(v, 0), sl.total) })}
+            cls="cs-spell-section__slots-input"
+          />
         </span>
       </div>
-      <TextBlock
-        v={sl.spells}
-        set={(v) => onChange({ ...sl, spells: v })}
-        label=""
-      />
+      <div className="cs-spell-section__body">
+        <span className="cs-spell-section__prepared" aria-hidden="true">
+          {Array.from({ length: spellRows }).map((_, row) => (
+            <i key={row} />
+          ))}
+        </span>
+        <TextBlock
+          v={sl.spells}
+          set={(v) => onChange({ ...sl, spells: v })}
+          label=""
+        />
+      </div>
     </div>
   );
 }
@@ -691,7 +684,7 @@ function Page4({ s, upd }: { s: SheetState; upd: (patch: Partial<SheetState>) =>
       <section className="cs-body cs-body--spells">
         {/* Column 1: Cantrips + levels 1–2 */}
         <div className="cs-spell-col">
-          <div className="cs-spell-section cs-spell-section--grow">
+          <div className="cs-spell-section cs-spell-section--grow cs-spell-section--cantrips">
             <div className="cs-spell-section__head">
               <span className="cs-spell-section__num">0</span>
               <span className="cs-spell-section__title">Заговоры</span>
@@ -847,7 +840,7 @@ const SHEET_CSS = `
 .sheet-page {
   width: 794px;
   height: 1122px;
-  padding: 24px 26px 14px;
+  padding: 39px 47px 53px;
   background: #fff;
   color: #1a1a1a;
   font-family: "PT Sans", Arial, Helvetica, sans-serif;
@@ -870,11 +863,11 @@ const SHEET_CSS = `
 .cs-numinput { border: none; background: transparent; padding: 0; }
 
 /* ── Header ── */
-.cs-header { display: flex; gap: 20px; align-items: flex-end; padding-bottom: 2px; }
+.cs-header { display: flex; gap: 10px; align-items: flex-end; padding-bottom: 2px; margin-bottom: 21px; }
 .cs-header--notes { }
-.cs-header--spells { gap: 14px; align-items: flex-end; border: 1.5px solid #1a1a1a; border-radius: 8px; padding: 8px 14px 5px; }
-.cs-name { margin: 0 0 2px; flex: 0 0 auto; width: 250px; position: relative; }
-.cs-name__input { width: 100%; border: none; border-bottom: 2px solid #1a1a1a; background: transparent; font-family: Georgia, "Times New Roman", serif; font-size: 27px; font-weight: 700; line-height: 1.1; padding: 0 0 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-header--spells { display: grid; grid-template-columns: 1.75fr repeat(3, 1fr); gap: 28px; align-items: start; border: none; border-radius: 0; padding: 0; }
+.cs-name { margin: 0 0 2px; flex: 0 0 auto; width: 226px; position: relative; }
+.cs-name__input { width: 100%; border: none; border-bottom: 2px solid #1a1a1a; background: transparent; font-family: Georgia, "Times New Roman", serif; font-size: 20px; font-weight: 700; line-height: 1.1; padding: 0 0 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cs-info { flex: 1; display: flex; flex-direction: column; gap: 7px; border: 1.5px solid #1a1a1a; border-radius: 8px; padding: 8px 16px 6px; }
 .cs-info__row { display: flex; gap: 22px; }
 .cs-field { flex: 1; position: relative; display: flex; flex-direction: column; }
@@ -883,11 +876,32 @@ const SHEET_CSS = `
 .cs-field__input { width: 100%; border: none; border-bottom: 1px solid #b5b5b5; background: transparent; font-size: 15px; padding: 0 2px 1px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cs-field__input--big { font-size: 16px; font-weight: 700; }
 .cs-field__label, .cs-name .cs-field__label { font-size: 7px; letter-spacing: .06em; text-transform: uppercase; color: #777; text-align: left; margin-top: 2px; }
+.cs-header--spells .cs-field__input { height: 29px; border: 1.5px solid #1a1a1a; border-radius: 3px; text-align: center; }
+.cs-header--spells .cs-field--grow .cs-field__input { border: none; border-bottom: 1.5px solid #1a1a1a; border-radius: 0; text-align: left; }
+.cs-header--spells .cs-field__label { text-align: center; }
+.cs-header--spells .cs-field--grow .cs-field__label { text-align: left; }
 
 /* ── Body grid ── */
 .cs-body { flex: 1; min-height: 0; display: flex; gap: 8px; }
 .cs-col { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
 .cs-col--wide { flex: 1.25; }
+.sheet-page[data-page="1"] .cs-info { min-height: 90px; }
+.sheet-page[data-page="1"] .cs-name { align-self: center; transform: translateY(10px); }
+.sheet-page[data-page="1"] .cs-stats-skills { flex: 0 0 575px; min-height: 0; }
+.sheet-page[data-page="1"] .cs-stat { flex: 1; min-height: 0; }
+.sheet-page[data-page="1"] .cs-skills > .cs-saves { flex: 1; display: flex; flex-direction: column; }
+.sheet-page[data-page="1"] .cs-skills > .cs-saves:last-child { flex: 2.4; }
+.sheet-page[data-page="1"] .cs-saves .cs-skill { flex: 1; }
+.sheet-page[data-page="1"] .cs-vitality { flex: 0 0 316px; }
+.sheet-page[data-page="1"] .cs-attacks { flex: 0 0 250px; }
+.sheet-page[data-page="1"] .cs-attacks .cs-textblock { flex: 1; min-height: 0; }
+.sheet-page[data-page="2"] { padding-top: 48px; }
+.sheet-page[data-page="2"] .cs-header { margin-bottom: 28px; }
+.sheet-page[data-page="2"] .cs-info { min-height: 72px; justify-content: center; }
+.sheet-page[data-page="2"] .cs-col--wide { flex: 2; }
+.sheet-page[data-page="2"] .cs-avatar { flex: 1; min-height: 0; }
+.sheet-page[data-page="3"] { padding-top: 76px; }
+.sheet-page[data-page="3"] .cs-header { margin-bottom: 24px; }
 
 /* ── Stats + skills ── */
 .cs-stats-skills { display: flex; gap: 6px; }
@@ -896,7 +910,7 @@ const SHEET_CSS = `
 .cs-stat__label { font-size: 6px; font-weight: 700; text-transform: uppercase; line-height: 1; text-align: center; }
 .cs-stat__mod { font-size: 19px; font-weight: 700; line-height: 1.1; }
 .cs-stat__score { width: 26px; height: 26px; border: 1px solid #8a8a8a; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; margin-top: 1px; overflow: hidden; }
-.cs-stat__score-input { font-size: 11px; font-weight: 600; }
+.cs-stat__score-input { width: 100%; font-size: 11px; font-weight: 600; text-align: center; }
 
 .cs-skills { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .cs-modblock { display: flex; align-items: center; gap: 5px; border: 1px solid #8a8a8a; border-radius: 5px; padding: 2px 6px; }
@@ -941,7 +955,7 @@ const SHEET_CSS = `
 .cs-vit-box--shield { border: none; background: transparent; justify-content: flex-start; }
 .cs-shield { position: absolute; inset: 0; width: 100%; height: 100%; color: #1a1a1a; }
 .cs-shield__kz { position: relative; z-index: 1; margin-top: 7px; font-size: 7px; }
-.cs-shield__input { position: relative; z-index: 1; font-size: 17px; font-weight: 700; }
+.cs-shield__input { position: relative; z-index: 1; width: 100%; font-size: 17px; font-weight: 700; text-align: center; }
 
 .cs-vit-hp { grid-column: 1 / -1; border: 1px solid #8a8a8a; border-radius: 6px; background: #fff; padding: 3px 8px 2px; display: flex; flex-direction: column; }
 .cs-vit-hp--temp { }
@@ -974,23 +988,27 @@ const SHEET_CSS = `
 .cs-coin__input { font-size: 11px; font-weight: 700; text-align: center; border: none; background: transparent; width: 100%; }
 
 /* ── Page 2 ── */
-.cs-avatar { border: 1px solid #8a8a8a; border-radius: 5px; min-height: 150px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #c4c4c4; }
+.cs-avatar { border: 1px solid #8a8a8a; border-radius: 5px; min-height: 150px; }
 
 /* ── Page 3 notes ── */
-.cs-body--notes { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 1fr); gap: 8px; }
+.cs-body--notes { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: repeat(3, 1fr); gap: 8px; }
 
 /* ── Page 4 spells — 3-column WotC layout ── */
 .cs-body--spells { gap: 8px; }
 .cs-spell-col { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 5px; }
-.cs-spell-section { border: 1px solid #8a8a8a; border-radius: 5px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.cs-spell-section { display: flex; flex-direction: column; min-height: 0; overflow: visible; }
 .cs-spell-section--grow { flex: 1; }
-.cs-spell-section__head { display: flex; align-items: center; gap: 5px; padding: 2px 6px; border-bottom: 1px solid #ccc; background: #f7f7f7; flex-shrink: 0; }
-.cs-spell-section__num { font-size: 16px; font-weight: 700; min-width: 12px; line-height: 1; }
-.cs-spell-section__title { font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; flex: 1; }
-.cs-spell-section__slots { font-size: 7px; color: #777; display: flex; align-items: center; gap: 3px; }
-.cs-spell-section__slots-input { width: 22px; font-size: 9px; font-weight: 700; text-align: center; border: none; border-bottom: 1px solid #bbb; background: transparent; }
-.cs-spell-section__dots { display: flex; gap: 2px; flex-wrap: wrap; max-width: 55px; justify-content: flex-end; align-items: center; }
-.cs-spell-section .cs-textblock { flex: 1; min-height: 0; border: none; border-radius: 0; }
+.cs-spell-section--cantrips { flex: .72; }
+.cs-spell-section__head { height: 25px; display: flex; align-items: center; padding: 0; border: 1.5px solid #1a1a1a; border-radius: 3px; background: #fff; flex-shrink: 0; overflow: visible; }
+.cs-spell-section__num { width: 27px; height: 27px; margin: -2px 0 -2px -1.5px; border: 1.5px solid #1a1a1a; border-radius: 50%; background: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1; }
+.cs-spell-section__title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; text-align: center; flex: 1; }
+.cs-spell-section__slots { width: 77px; height: 25px; margin: -1.5px 0 -1.5px -1px; border: 1.5px solid #1a1a1a; border-left: none; border-radius: 0 18px 18px 0; display: grid; grid-template-columns: 1fr 1fr; align-items: center; overflow: hidden; }
+.cs-spell-section__slots-input { width: 100%; height: 21px; font-size: 9px; font-weight: 700; text-align: center; border: none; background: transparent; }
+.cs-spell-section__body { flex: 1; min-height: 0; display: flex; margin-top: 4px; }
+.cs-spell-section__prepared { width: 14px; flex: 0 0 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-around; padding: 2px 0; }
+.cs-spell-section__prepared i { width: 7px; height: 7px; border: 1px solid #555; border-radius: 50%; background: #fff; }
+.cs-spell-section__body .cs-textblock { flex: 1; min-height: 0; border: none; border-radius: 0; }
+.cs-spell-section--cantrips > .cs-textblock { flex: 1; min-height: 0; border: none; border-radius: 0; margin-top: 4px; }
 .cs-spell-section .cs-textblock__label { display: none; }
 
 /* ── Footer ── */
@@ -1004,7 +1022,7 @@ const SHEET_CSS = `
   .print-wrapper { background: #fff !important; padding: 0 !important; margin: 0 !important; }
   .print-wrapper > * { margin: 0 !important; }
   .sheet-page {
-    width: 210mm; height: 297mm; padding: 8mm 9mm 5mm;
+    width: 210mm; height: 297mm; padding: 10.3mm 12.4mm 14mm;
     break-after: page; page-break-after: always; box-shadow: none !important;
     margin: 0 !important;
   }

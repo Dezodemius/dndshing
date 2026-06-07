@@ -7,19 +7,18 @@ import { compareToEtalon } from "./etalon-compare";
 // Visual comparison against the committed etalon images (tests/references/etalon).
 //
 // Tagged @visual and excluded from the deploy-gating e2e run. The etalons are
-// PDF exports, so the current diff vs the HTML render is large and the default
-// threshold is wide-open (non-gating) — the job's value is the attached
-// actual/diff images. When the etalons are later replaced with real app
-// screenshots, set VISUAL_THRESHOLD low (e.g. 0.02) to turn this into a real
-// pixel-regression gate.
+// PDF exports, so browser font rasterization cannot be pixel-identical. The
+// default threshold still catches structural regressions while leaving room
+// for those rendering differences.
 
 const URL = "/test-sheet";
 const ETALON_DIR = path.resolve(process.cwd(), "tests/references/etalon");
-const THRESHOLD = Number(process.env.VISUAL_THRESHOLD ?? "1");
+const THRESHOLD = Number(process.env.VISUAL_THRESHOLD ?? "0.12");
 
 for (let i = 1; i <= 4; i++) {
   test(`@visual page ${i} vs etalon`, async ({ page }, testInfo) => {
     await page.goto(URL, { waitUntil: "networkidle" });
+    await page.addStyleTag({ content: ".no-print { display: none !important; }" });
 
     const sheetPage = page.locator(".sheet-page").nth(i - 1);
     await expect(sheetPage).toBeVisible();
