@@ -1,0 +1,57 @@
+# .github/workflows/review.yml
+#
+# Независимое ревью каждого PR в develop. Запускается при создании PR
+# и при добавлении коммитов. Ревьюер = Opus (одно ревью в день квоту
+# не исчерпает), контекст свежий — ловит слепые зоны автора-агента.
+# Результат — комментарии в PR; человек-владелец остаётся арбитром.
+
+name: review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [develop]
+
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Review PR
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Ты — независимый ревьюер PR #${{ github.event.pull_request.number }}.
+            Автор — другой агент; твоя ценность в свежем взгляде.
+
+            1. Прочитай CLAUDE.md, docs/architecture.md, связанную ишью
+               (номер — в теле PR после "Closes #") и её секцию в
+               docs/backlog.md. Затем полный diff PR.
+            2. Проверь по приоритету:
+               a) безопасность — скилл security-review, особенно IDOR
+                  и транзакции с деньгами;
+               b) соответствие критериям приёмки задачи — каждый пункт;
+               c) выход за скоуп: код, которого задача не требовала,
+                  или что-то из фазы 2 (BR §6);
+               d) корректность тестов: проверяют ли они приёмку или
+                  written-to-pass;
+               e) скилл code-style — только существенные нарушения.
+            3. Итог — ОДИН комментарий к PR (gh pr comment):
+               «Вердикт: approve | needs work», затем замечания по
+               убыванию важности с путями файлов и строками. Не более
+               10 замечаний, без воды. Мелкие вкусовые придирки не пиши.
+            4. Код НЕ правь, ничего не пушь, PR не мержи и не закрывай.
+          claude_args: "--max-turns 30 --model claude-opus-4-8"
