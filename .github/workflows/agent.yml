@@ -1,33 +1,17 @@
-# .github/workflows/agent.yml
+# .github/workflows/agent.yml  (v3)
 #
-# Автономный агент. Запускается в облаке GitHub (ubuntu-latest) —
-# локальная машина владельца НЕ участвует и не должна быть в сети.
+# Автономный агент. Работает в облаке GitHub — локальная машина не нужна.
+# Ветки: feat/dnd-NNN от develop, PR в develop. Прод деплоится только
+# при merge develop -> main (отдельный CD-воркфлоу, секреты прода
+# агентскому воркфлоу недоступны).
 #
-# Каждый запуск берёт ОДНУ следующую готовую задачу из ишью и реализует
-# её. PR открывается отдельным шагом (сам action только коммитит ветку).
-#
-# Подготовка (однократно):
-#   1. Локально: claude setup-token  → скопировать sk-ant-oat01-...
-#   2. Repo Settings → Secrets → Actions → добавить секрет
-#      CLAUDE_CODE_OAUTH_TOKEN с этим значением.
-#   3. В локальной сессии Claude Code в этом репо: /install-github-app
-#      (ставит GitHub App; нужны права админа репозитория).
-#   4. Создать ишью: python scripts/create_issues.py --apply
-#   5. Первый прогон — руками: Actions → agent → Run workflow,
-#      в поле issue указать номер ишью DND-001.
-#
-# Логика выбора задачи:
-#   - open-ишью с меткой agent-ready без метки in-progress;
-#   - все Depends-on (DND-ID в теле) должны быть закрыты;
-#   - берётся задача с минимальным DND-номером;
-#   - если есть in-progress (несмёрженный PR прошлого запуска) —
-#     запуск завершается без работы: один PR за раз.
+# Подготовка: см. чеклист в docs/launch-checklist.md
 
 name: agent
 
 on:
   schedule:
-    - cron: "17 3 * * *"   # ежедневно 03:17 UTC (06:17 МСК); не :00 — меньше очередь на шаредных раннерах
+    - cron: "17 0 * * *"
   workflow_dispatch:
     inputs:
       issue:
@@ -67,8 +51,7 @@ jobs:
           fi
           picked=""
           for num in $(gh issue list --label agent-ready --state open \
-                        --json number,title \
-                        --jq 'sort_by(.title) | .[].number'); do
+                        --json number,title --jq 'sort_by(.title) | .[].number'); do
             title=$(gh issue view "$num" --json title --jq .title)
             body=$(gh issue view "$num" --json body --jq .body)
             self=$(printf '%s' "$title" | grep -oE '^DND-[0-9]+' || true)
@@ -93,6 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: develop
           fetch-depth: 0
 
       - name: Mark in-progress
@@ -105,20 +89,36 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            Реализуй задачу из GitHub issue #${{ env.ISSUE }} этого репозитория.
-            Порядок работы:
-            1. Прочитай issue (gh issue view ${{ env.ISSUE }}), затем CLAUDE.md,
-               docs/business-requirements.md, docs/architecture.md и секцию
-               задачи в docs/backlog.md.
-            2. Создай ветку с именем из Definition of Done задачи (feat/dnd-NNN)
-               от свежего main.
-            3. Реализуй строго скоуп задачи. Ничего из "Вне скоупа" и фазы 2.
-            4. Напиши тесты по критериям приёмки, добейся зелёного pytest
-               (и build фронта, если задача фронтовая).
-            5. Закоммить и запушь ветку. PR не создавай — его создаст workflow.
-          claude_args: "--max-turns 80"
+            Выполни задачу из GitHub issue #${{ env.ISSUE }} строго по фазам.
 
-      - name: Open PR and link issue
+            ФАЗА 1 — РАЗВЕДКА. Прочитай: issue (gh issue view ${{ env.ISSUE }}),
+            CLAUDE.md, docs/business-requirements.md, docs/architecture.md,
+            секцию задачи в docs/backlog.md и АКТУАЛЬНЫЙ код модулей, которых
+            касается задача. Скиллы-конвенции (.claude/skills/) применяй по
+            их описаниям. Если задача противоречит текущему коду или docs —
+            остановись: напиши блокер комментарием в issue, сними метку
+            in-progress (gh issue edit --remove-label) и заверши работу.
+
+            ФАЗА 2 — ПЛАН. Напиши комментарий к issue: файлы, которые
+            изменишь; новые эндпоинты/модели; план тестов; принятые
+            допущения. Коротко, списком.
+
+            ФАЗА 3 — РЕАЛИЗАЦИЯ. Ветка feat/dnd-NNN (номер из issue) от
+            свежего develop. Только скоуп задачи: ничего из «Вне скоупа»
+            и фазы 2 (BR §6). Коммиты атомарные, сообщения на английском.
+
+            ФАЗА 4 — САМОРЕВЬЮ. Прогони полный diff против: критериев
+            приёмки задачи; DoD из CLAUDE.md; скилла security-review;
+            скилла code-style. Запусти тесты и линт, добейся зелёного.
+            Найденное — исправь сейчас.
+
+            ФАЗА 5 — ОФОРМЛЕНИЕ. Запиши в файл .claude/pr-body.md (в ветке)
+            тело PR: Что сделано / Как проверял (тесты + ручные шаги) /
+            Решения и допущения / Что НЕ вошло и почему. Запушь ветку.
+            Сам PR НЕ создавай — его создаст workflow.
+          claude_args: "--max-turns 100"
+
+      - name: Open PR into develop
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -127,12 +127,18 @@ jobs:
           dnd=$(printf '%s' "$title" | grep -oE '^DND-[0-9]+' | tr 'A-Z' 'a-z')
           branch="feat/${dnd}"
           if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
-            gh pr create --head "$branch" --title "$title" \
-              --body "Closes #$ISSUE. Автосгенерировано агентом; требуется ревью." \
-              || echo "PR already exists"
+            git fetch origin "$branch"
+            body_file=$(mktemp)
+            if git show "origin/${branch}:.claude/pr-body.md" > "$body_file" 2>/dev/null; then
+              printf '\n\nCloses #%s' "$ISSUE" >> "$body_file"
+            else
+              printf 'Closes #%s. (Агент не оставил описание — смотреть diff.)' "$ISSUE" > "$body_file"
+            fi
+            gh pr create --base develop --head "$branch" --title "$title" \
+              --body-file "$body_file" || echo "PR already exists"
           else
-            echo "Branch $branch not found — agent failed to push."
-            gh issue edit "$ISSUE" --remove-label in-progress
-            gh issue comment "$ISSUE" --body "Агент не запушил ветку $branch, запуск неуспешен. Смотри лог workflow."
+            echo "Branch $branch not found — agent stopped or failed."
+            gh issue edit "$ISSUE" --remove-label in-progress || true
+            gh issue comment "$ISSUE" --body "Запуск без результата: ветка $branch не запушена. Смотри лог workflow и комментарии выше."
             exit 1
           fi
