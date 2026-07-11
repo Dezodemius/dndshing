@@ -1,0 +1,138 @@
+# .github/workflows/agent.yml
+#
+# Автономный агент. Запускается в облаке GitHub (ubuntu-latest) —
+# локальная машина владельца НЕ участвует и не должна быть в сети.
+#
+# Каждый запуск берёт ОДНУ следующую готовую задачу из ишью и реализует
+# её. PR открывается отдельным шагом (сам action только коммитит ветку).
+#
+# Подготовка (однократно):
+#   1. Локально: claude setup-token  → скопировать sk-ant-oat01-...
+#   2. Repo Settings → Secrets → Actions → добавить секрет
+#      CLAUDE_CODE_OAUTH_TOKEN с этим значением.
+#   3. В локальной сессии Claude Code в этом репо: /install-github-app
+#      (ставит GitHub App; нужны права админа репозитория).
+#   4. Создать ишью: python scripts/create_issues.py --apply
+#   5. Первый прогон — руками: Actions → agent → Run workflow,
+#      в поле issue указать номер ишью DND-001.
+#
+# Логика выбора задачи:
+#   - open-ишью с меткой agent-ready без метки in-progress;
+#   - все Depends-on (DND-ID в теле) должны быть закрыты;
+#   - берётся задача с минимальным DND-номером;
+#   - если есть in-progress (несмёрженный PR прошлого запуска) —
+#     запуск завершается без работы: один PR за раз.
+
+name: agent
+
+on:
+  schedule:
+    - cron: "17 3 * * *"   # ежедневно 03:17 UTC (06:17 МСК); не :00 — меньше очередь на шаредных раннерах
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: "Номер ишью (пусто = выбрать автоматически)"
+        required: false
+
+concurrency:
+  group: agent
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  pick:
+    runs-on: ubuntu-latest
+    outputs:
+      issue: ${{ steps.pick.outputs.issue }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pick next ready issue
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCED: ${{ inputs.issue }}
+        run: |
+          set -euo pipefail
+          if [ -n "${FORCED:-}" ]; then
+            echo "issue=$FORCED" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          busy=$(gh issue list --label in-progress --state open --json number --jq 'length')
+          if [ "$busy" != "0" ]; then
+            echo "In-progress issue exists, skipping run."
+            echo "issue=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          picked=""
+          for num in $(gh issue list --label agent-ready --state open \
+                        --json number,title \
+                        --jq 'sort_by(.title) | .[].number'); do
+            title=$(gh issue view "$num" --json title --jq .title)
+            body=$(gh issue view "$num" --json body --jq .body)
+            self=$(printf '%s' "$title" | grep -oE '^DND-[0-9]+' || true)
+            deps=$(printf '%s' "$body" | grep -oE 'DND-[0-9]+' | sort -u || true)
+            ok=1
+            for d in $deps; do
+              [ "$d" = "$self" ] && continue
+              open_dep=$(gh issue list --state open --search "$d in:title" \
+                          --json number --jq 'length')
+              if [ "$open_dep" != "0" ]; then ok=0; break; fi
+            done
+            if [ "$ok" = "1" ]; then picked="$num"; break; fi
+          done
+          echo "issue=$picked" >> "$GITHUB_OUTPUT"
+
+  run:
+    needs: pick
+    if: needs.pick.outputs.issue != ''
+    runs-on: ubuntu-latest
+    env:
+      ISSUE: ${{ needs.pick.outputs.issue }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mark in-progress
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue edit "$ISSUE" --add-label in-progress
+
+      - name: Run Claude Code on the issue
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Реализуй задачу из GitHub issue #${{ env.ISSUE }} этого репозитория.
+            Порядок работы:
+            1. Прочитай issue (gh issue view ${{ env.ISSUE }}), затем CLAUDE.md,
+               docs/business-requirements.md, docs/architecture.md и секцию
+               задачи в docs/backlog.md.
+            2. Создай ветку с именем из Definition of Done задачи (feat/dnd-NNN)
+               от свежего main.
+            3. Реализуй строго скоуп задачи. Ничего из "Вне скоупа" и фазы 2.
+            4. Напиши тесты по критериям приёмки, добейся зелёного pytest
+               (и build фронта, если задача фронтовая).
+            5. Закоммить и запушь ветку. PR не создавай — его создаст workflow.
+          claude_args: "--max-turns 80"
+
+      - name: Open PR and link issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          title=$(gh issue view "$ISSUE" --json title --jq .title)
+          dnd=$(printf '%s' "$title" | grep -oE '^DND-[0-9]+' | tr 'A-Z' 'a-z')
+          branch="feat/${dnd}"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            gh pr create --head "$branch" --title "$title" \
+              --body "Closes #$ISSUE. Автосгенерировано агентом; требуется ревью." \
+              || echo "PR already exists"
+          else
+            echo "Branch $branch not found — agent failed to push."
+            gh issue edit "$ISSUE" --remove-label in-progress
+            gh issue comment "$ISSUE" --body "Агент не запушил ветку $branch, запуск неуспешен. Смотри лог workflow."
+            exit 1
+          fi
