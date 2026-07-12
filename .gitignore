@@ -3,10 +3,6 @@ node_modules/
 .pnp
 .pnp.js
 
-# next.js
-.next/
-out/
-
 # production
 build/
 dist/
@@ -14,19 +10,9 @@ dist/
 # env
 .env
 .env.*
-!.env.example
-
-# vercel
-.vercel/
 
 # local tooling
 .idea/
-supabase/.temp/
-
-# playwright
-test-results/
-playwright-report/
-playwright/.cache/
 
 # logs
 npm-debug.log*
