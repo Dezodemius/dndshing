@@ -22,6 +22,8 @@ venv/
 # local tooling
 .idea/
 .claude/worktrees/
+# черновик тела PR: агент пишет его в workspace, workflow читает с диска — в git не нужен
+.claude/pr-body.md
 
 # logs
 npm-debug.log*

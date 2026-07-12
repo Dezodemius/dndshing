@@ -103,9 +103,11 @@ jobs:
             скилла code-style. Запусти тесты и линт, добейся зелёного.
             Найденное — исправь сейчас.
 
-            ФАЗА 5 — ОФОРМЛЕНИЕ. Запиши в файл .claude/pr-body.md (в ветке)
-            тело PR: Что сделано / Как проверял (тесты + ручные шаги) /
-            Решения и допущения / Что НЕ вошло и почему. Запушь ветку.
+            ФАЗА 5 — ОФОРМЛЕНИЕ. Запиши тело PR в файл .claude/pr-body.md:
+            Что сделано / Как проверял (тесты + ручные шаги) / Решения и
+            допущения / Что НЕ вошло и почему. Файл в .gitignore — он лишь
+            передаёт текст следующему шагу workflow, НЕ коммить его и не
+            добавляй через git add -f. Запушь ветку с кодом задачи.
             Сам PR НЕ создавай — его создаст workflow.
           claude_args: "--max-turns 100 --dangerously-skip-permissions"
 
@@ -120,9 +122,12 @@ jobs:
           dnd=$(printf '%s' "$title" | grep -oE '^DND-[0-9]+' | tr 'A-Z' 'a-z')
           branch="feat/${dnd}"
           if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
-            git fetch origin "$branch"
+            # Тело PR агент оставляет в .claude/pr-body.md прямо в workspace
+            # (файл в .gitignore). Шаги идут в одном job — читаем его с диска,
+            # а не из ветки: в git такой файл коммитить незачем.
             body_file=$(mktemp)
-            if git show "origin/${branch}:.claude/pr-body.md" > "$body_file" 2>/dev/null; then
+            if [ -s .claude/pr-body.md ]; then
+              cat .claude/pr-body.md > "$body_file"
               printf '\n\nCloses #%s' "$ISSUE" >> "$body_file"
             else
               printf 'Closes #%s. (Агент не оставил описание — смотреть diff.)' "$ISSUE" > "$body_file"
