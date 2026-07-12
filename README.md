@@ -49,13 +49,18 @@ Backend — модульный монолит: `app/{core,auth,content,character
 
 ### Команды
 
-Появятся вместе с каркасом (`DND-001` — backend, `DND-003` — frontend):
+Backend-команды доступны начиная с `DND-001`; фронтовые появятся вместе с `DND-003`.
 
 ```bash
-docker compose up -d          # postgres + api
-alembic upgrade head          # миграции
-pytest                        # тесты backend
-cd frontend && npm run dev    # фронт локально
+cp .env.example .env                # локальный конфиг
+pip install -r requirements-dev.txt # зависимости backend
+
+docker compose up -d --build        # postgres + api в контейнерах
+alembic upgrade head                # миграции (локально, вне контейнера)
+pytest                              # тесты backend
+ruff check .                        # линт backend
+
+cd frontend && npm run dev          # фронт локально (появится в DND-003)
 ```
 
 ### Ветки и задачи

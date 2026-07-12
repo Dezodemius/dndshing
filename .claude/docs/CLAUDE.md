@@ -40,13 +40,21 @@ D&D Campaign Platform — веб-платформа для игроков и м�
 ## Команды
 
 ```bash
-docker compose up -d          # postgres + api
-alembic upgrade head          # миграции
-pytest                        # тесты backend
-cd frontend && npm run dev    # фронт локально
-```
+cp .env.example .env                              # локальный конфиг (не коммитить)
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt                # зависимости backend + dev-инструменты
 
-(Дополнять по мере появления в T0.)
+docker compose up -d db                            # только Postgres, если api гоняешь локально
+alembic upgrade head                                # миграции на основную БД
+uvicorn app.main:app --reload                       # backend локально, http://localhost:8000/healthz
+
+docker compose up -d --build                        # весь стек: api + postgres в контейнерах
+
+pytest                                               # тесты backend (сами применяют миграции к тестовой БД)
+ruff check .                                         # линт backend
+
+cd frontend && npm run dev                           # фронт локально (появится в DND-003)
+```
 
 ## Definition of Done задачи
 
