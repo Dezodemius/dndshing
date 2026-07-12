@@ -33,7 +33,10 @@ STATIC_LABELS = {
 
 
 def sh(args: list[str]) -> str:
-    return subprocess.run(args, check=True, capture_output=True, text=True).stdout
+    # encoding="utf-8": gh emits UTF-8; on a cp1251 Windows locale the default
+    # text decoder chokes on Cyrillic issue titles.
+    return subprocess.run(args, check=True, capture_output=True,
+                          text=True, encoding="utf-8").stdout
 
 
 def parse_backlog(text: str) -> list[dict]:
