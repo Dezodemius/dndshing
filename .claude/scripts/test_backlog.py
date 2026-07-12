@@ -124,7 +124,7 @@ def test_a_dependency_with_no_issue_yet_blocks_the_task():
     assert c["add"] == ["blocked"] and c["waiting_on"] == ["DND-002"]
 
 
-def test_in_progress_is_left_alone():
+def test_in_progress_is_left_alone_while_the_task_is_open():
     # The agent owns that label; relabelling mid-run would yank the task away.
     tasks = tasks_by_id()
     issues = {"DND-000": issue(1), "DND-001": issue(2, labels=["in-progress"])}
@@ -136,6 +136,15 @@ def test_closed_issue_loses_its_queue_labels():
     issues = {"DND-000": issue(1, "CLOSED", labels=["agent-ready", "infra"])}
     c = changes_by_id(tasks, issues)["DND-000"]
     assert c["add"] == [] and c["remove"] == ["agent-ready"]
+
+
+def test_closed_issue_loses_in_progress_too():
+    # A run that died after marking the task busy leaves the label behind: the
+    # board reads Done off the closed state while the label still says busy.
+    tasks = tasks_by_id()
+    issues = {"DND-000": issue(1, "CLOSED", labels=["in-progress", "infra"])}
+    c = changes_by_id(tasks, issues)["DND-000"]
+    assert c["remove"] == ["in-progress"]
 
 
 def test_planner_is_idempotent():

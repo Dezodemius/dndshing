@@ -9,7 +9,9 @@ Two things are reconciled on every run:
 
   labels  open task with all `depends:` closed -> agent-ready (not blocked)
           open task still waiting               -> blocked (not agent-ready)
-          `in-progress` is never touched: the agent owns that label.
+          closed task                           -> queue labels stripped
+          `in-progress` on an *open* task is never touched: the agent owns it
+          while it works. On a closed one it is a leftover and gets stripped.
 
   board   every DND issue is on the project board with Эпик/Область set, and
           Status reflects reality (closed -> Done, in-progress -> In Progress,
@@ -44,8 +46,12 @@ def plan_labels(tasks: dict, issues: dict) -> list[dict]:
             print(f"!! {task_id}: ишью есть, задачи в BACKLOG нет — пропускаю")
             continue
         if issue["state"] == "CLOSED":
-            # Closed issues keep their history; strip only the queue labels.
-            add, remove = set(), {READY, BLOCKED} & issue["labels"]
+            # Closed issues keep their history; strip the queue labels. BUSY is
+            # among them: done.yml removes it on merge, but a run that died
+            # between `gh issue edit --add-label` and the PR leaves it behind,
+            # and a closed task is not in progress — the board (Done, read from
+            # the state) and the label would say different things.
+            add, remove = set(), {READY, BLOCKED, BUSY} & issue["labels"]
         elif BUSY in issue["labels"]:
             continue  # the agent is working on it — hands off
         else:

@@ -1,0 +1,67 @@
+# .github/workflows/done.yml
+#
+# Закрывает задачу, когда её PR влит в develop, и снимает in-progress.
+#
+# Раньше ишью закрывал сам GitHub по трейлеру `Closes #N`. Трейлер дописывался
+# в mktemp-копию тела при создании PR (agent.yml, шаг «Open PR»), а не в
+# .claude/pr-body.md — поэтому любая последующая правка тела (`gh pr edit
+# --body-file`) молча его теряла. Так DND-001 остался открытым после мержа
+# PR #43, а на нём осталась метка in-progress — и очередь агента встала:
+# agent.yml (шаг pick) пропускает прогон, пока есть открытая ишью с in-progress.
+#
+# Источник истины теперь — имя ветки feat/dnd-NNN: его правка тела PR не
+# затрагивает. Трейлер в agent.yml остаётся (он связывает PR с ишью в UI), но
+# закрытие на него больше не завязано: если GitHub успел закрыть ишью сам,
+# `gh issue close` ниже это молча примет.
+
+name: done
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [develop]
+
+concurrency:
+  group: done-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  close:
+    # Ветки задач называет agent.yml: feat/dnd-NNN. Остальные PR (chore, docs)
+    # ишью не закрывают.
+    if: startsWith(github.event.pull_request.head.ref, 'feat/dnd-')
+    runs-on: ubuntu-latest
+    env:
+      # PAT, не github.token: события от GITHUB_TOKEN не запускают другие
+      # воркфлоу, а закрытие ишью должно немедленно поднять plan.yml
+      # (on: issues: closed) — иначе следующая задача ждёт метку agent-ready
+      # до ночного cron.
+      GH_TOKEN: ${{ secrets.GH_PAT }}
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+      PR: ${{ github.event.pull_request.number }}
+      MERGED: ${{ github.event.pull_request.merged }}
+    steps:
+      - name: Close the issue and drop in-progress
+        run: |
+          set -euo pipefail
+          task=$(printf '%s' "$BRANCH" | grep -oE 'dnd-[0-9]+$' | tr 'a-z' 'A-Z')
+          # Ишью ищем по номеру задачи в заголовке («DND-001 · …»), как её
+          # создаёт create-issues.py. [^0-9] — чтобы DND-001 не поймал DND-0010.
+          issue=$(gh issue list --state all --limit 500 --json number,title \
+                    --jq "map(select(.title | test(\"^${task}([^0-9]|\$)\"))) | .[0].number // empty")
+          if [ -z "$issue" ]; then
+            echo "::warning::ишью для $task не найдена — ветка $BRANCH ни к чему не привязана"
+            exit 0
+          fi
+
+          # Метку ставит agent.yml на старте прогона; здесь прогон закончился —
+          # мержем или отказом. || true: у ишью её может и не быть (PR руками).
+          gh issue edit "$issue" --remove-label in-progress || true
+
+          if [ "$MERGED" = "true" ]; then
+            gh issue close "$issue" --reason completed \
+              --comment "Готово: PR #$PR влит в develop."
+          else
+            gh issue comment "$issue" \
+              --body "PR #$PR закрыт без мержа. Задача снова свободна — planner вернёт ей agent-ready."
+          fi
