@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dndshing}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dndshing}
+      POSTGRES_DB: ${POSTGRES_DB:-dndshing}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-test-db.sh:/docker-entrypoint-initdb.d/init-test-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dndshing}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://dndshing:dndshing@db:5432/dndshing}
+      TEST_DATABASE_URL: ${TEST_DATABASE_URL:-postgresql+asyncpg://dndshing:dndshing@db:5432/dndshing_test}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+volumes:
+  pg_data:
