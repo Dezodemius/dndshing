@@ -50,22 +50,12 @@ jobs:
             echo "In-progress issue exists, skipping run."
             echo "issue=" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          picked=""
-          for num in $(gh issue list --label agent-ready --state open \
-                        --json number,title --jq 'sort_by(.title) | .[].number'); do
-            title=$(gh issue view "$num" --json title --jq .title)
-            body=$(gh issue view "$num" --json body --jq .body)
-            self=$(printf '%s' "$title" | grep -oE '^DND-[0-9]+' || true)
-            deps=$(printf '%s' "$body" | grep -oE 'DND-[0-9]+' | sort -u || true)
-            ok=1
-            for d in $deps; do
-              [ "$d" = "$self" ] && continue
-              open_dep=$(gh issue list --state open --search "$d in:title" \
-                          --json number --jq 'length')
-              if [ "$open_dep" != "0" ]; then ok=0; break; fi
-            done
-            if [ "$ok" = "1" ]; then picked="$num"; break; fi
-          done
+          # Зависимости здесь не проверяются: метку agent-ready ставит
+          # plan.yml по графу `depends:` из BACKLOG. Раньше на этом месте был
+          # grep DND-\d+ по телу ишью — он принимал за зависимость любое
+          # упоминание задачи в прозе (напр. в разделе «Вне скоупа»).
+          picked=$(gh issue list --label agent-ready --state open \
+                    --json number,title --jq 'sort_by(.title) | .[0].number // empty')
           echo "issue=$picked" >> "$GITHUB_OUTPUT"
 
   run:

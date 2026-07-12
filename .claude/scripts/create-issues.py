@@ -5,79 +5,30 @@ Usage:
     python .claude/scripts/create-issues.py            # dry run: print what would be created
     python .claude/scripts/create-issues.py --apply    # actually create labels and issues
 
+Create-only: an existing issue is never updated from BACKLOG (skipped by DND-ID).
+Queue labels (agent-ready/blocked) and the project board are owned by
+plan-tasks.py — run it after this script.
+
 Requires: gh CLI authenticated in the target repo (run from repo root).
-Idempotent-ish: skips issues whose DND-ID already exists in an open/closed issue title.
 """
 from __future__ import annotations
 
 import argparse
-import json
-import re
 import subprocess
 import sys
-from pathlib import Path
 
-BACKLOG = Path(".claude/docs/BACKLOG.md")
-TASK_RE = re.compile(r"^### (DND-\d+) · (.+)$")
+import backlog as bl
 
 STATIC_LABELS = {
-    "agent-ready": ("0E8A16", "Готова к запуску агентом"),
+    "agent-ready": ("0E8A16", "Все зависимости закрыты — можно запускать агента"),
     "in-progress": ("FBCA04", "Агент работает / PR открыт"),
-    "blocked": ("B60205", "Заблокирована зависимостями"),
+    "blocked": ("B60205", "Ждёт незакрытых зависимостей"),
     "backend": ("1D76DB", ""),
     "frontend": ("5319E7", ""),
     "infra": ("C5DEF5", ""),
     "docs": ("BFDADC", ""),
     "security": ("D93F0B", ""),
 }
-
-
-def sh(args: list[str]) -> str:
-    # encoding="utf-8": gh emits UTF-8; on a cp1251 Windows locale the default
-    # text decoder chokes on Cyrillic issue titles.
-    return subprocess.run(args, check=True, capture_output=True,
-                          text=True, encoding="utf-8").stdout
-
-
-def parse_backlog(text: str) -> list[dict]:
-    tasks, cur = [], None
-    for line in text.splitlines():
-        m = TASK_RE.match(line)
-        if m:
-            if cur:
-                tasks.append(cur)
-            cur = {"id": m.group(1), "title": m.group(2).strip(),
-                   "labels": [], "depends": [], "body": []}
-            continue
-        if cur is None:
-            continue
-        if line.startswith("labels:"):
-            cur["labels"] = [l.strip() for l in line[7:].split(",") if l.strip()]
-        elif line.startswith("depends:"):
-            deps = line[8:].strip()
-            cur["depends"] = [] if deps in ("—", "-", "") else \
-                [d.strip() for d in deps.split(",")]
-        elif line.startswith("## ") and cur["body"]:
-            tasks.append(cur)
-            cur = None
-        else:
-            cur["body"].append(line)
-    if cur:
-        tasks.append(cur)
-    for t in tasks:
-        t["body"] = "\n".join(t["body"]).strip()
-    return tasks
-
-
-def existing_issue_ids() -> set[str]:
-    out = sh(["gh", "issue", "list", "--state", "all", "--limit", "500",
-              "--json", "title"])
-    ids = set()
-    for it in json.loads(out):
-        m = re.match(r"(DND-\d+)", it["title"])
-        if m:
-            ids.add(m.group(1))
-    return ids
 
 
 def ensure_labels(tasks: list[dict], apply: bool) -> None:
@@ -115,28 +66,32 @@ def main() -> None:
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
 
-    tasks = parse_backlog(BACKLOG.read_text(encoding="utf-8"))
+    tasks = list(bl.load_tasks().values())
     print(f"Найдено задач: {len(tasks)}")
     ensure_labels(tasks, args.apply)
-    done = existing_issue_ids() if args.apply else set()
+    done = set(bl.load_issues()) if args.apply else set()
 
+    created = 0
     for t in tasks:
         if t["id"] in done:
-            print(f"skip (exists): {t['id']}")
             continue
-        # agent-ready сразу только у задач без зависимостей;
-        # остальным метку выставит планировщик, когда зависимости закроются
-        labels = list(t["labels"])
-        if not t["depends"] and "agent-ready" not in labels:
-            labels.append("agent-ready")
         title = f"{t['id']} · {t['title']}"
         if args.apply:
-            sh(["gh", "issue", "create", "--title", title,
-                "--body", build_body(t), "--label", ",".join(labels)])
+            # No queue label here: plan-tasks.py derives agent-ready/blocked
+            # from the dependency graph, including for brand-new issues.
+            bl.sh(["gh", "issue", "create", "--title", title,
+                   "--body", build_body(t), "--label", ",".join(t["labels"])])
             print(f"created: {title}")
         else:
-            print(f"[dry-run] issue: {title}  labels={labels}  "
+            print(f"[dry-run] issue: {title}  labels={t['labels']}  "
                   f"depends={t['depends']}")
+        created += 1
+
+    if not created:
+        print("Новых задач нет — все уже в GitHub.")
+    elif args.apply:
+        print(f"\nСоздано: {created}. Теперь запусти:\n"
+              f"  python .claude/scripts/plan-tasks.py --apply")
 
 
 if __name__ == "__main__":

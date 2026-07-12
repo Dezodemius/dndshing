@@ -1,0 +1,53 @@
+# .github/workflows/plan.yml
+#
+# Планировщик очереди. Читает граф зависимостей из строк `depends:` в
+# .claude/docs/BACKLOG.md и приводит GitHub в соответствие с ним:
+#   - открытая задача, все зависимости которой закрыты -> agent-ready
+#   - остальные -> blocked
+#   - доска проекта: Эпик / Область / Status
+#
+# Без этого очередь агента пустеет навсегда: agent.yml метку agent-ready
+# только читает, а выставить её некому. Поэтому planner ходит раньше агента
+# (cron 05:00 UTC против 00:17 у agent.yml) и сразу после закрытия любой ишью.
+
+name: plan
+
+on:
+  issues:
+    types: [closed, reopened, deleted]
+  push:
+    branches: [develop]
+    paths:
+      - ".claude/docs/BACKLOG.md"
+      - ".claude/scripts/**"
+  schedule:
+    - cron: "5 0 * * *"   # за 12 минут до agent.yml
+  workflow_dispatch:
+
+concurrency:
+  group: plan
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop   # BACKLOG на develop — источник графа
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Reconcile labels and project board
+        env:
+          # PAT, не github.token: у GITHUB_TOKEN нет scope `project`,
+          # без него доска (Projects v2, user-owned) недоступна на запись.
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          PYTHONIOENCODING: utf-8
+        run: python .claude/scripts/plan-tasks.py --apply

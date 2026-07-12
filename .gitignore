@@ -11,8 +11,17 @@ dist/
 .env
 .env.*
 
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
 # local tooling
 .idea/
+.claude/worktrees/
 
 # logs
 npm-debug.log*
