@@ -144,7 +144,12 @@ jobs:
             передаёт текст следующему шагу workflow, НЕ коммить его и не
             добавляй через git add -f. Запушь ветку с кодом задачи.
             Сам PR НЕ создавай — его создаст workflow.
-          claude_args: "--max-turns 100 --dangerously-skip-permissions"
+          # Модель прибита явно, а не оставлена на дефолт: разработку ведёт
+          # Sonnet (~$1 за прогон), Opus стоит только в ревью (review.yml) —
+          # там он ловит баги и окупается. Если дефолт action однажды
+          # переедет на модель подороже, без этого флага стоимость каждой
+          # задачи молча вырастет в разы.
+          claude_args: "--max-turns 100 --model claude-sonnet-5 --dangerously-skip-permissions"
 
       - name: Open PR into develop
         env:
