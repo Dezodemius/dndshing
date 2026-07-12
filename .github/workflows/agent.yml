@@ -120,7 +120,9 @@ jobs:
 
       - name: Open PR into develop
         env:
-          GH_TOKEN: ${{ github.token }}
+          # PAT (not github.token): PR-события от github.token не триггерят
+          # pull_request-воркфлоу, поэтому review.yml иначе не запустится.
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           set -euo pipefail
           title=$(gh issue view "$ISSUE" --json title --jq .title)
