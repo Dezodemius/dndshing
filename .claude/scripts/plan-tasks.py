@@ -5,7 +5,11 @@ Without this, nothing ever grants `agent-ready`: create-issues.py only sets it
 on tasks that start with no dependencies, and agent.yml merely *reads* the
 label. Once those first tasks close, the agent finds an empty queue and stalls.
 
-Two things are reconciled on every run:
+Three things are reconciled on every run:
+
+  state   open task whose branch is already merged into develop, still marked
+          in-progress -> closed. done.yml does this on the merge event; this is
+          the net for merges it missed (see close_finished).
 
   labels  open task with all `depends:` closed -> agent-ready (not blocked)
           open task still waiting               -> blocked (not agent-ready)
@@ -35,6 +39,36 @@ import backlog as bl
 
 READY, BLOCKED, BUSY = "agent-ready", "blocked", "in-progress"
 STATUS_DONE, STATUS_BUSY, STATUS_TODO = "Done", "In Progress", "Todo"
+
+
+def close_finished(tasks: dict, issues: dict, merged: set[str], apply: bool) -> None:
+    """Close tasks whose branch is already in develop but whose issue stayed open.
+
+    The merge -> issue handoff is done by done.yml, and before it by the
+    `Closes #N` trailer in the PR body. Both live outside the issue, so both can
+    be missed: an edited PR body dropped the trailer and left DND-001 open and
+    still labelled in-progress after its merge — which stalls the whole queue,
+    since agent.yml skips every run while an open issue is in-progress.
+
+    A merged branch plus in-progress is exactly that miss. in-progress is what
+    keeps this narrow: done.yml strips it on merge, so a task a human reopened
+    for rework no longer carries it and is left alone.
+    """
+    for task_id, issue in sorted(issues.items()):
+        if task_id not in tasks or issue["state"] != "OPEN":
+            continue
+        if BUSY not in issue["labels"] or task_id not in merged:
+            continue
+        prefix = "" if apply else "[dry-run] "
+        print(f"{prefix}close {task_id} (#{issue['number']}): ветка влита в develop, "
+              f"а ишью открыта")
+        if apply:
+            bl.sh(["gh", "issue", "close", str(issue["number"]),
+                   "--reason", "completed",
+                   "--comment", "Ветка задачи влита в develop, а ишью осталась "
+                                "открытой — закрываю (planner)."])
+        # Labels and board are planned off this state below, in the same run.
+        issue["state"] = "CLOSED"
 
 
 def plan_labels(tasks: dict, issues: dict) -> list[dict]:
@@ -135,6 +169,10 @@ def main() -> None:
 
     for task_id in sorted(set(tasks) - set(issues)):
         print(f"!! {task_id}: есть в BACKLOG, ишью нет — запусти create-issues.py --apply")
+
+    # Before the labels: a task closed here must lose its queue labels in the
+    # same run, or the board and the queue disagree until the next one.
+    close_finished(tasks, issues, bl.merged_tasks(), args.apply)
 
     changes = plan_labels(tasks, issues)
     if not changes:
