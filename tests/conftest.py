@@ -13,7 +13,11 @@ from app.main import app
 
 @pytest.fixture(scope="session", autouse=True)
 def _migrated_test_database() -> None:
-    os.environ["ALEMBIC_DATABASE_URL"] = get_settings().test_database_url
+    test_database_url = get_settings().test_database_url
+    if not test_database_url:
+        pytest.fail("TEST_DATABASE_URL is not set: copy .env.example to .env and fill it in")
+
+    os.environ["ALEMBIC_DATABASE_URL"] = test_database_url
     command.upgrade(Config("alembic.ini"), "head")
 
 

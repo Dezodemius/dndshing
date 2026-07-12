@@ -3,16 +3,20 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-dndshing}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dndshing}
-      POSTGRES_DB: ${POSTGRES_DB:-dndshing}
+      # No `:-default` fallbacks: compose must refuse to start rather than boot a
+      # database whose credentials are guessable from this repository.
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
     ports:
-      - "5432:5432"
+      # Loopback only: the dev database must not be reachable from the network.
+      # The host port is configurable because 5432 is often taken by another postgres.
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./docker/postgres/init-test-db.sh:/docker-entrypoint-initdb.d/init-test-db.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dndshing}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -22,13 +26,15 @@ services:
     restart: unless-stopped
     environment:
       APP_ENV: ${APP_ENV:-local}
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://dndshing:dndshing@db:5432/dndshing}
-      TEST_DATABASE_URL: ${TEST_DATABASE_URL:-postgresql+asyncpg://dndshing:dndshing@db:5432/dndshing_test}
+      # Built from POSTGRES_*, the single source of truth for the credentials, and
+      # not taken from DATABASE_URL in .env: that one points at localhost for the
+      # host-side alembic/pytest runs, while the container reaches postgres as `db`.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     depends_on:
       db:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
 volumes:
   pg_data:

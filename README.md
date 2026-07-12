@@ -52,7 +52,7 @@ Backend — модульный монолит: `app/{core,auth,content,character
 Backend-команды доступны начиная с `DND-001`; фронтовые появятся вместе с `DND-003`.
 
 ```bash
-cp .env.example .env                # локальный конфиг
+cp .env.example .env                # локальный конфиг: заполнить пустые значения (см. ниже)
 pip install -r requirements-dev.txt # зависимости backend
 
 docker compose up -d --build        # postgres + api в контейнерах
@@ -62,6 +62,16 @@ ruff check .                        # линт backend
 
 cd frontend && npm run dev          # фронт локально (появится в DND-003)
 ```
+
+### Секреты
+
+Дефолтных паролей в репозитории нет. После `cp .env.example .env` нужно сгенерировать пароль постгреса
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(24))"
+```
+
+и подставить его в `.env` в три места: `POSTGRES_PASSWORD`, `DATABASE_URL`, `TEST_DATABASE_URL`. Пока `POSTGRES_PASSWORD` пуст, `docker compose up` не стартует, а приложение без `DATABASE_URL` падает на старте — оба варианта громкие и намеренные: тихого фолбэка на известные креды быть не должно. Порты `5432` и `8000` публикуются только на `127.0.0.1`.
 
 ### Ветки и задачи
 

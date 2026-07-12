@@ -7,11 +7,16 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_env: str = "local"
-    database_url: str = "postgresql+asyncpg://dndshing:dndshing@localhost:5432/dndshing"
-    test_database_url: str = "postgresql+asyncpg://dndshing:dndshing@localhost:5432/dndshing_test"
 
-    # Задел фазы 2 (BR §6): AI-эндпоинт не используется в MVP, но конфиг
-    # должен существовать заранее и не блокировать будущую интеграцию.
+    # No defaults: credentials must never be readable from the source tree, and a
+    # missing DATABASE_URL has to abort the boot instead of silently connecting
+    # somewhere with fallback credentials. TEST_DATABASE_URL is only needed by the
+    # test run, so it stays optional and is enforced by the pytest fixture.
+    database_url: str
+    test_database_url: str | None = None
+
+    # Phase 2 groundwork (BR §6): the AI endpoint is unused in the MVP, but the
+    # config must already exist so the future integration is not blocked.
     ai_base_url: str | None = None
     ai_model: str | None = None
     ai_api_key: str | None = None
