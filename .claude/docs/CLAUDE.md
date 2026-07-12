@@ -36,17 +36,27 @@ D&D Campaign Platform — веб-платформа для игроков и м�
 9. Тесты обязательны для: rules_5e, покупки/продажи (недостаток средств, конкурентность), level-up/rollback, прав доступа.
 10. Комментарии в коде и тексты коммитов — на английском; пользовательские строки — на русском (в словаре).
 11. База — develop; в `main` только релизные мержи.
+12. Секретов в репозитории нет: ни паролей, ни ключей, ни «дефолтов на всякий случай» — ни в коде, ни в `docker-compose.yml`, ни в `.env.example`. Отсутствие секрета обязано ронять старт (`Settings` без дефолта, `${VAR:?}` в compose), а не подставлять фолбэк — тихий фолбэк на известные креды уезжает в прод.
 
 ## Команды
 
 ```bash
-docker compose up -d          # postgres + api
-alembic upgrade head          # миграции
-pytest                        # тесты backend
-cd frontend && npm run dev    # фронт локально
-```
+cp .env.example .env                              # локальный конфиг (не коммитить)
+python -c "import secrets; print(secrets.token_urlsafe(24))"   # пароль БД: подставить в POSTGRES_PASSWORD и оба URL
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt                # зависимости backend + dev-инструменты
 
-(Дополнять по мере появления в T0.)
+docker compose up -d db                            # только Postgres, если api гоняешь локально
+alembic upgrade head                                # миграции на основную БД
+uvicorn app.main:app --reload                       # backend локально, http://localhost:8000/healthz
+
+docker compose up -d --build                        # весь стек: api + postgres в контейнерах
+
+pytest                                               # тесты backend (сами применяют миграции к тестовой БД)
+ruff check .                                         # линт backend
+
+cd frontend && npm run dev                           # фронт локально (появится в DND-003)
+```
 
 ## Definition of Done задачи
 
