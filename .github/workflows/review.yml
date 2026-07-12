@@ -55,4 +55,4 @@ jobs:
                убыванию важности с путями файлов и строками. Не более
                10 замечаний, без воды. Мелкие вкусовые придирки не пиши.
             4. Код НЕ правь, ничего не пушь, PR не мержи и не закрывай.
-          claude_args: "--max-turns 30 --model claude-opus-4-8"
+          claude_args: "--max-turns 30 --model claude-opus-4-8 --dangerously-skip-permissions"

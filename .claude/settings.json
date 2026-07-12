@@ -1,23 +1,5 @@
 {
   "permissions": {
-    "allow": [
-      "PowerShell(New-Item -ItemType Directory -Force \"f:\\\\dnd project\\\\.github\\\\workflows\")",
-      "PowerShell(\"done\")",
-      "Bash(ls features/characters/components)",
-      "Bash(ls features/characters/lib)",
-      "Bash(node tests/manual-screenshot.mjs)",
-      "PowerShell($conn = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if \\($conn\\) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue; \"stopped dev server \\(pid $\\($conn.OwningProcess\\)\\)\" } else { \"no server on 3000\" })",
-      "PowerShell($conn = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if \\($conn\\) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue; \"stopped pid $\\($conn.OwningProcess\\)\" } else { \"no server\" })",
-      "Bash(export NEXT_PUBLIC_SITE_URL=http://localhost:3000 NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder)",
-      "Bash(git restore *)",
-      "Bash(node -e \"console.log\\('sharp', require\\('sharp/package.json'\\).version\\)\")",
-      "Bash(node tests/_compare.mjs)",
-      "PowerShell($conn = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if \\($conn\\) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue; \"stopped\" } else { \"no server\" })",
-      "Read(//c/Users/gladk/Downloads/**)",
-      "Bash(powershell -Command ' *)"
-    ],
-    "additionalDirectories": [
-      "C:\\Users\\gladk\\Downloads\\pdf2png (1)\\�⠫��"
-    ]
+    "allow": []
   }
 }

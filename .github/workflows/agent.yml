@@ -117,7 +117,7 @@ jobs:
             тело PR: Что сделано / Как проверял (тесты + ручные шаги) /
             Решения и допущения / Что НЕ вошло и почему. Запушь ветку.
             Сам PR НЕ создавай — его создаст workflow.
-          claude_args: "--max-turns 100"
+          claude_args: "--max-turns 100 --dangerously-skip-permissions"
 
       - name: Open PR into develop
         env:
