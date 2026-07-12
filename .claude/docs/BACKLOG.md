@@ -14,9 +14,19 @@
 
 ## EPIC E0 · Инфраструктура
 
-### DND-001 · Каркас backend и окружение
-labels: epic:e0, backend, agent-ready
+### DND-000 · Удаление легаси Next.js-прототипа
+labels: epic:e0, infra, agent-ready
 depends: —
+
+**Контекст:** в репозитории лежит старый прототип (Next.js-генератор персонажей LSS), который выводится из эксплуатации и занимает корневой `app/`, конфликтуя с новой backend-структурой. Закрывается до DND-001.
+**Скоуп:** удалить весь код старого прототипа (через `git rm`): каталоги `app/`, `features/`, `shared/`, `mockup/`, `tests/`, `test-results/`, `supabase/`; файлы `middleware.ts`, `next.config.mjs`, `next-env.d.ts`, `postcss.config.mjs`, `tailwind.config.ts`, `eslint.config.mjs`, `vitest.config.ts`, `playwright.config.ts`, `tsconfig.json`, `tsconfig.tsbuildinfo`, `package.json`, `package-lock.json`, `vercel.json`, `AGENTS.md`, `dndshing.code-workspace`, `.env.example`; старый CI `.github/workflows/ci.yml`. Почисти `.gitignore` от правил под старый стек (общие оставь).
+**ОБЯЗАТЕЛЬНО сохранить (не трогать):** `.github/workflows/agent.yml`, `.github/workflows/review.yml`; всю папку `.claude/`; корневой `CLAUDE.md`; `.git*`-файлы, `.editorconfig`.
+**Вне скоупа:** создание нового backend/frontend-каркаса (DND-001, DND-003) — только удаление.
+**Приёмка:** в репозитории не осталось файлов старого Next.js-прототипа; `agent.yml`, `review.yml` и `.claude/` целы; после коммита `git status` чистый; ветка `feat/dnd-000`, PR в develop. После мержа корень готов под новую структуру из DND-001.
+
+### DND-001 · Каркас backend и окружение
+labels: epic:e0, backend
+depends: DND-000
 
 **Скоуп:** структура `app/{core,auth,content,characters,campaigns,merchants}` по AR §3; FastAPI-приложение с конфигом из env (pydantic-settings); `GET /healthz`; Docker Compose (api + postgres 16); Alembic инициализирован (пустая базовая миграция); pytest настроен с тестовой БД; README с командами запуска.
 **Вне скоупа:** любые бизнес-модели и эндпоинты.
