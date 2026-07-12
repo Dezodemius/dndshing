@@ -2,13 +2,13 @@
 
 Единица работы: **одна задача = одна GitHub-ишью = один запуск агента = один PR**.
 
-Формат машиночитаемый — `scripts/create_issues.py` парсит его и создаёт ишью:
+Формат машиночитаемый — `.claude/scripts/create-issues.py` парсит его и создаёт ишью:
 - заголовок задачи: `### DND-NNN · Название`
 - строка `labels:` — метки через запятую
 - строка `depends:` — ID задач-зависимостей (или `—`)
 - остальное до следующего `###` — тело ишью.
 
-Каждая задача самодостаточна при условии, что агент прочитал `CLAUDE.md`, `docs/business-requirements.md` (BR) и `docs/architecture.md` (AR).
+Каждая задача самодостаточна при условии, что агент прочитал `.claude/docs/CLAUDE.md`, `.claude/docs/REQUIREMENTS.md` (BR) и `.claude/docs/ARCHITECTURE.md` (AR).
 
 ---
 

@@ -5,7 +5,7 @@
 # при merge develop -> main (отдельный CD-воркфлоу, секреты прода
 # агентскому воркфлоу недоступны).
 #
-# Подготовка: см. чеклист в docs/launch-checklist.md
+# Подготовка: доки проекта — в .claude/docs/, конвенции — в .claude/skills/
 
 name: agent
 
@@ -92,9 +92,9 @@ jobs:
             Выполни задачу из GitHub issue #${{ env.ISSUE }} строго по фазам.
 
             ФАЗА 1 — РАЗВЕДКА. Прочитай: issue (gh issue view ${{ env.ISSUE }}),
-            CLAUDE.md, docs/business-requirements.md, docs/architecture.md,
-            секцию задачи в docs/backlog.md и АКТУАЛЬНЫЙ код модулей, которых
-            касается задача. Скиллы-конвенции (.claude/skills/) применяй по
+            .claude/docs/CLAUDE.md (правила и DoD), .claude/docs/REQUIREMENTS.md,
+            .claude/docs/ARCHITECTURE.md, секцию задачи в .claude/docs/BACKLOG.md
+            и АКТУАЛЬНЫЙ код модулей, которых касается задача. Скиллы-конвенции (.claude/skills/) применяй по
             их описаниям. Если задача противоречит текущему коду или docs —
             остановись: напиши блокер комментарием в issue, сними метку
             in-progress (gh issue edit --remove-label) и заверши работу.
@@ -108,7 +108,7 @@ jobs:
             и фазы 2 (BR §6). Коммиты атомарные, сообщения на английском.
 
             ФАЗА 4 — САМОРЕВЬЮ. Прогони полный diff против: критериев
-            приёмки задачи; DoD из CLAUDE.md; скилла security-review;
+            приёмки задачи; DoD из .claude/docs/CLAUDE.md; скилла security-review;
             скилла code-style. Запусти тесты и линт, добейся зелёного.
             Найденное — исправь сейчас.
 

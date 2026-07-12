@@ -37,9 +37,9 @@ jobs:
             Ты — независимый ревьюер PR #${{ github.event.pull_request.number }}.
             Автор — другой агент; твоя ценность в свежем взгляде.
 
-            1. Прочитай CLAUDE.md, docs/architecture.md, связанную ишью
-               (номер — в теле PR после "Closes #") и её секцию в
-               docs/backlog.md. Затем полный diff PR.
+            1. Прочитай .claude/docs/CLAUDE.md, .claude/docs/ARCHITECTURE.md,
+               связанную ишью (номер — в теле PR после "Closes #") и её секцию
+               в .claude/docs/BACKLOG.md. Затем полный diff PR.
             2. Проверь по приоритету:
                a) безопасность — скилл security-review, особенно IDOR
                   и транзакции с деньгами;

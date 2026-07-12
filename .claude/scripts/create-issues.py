@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Create GitHub issues from docs/backlog.md.
+"""Create GitHub issues from .claude/docs/BACKLOG.md.
 
 Usage:
-    python scripts/create_issues.py            # dry run: print what would be created
-    python scripts/create_issues.py --apply    # actually create labels and issues
+    python .claude/scripts/create-issues.py            # dry run: print what would be created
+    python .claude/scripts/create-issues.py --apply    # actually create labels and issues
 
 Requires: gh CLI authenticated in the target repo (run from repo root).
 Idempotent-ish: skips issues whose DND-ID already exists in an open/closed issue title.
@@ -17,7 +17,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-BACKLOG = Path("docs/backlog.md")
+BACKLOG = Path(".claude/docs/BACKLOG.md")
 TASK_RE = re.compile(r"^### (DND-\d+) · (.+)$")
 
 STATIC_LABELS = {
@@ -95,8 +95,9 @@ def build_body(t: dict) -> str:
     deps = ", ".join(t["depends"]) if t["depends"] else "нет"
     header = (
         f"**Depends-on:** {deps}\n\n"
-        "Перед работой прочитай: `CLAUDE.md`, `docs/business-requirements.md`, "
-        "`docs/architecture.md`, свою секцию в `docs/backlog.md`.\n\n---\n\n"
+        "Перед работой прочитай: `.claude/docs/CLAUDE.md`, "
+        "`.claude/docs/REQUIREMENTS.md`, `.claude/docs/ARCHITECTURE.md`, "
+        "свою секцию в `.claude/docs/BACKLOG.md`.\n\n---\n\n"
     )
     footer = (
         "\n\n---\n**Definition of Done:** критерии приёмки выполнены; тесты "
