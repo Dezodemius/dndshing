@@ -7,6 +7,7 @@ is `gh` calls. Run: python -m pytest .claude/scripts -q
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 import backlog as bl
@@ -149,6 +150,51 @@ def test_closed_issue_loses_in_progress_too():
     issues = {"DND-000": issue(1, "CLOSED", labels=["in-progress", "infra"])}
     c = changes_by_id(tasks, issues)["DND-000"]
     assert c["remove"] == ["in-progress"]
+
+
+# --- merged tasks left open -------------------------------------------------
+
+def close_calls(tasks: dict, issues: dict, merged: set, monkeypatch) -> list[list[str]]:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(bl, "sh", lambda args, **kw: calls.append(args) or "")
+    plan_tasks.close_finished(tasks, issues, merged, apply=True)
+    return calls
+
+
+def test_merged_tasks_reads_task_branches_only(monkeypatch):
+    monkeypatch.setattr(bl, "sh", lambda *a, **kw: json.dumps(
+        [{"headRefName": "feat/dnd-001"}, {"headRefName": "chore/task-planner"},
+         {"headRefName": "docs/readme"}]))
+    assert bl.merged_tasks() == {"DND-001"}
+
+
+def test_a_merged_task_left_open_is_closed_and_stripped(monkeypatch):
+    # DND-001: PR merged, but the trailer that should have closed the issue was
+    # edited out of the PR body. The task is done — the labels must say so too.
+    tasks = tasks_by_id()
+    issues = {"DND-001": issue(2, labels=["in-progress", "agent-ready"])}
+    calls = close_calls(tasks, issues, {"DND-001"}, monkeypatch)
+
+    assert calls[0][:3] == ["gh", "issue", "close"]
+    assert issues["DND-001"]["state"] == "CLOSED"
+    assert changes_by_id(tasks, issues)["DND-001"]["remove"] == ["agent-ready", "in-progress"]
+
+
+def test_a_task_still_being_worked_on_is_not_closed(monkeypatch):
+    # in-progress, but nothing merged yet: the agent is mid-run.
+    tasks = tasks_by_id()
+    issues = {"DND-001": issue(2, labels=["in-progress"])}
+    assert close_calls(tasks, issues, set(), monkeypatch) == []
+    assert issues["DND-001"]["state"] == "OPEN"
+
+
+def test_a_reopened_task_is_not_closed_again(monkeypatch):
+    # done.yml strips in-progress at merge, so a task reopened by hand for
+    # rework does not carry it — re-closing it would fight the human.
+    tasks = tasks_by_id()
+    issues = {"DND-001": issue(2, labels=["agent-ready"])}
+    assert close_calls(tasks, issues, {"DND-001"}, monkeypatch) == []
+    assert issues["DND-001"]["state"] == "OPEN"
 
 
 def test_planner_is_idempotent():

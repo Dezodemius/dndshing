@@ -20,6 +20,8 @@ from pathlib import Path
 BACKLOG = Path(__file__).resolve().parents[2] / ".claude" / "docs" / "BACKLOG.md"
 TASK_RE = re.compile(r"^### (DND-\d+) · (.+)$")
 DND_RE = re.compile(r"^(DND-\d+)")
+# Task branches are named by agent.yml off the issue title: DND-001 -> feat/dnd-001.
+BRANCH_RE = re.compile(r"^feat/dnd-(\d+)$")
 
 PROJECT_OWNER = "Dezodemius"
 PROJECT_NUMBER = 11
@@ -112,6 +114,19 @@ def load_issues() -> dict[str, dict]:
                 "labels": {l["name"] for l in it["labels"]},
             }
     return issues
+
+
+def merged_tasks(base: str = "develop") -> set[str]:
+    """Task IDs whose branch is already merged into `base`.
+
+    The only claim about a task that lives in git rather than in an issue: a PR
+    body can be edited, a label can be forgotten, a merged branch cannot.
+    """
+    out = sh(["gh", "pr", "list", "--state", "merged", "--base", base,
+              "--limit", "200", "--json", "headRefName"])
+    return {f"DND-{m.group(1)}"
+            for pr in json.loads(out)
+            if (m := BRANCH_RE.match(pr["headRefName"]))}
 
 
 def epic_option(labels) -> str | None:

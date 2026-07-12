@@ -5,7 +5,11 @@ Without this, nothing ever grants `agent-ready`: create-issues.py only sets it
 on tasks that start with no dependencies, and agent.yml merely *reads* the
 label. Once those first tasks close, the agent finds an empty queue and stalls.
 
-Two things are reconciled on every run:
+Three things are reconciled on every run:
+
+  state   open task whose branch is already merged into develop, still marked
+          in-progress -> closed. done.yml does this on the merge event; this is
+          the net for merges it missed (see close_finished).
 
   labels  open task with all `depends:` closed -> agent-ready (not blocked)
           open task still waiting               -> blocked (not agent-ready)
@@ -44,40 +48,84 @@ QUEUE_LABELS = {READY, BLOCKED, BUSY, REVIEW, DEFERRED}
 STATUS_DONE, STATUS_BUSY, STATUS_TODO = "Done", "In Progress", "Todo"
 
 
-def plan_labels(tasks: dict, issues: dict, clear_deferred: bool = False) -> list[dict]:
+def close_finished(tasks: dict, issues: dict, merged: set[str], apply: bool) -> None:
+    """Close tasks whose branch is already in develop but whose issue stayed open.
+
+    The merge -> issue handoff is done by done.yml, and before it by the
+    `Closes #N` trailer in the PR body. Both live outside the issue, so both can
+    be missed: an edited PR body dropped the trailer and left DND-001 open and
+    still labelled in-progress after its merge — which stalls the whole queue,
+    since agent.yml skips every run while an open issue is in-progress.
+
+    A merged branch plus in-progress is exactly that miss. in-progress is what
+    keeps this narrow: done.yml strips it on merge, so a task a human reopened
+    for rework no longer carries it and is left alone.
+    """
+    for task_id, issue in sorted(issues.items()):
+        if task_id not in tasks or issue["state"] != "OPEN":
+            continue
+        if BUSY not in issue["labels"] or task_id not in merged:
+            continue
+        prefix = "" if apply else "[dry-run] "
+        print(f"{prefix}close {task_id} (#{issue['number']}): ветка влита в develop, "
+              f"а ишью открыта")
+        if apply:
+            bl.sh(["gh", "issue", "close", str(issue["number"]),
+                   "--reason", "completed",
+                   "--comment", "Ветка задачи влита в develop, а ишью осталась "
+                                "открытой — закрываю (planner)."])
+        # Labels and board are planned off this state below, in the same run.
+        issue["state"] = "CLOSED"
+
+
+def plan_labels(
+    tasks: dict,
+    issues: dict,
+    clear_deferred: bool = False,
+) -> list[dict]:
     """Desired label changes, one entry per issue that needs an edit."""
     changes = []
+
     for task_id, issue in sorted(issues.items()):
         task = tasks.get(task_id)
         if task is None:
             print(f"!! {task_id}: ишью есть, задачи в BACKLOG нет — пропускаю")
             continue
+
         if issue["state"] == "CLOSED":
-            # Closed issues keep their history; strip the queue labels. BUSY is
-            # among them: done.yml removes it on merge, but a run that died
-            # between `gh issue edit --add-label` and the PR leaves it behind,
-            # and a closed task is not in progress — the board (Done, read from
-            # the state) and the label would say different things.
             add, remove = set(), QUEUE_LABELS & issue["labels"]
+
         elif issue["labels"] & HOLD:
-            continue  # agent is mid-task, or its PR is waiting for a human
+            continue
+
         else:
-            missing = [d for d in task["depends"]
-                       if d not in issues or issues[d]["state"] != "CLOSED"]
+            missing = [
+                d for d in task["depends"]
+                if d not in issues or issues[d]["state"] != "CLOSED"
+            ]
+
             ready = not missing
+
             add = {READY} - issue["labels"] if ready else {BLOCKED} - issue["labels"]
             remove = ({BLOCKED} if ready else {READY}) & issue["labels"]
-            # A fresh night is a fresh attempt. Whatever killed last night's run
-            # (usually the model's usage limit) has passed, so the task goes back
-            # in the queue instead of sitting deferred until someone notices.
+
             if clear_deferred:
                 remove |= {DEFERRED} & issue["labels"]
+
             if missing:
                 issue["waiting_on"] = missing
+
         if add or remove:
-            changes.append({"id": task_id, "number": issue["number"],
-                            "add": sorted(add), "remove": sorted(remove),
-                            "waiting_on": issue.get("waiting_on", [])})
+            changes.append(
+                {
+                    "id": task_id,
+                    "number": issue["number"],
+                    "add": sorted(add),
+                    "remove": sorted(remove),
+                    "waiting_on": issue.get("waiting_on", []),
+                }
+            )
+
     return changes
 
 
@@ -175,7 +223,13 @@ def main() -> None:
     for task_id in sorted(set(tasks) - set(issues)):
         print(f"!! {task_id}: есть в BACKLOG, ишью нет — запусти create-issues.py --apply")
 
-    changes = plan_labels(tasks, issues, clear_deferred=args.clear_deferred)
+    close_finished(tasks, issues, bl.merged_tasks(), args.apply)
+
+    changes = plan_labels(
+        tasks,
+        issues,
+        clear_deferred=args.clear_deferred,
+    )
     if not changes:
         print("метки: всё уже сходится")
     for c in changes:

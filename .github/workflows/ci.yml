@@ -1,0 +1,71 @@
+# .github/workflows/ci.yml
+#
+# Обязательный чек на каждый PR в develop: линт и тесты backend.
+# Красный чек на падающем тесте/линте — сигнал ревьюеру и merge-гейт
+# после включения required status check в настройках репозитория.
+
+name: ci
+
+on:
+  pull_request:
+    branches: [develop]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Ephemeral-креды только для этого контейнера CI, живут в рамках
+          # одного job-рана — не секрет проекта и не пересекаются с .env/compose.
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: dndshing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d dndshing"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/dndshing
+      TEST_DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/dndshing_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Create test database
+        # Сервис-контейнер стартует до checkout, поэтому init-скрипт
+        # docker/postgres/init-test-db.sh (docker-entrypoint-initdb.d) сюда
+        # не примонтировать — создаём тестовую БД отдельным шагом.
+        env:
+          PGPASSWORD: ci
+        run: psql -h localhost -U ci -d dndshing -c "CREATE DATABASE dndshing_test"
+
+      - name: Test
+        run: pytest

@@ -154,6 +154,32 @@ jobs:
           ref: develop
           fetch-depth: 0
 
+      # Падаем до запуска агента, а не после: иначе прогон сжигает ~4 минуты
+      # и ~$1, чтобы упасть на git push в самом конце.
+      - name: Check GH_PAT can push workflow files
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          # Классический PAT отдаёт свои scope в заголовке x-oauth-scopes.
+          # Fine-grained PAT его не отдаёт — там проверить нечем, пропускаем.
+          scopes=$(curl -sS -o /dev/null -D - \
+                     -H "Authorization: Bearer $GH_PAT" \
+                     -H "X-GitHub-Api-Version: 2022-11-28" \
+                     https://api.github.com/user \
+                   | tr -d '\r ' | sed -n 's/^[Xx]-[Oo][Aa]uth-[Ss]copes://p')
+          if [ -z "$scopes" ]; then
+            echo "::notice::GH_PAT не классический — scope не видны, проверка пропущена."
+            exit 0
+          fi
+          case ",$scopes," in
+            *,workflow,*)
+              echo "GH_PAT has workflow scope ($scopes)." ;;
+            *)
+              echo "::error::У GH_PAT нет scope 'workflow' (есть: $scopes). Задачи, меняющие .github/workflows/, не запушатся. Перевыпусти PAT со scope repo+workflow и обнови секрет."
+              exit 1 ;;
+          esac
+
       - name: Mark in-progress
         env:
           GH_TOKEN: ${{ github.token }}
@@ -163,6 +189,15 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # PAT (нужен scope `workflow`), а не токен GitHub App: приложениям
+          # GitHub запрещает пушить изменения внутри .github/workflows/ без
+          # разрешения `workflows`, а выдать его через блок `permissions:`
+          # нельзя — такого ключа у GITHUB_TOKEN нет. Без этого любая задача,
+          # трогающая воркфлоу (напр. DND-002), падает на git push с
+          # «refusing to allow a GitHub App to create or update workflow».
+          # Действует именно здесь: action затирает креды actions/checkout
+          # своим токеном (configureGitAuth), поэтому token: у checkout не помог бы.
+          github_token: ${{ secrets.GH_PAT }}
           prompt: |
             Выполни задачу из GitHub issue #${{ env.ISSUE }} строго по фазам.
 
