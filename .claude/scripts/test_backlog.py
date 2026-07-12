@@ -97,8 +97,12 @@ def issue(number: int, state: str = "OPEN", labels=()) -> dict:
     return {"number": number, "state": state, "labels": set(labels)}
 
 
+def by_id(changes: list[dict]) -> dict[str, dict]:
+    return {c["id"]: c for c in changes}
+
+
 def changes_by_id(tasks: dict, issues: dict) -> dict[str, dict]:
-    return {c["id"]: c for c in plan_tasks.plan_labels(tasks, issues)}
+    return by_id(plan_tasks.plan_labels(tasks, issues))
 
 
 def test_all_dependencies_closed_makes_the_task_ready():
@@ -158,6 +162,69 @@ def test_planner_is_idempotent():
 def test_issue_without_a_backlog_task_is_skipped():
     issues = {"DND-999": issue(9, labels=["blocked"])}
     assert plan_tasks.plan_labels(tasks_by_id(), issues) == []
+
+
+# --- night loop -------------------------------------------------------------
+# The agent runs task after task through the night, so a task whose PR is up
+# must leave the queue *without* being closed — the human merges in the morning.
+# in-review does that; agent-deferred parks a task that broke the run.
+
+def test_a_task_awaiting_review_is_left_alone():
+    # Its PR is open and the issue is still open: strip in-review (or hand the
+    # task back as agent-ready) and the next run of the night redoes it.
+    tasks = tasks_by_id()
+    issues = {"DND-000": issue(1, "CLOSED"),
+              "DND-001": issue(2, labels=["agent-ready", "in-review"])}
+    assert "DND-001" not in changes_by_id(tasks, issues)
+
+
+def test_a_task_awaiting_review_is_out_of_the_queue():
+    tasks = tasks_by_id()
+    issues = {"DND-000": issue(1, "CLOSED"),
+              "DND-001": issue(2, labels=["agent-ready", "in-review"])}
+    assert plan_tasks.queue_after(issues, []) == set()
+
+
+def test_a_deferred_task_is_out_of_the_queue_until_the_next_night():
+    # The run hit the model's usage limit. The task keeps agent-ready (nothing
+    # is wrong with it) but must not be picked again tonight.
+    tasks = tasks_by_id()
+    issues = {"DND-000": issue(1, "CLOSED"),
+              "DND-001": issue(2, labels=["agent-ready", "agent-deferred"])}
+    assert plan_tasks.plan_labels(tasks, issues) == []
+    assert plan_tasks.queue_after(issues, []) == set()
+
+
+def test_the_nightly_run_clears_deferred_and_requeues_the_task():
+    tasks = tasks_by_id()
+    issues = {"DND-000": issue(1, "CLOSED"),
+              "DND-001": issue(2, labels=["agent-ready", "agent-deferred"])}
+    changes = plan_tasks.plan_labels(tasks, issues, clear_deferred=True)
+    assert by_id(changes)["DND-001"]["remove"] == ["agent-deferred"]
+    assert plan_tasks.queue_after(issues, changes) == {"DND-001"}
+
+
+def test_clearing_deferred_does_not_touch_a_task_the_agent_still_holds():
+    # A run that hit the limit is deferred *and* still marked busy for the few
+    # seconds before cleanup. The planner must not race it.
+    tasks = tasks_by_id()
+    issues = {"DND-000": issue(1, "CLOSED"),
+              "DND-001": issue(2, labels=["in-progress", "agent-deferred"])}
+    assert plan_tasks.plan_labels(tasks, issues, clear_deferred=True) == []
+
+
+def test_closed_issue_loses_the_night_loop_labels():
+    tasks = tasks_by_id()
+    issues = {"DND-000": issue(1, "CLOSED",
+                               labels=["agent-ready", "in-review", "agent-deferred"])}
+    c = changes_by_id(tasks, issues)["DND-000"]
+    assert c["remove"] == ["agent-deferred", "agent-ready", "in-review"]
+
+
+def test_a_blocked_task_is_not_in_the_queue_even_if_labelled_ready():
+    # Belt and braces: queue_after reads the labels the way agent.yml does.
+    issues = {"DND-010": issue(3, labels=["blocked"])}
+    assert plan_tasks.queue_after(issues, []) == set()
 
 
 # --- board ------------------------------------------------------------------

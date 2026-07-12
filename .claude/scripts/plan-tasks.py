@@ -34,10 +34,17 @@ import sys
 import backlog as bl
 
 READY, BLOCKED, BUSY = "agent-ready", "blocked", "in-progress"
+REVIEW, DEFERRED = "in-review", "agent-deferred"
+# Labels the night loop owns on an open issue. The planner must not fight it for
+# them: yanking in-progress mid-run, or in-review off a task whose PR is still
+# open, would put the task back in the queue and hand it to the agent twice.
+HOLD = {BUSY, REVIEW}
+# Everything the queue hangs on an open issue — all of it goes when it closes.
+QUEUE_LABELS = {READY, BLOCKED, BUSY, REVIEW, DEFERRED}
 STATUS_DONE, STATUS_BUSY, STATUS_TODO = "Done", "In Progress", "Todo"
 
 
-def plan_labels(tasks: dict, issues: dict) -> list[dict]:
+def plan_labels(tasks: dict, issues: dict, clear_deferred: bool = False) -> list[dict]:
     """Desired label changes, one entry per issue that needs an edit."""
     changes = []
     for task_id, issue in sorted(issues.items()):
@@ -51,15 +58,20 @@ def plan_labels(tasks: dict, issues: dict) -> list[dict]:
             # between `gh issue edit --add-label` and the PR leaves it behind,
             # and a closed task is not in progress — the board (Done, read from
             # the state) and the label would say different things.
-            add, remove = set(), {READY, BLOCKED, BUSY} & issue["labels"]
-        elif BUSY in issue["labels"]:
-            continue  # the agent is working on it — hands off
+            add, remove = set(), QUEUE_LABELS & issue["labels"]
+        elif issue["labels"] & HOLD:
+            continue  # agent is mid-task, or its PR is waiting for a human
         else:
             missing = [d for d in task["depends"]
                        if d not in issues or issues[d]["state"] != "CLOSED"]
             ready = not missing
             add = {READY} - issue["labels"] if ready else {BLOCKED} - issue["labels"]
             remove = ({BLOCKED} if ready else {READY}) & issue["labels"]
+            # A fresh night is a fresh attempt. Whatever killed last night's run
+            # (usually the model's usage limit) has passed, so the task goes back
+            # in the queue instead of sitting deferred until someone notices.
+            if clear_deferred:
+                remove |= {DEFERRED} & issue["labels"]
             if missing:
                 issue["waiting_on"] = missing
         if add or remove:
@@ -67,6 +79,26 @@ def plan_labels(tasks: dict, issues: dict) -> list[dict]:
                             "add": sorted(add), "remove": sorted(remove),
                             "waiting_on": issue.get("waiting_on", [])})
     return changes
+
+
+def queue_after(issues: dict, changes: list[dict]) -> set[str]:
+    """Task IDs the agent can actually pick once `changes` land.
+
+    Mirrors the filter in agent.yml so a dry run reports the real queue: ready,
+    minus what the night loop has already taken off the board.
+    """
+    edits = {c["id"]: c for c in changes}
+    queue = set()
+    for task_id, issue in issues.items():
+        if issue["state"] != "OPEN":
+            continue
+        labels = set(issue["labels"])
+        edit = edits.get(task_id)
+        if edit:
+            labels = (labels | set(edit["add"])) - set(edit["remove"])
+        if READY in labels and not labels & (HOLD | {DEFERRED}):
+            queue.add(task_id)
+    return queue
 
 
 def apply_labels(changes: list[dict]) -> None:
@@ -89,7 +121,11 @@ def sync_board(tasks: dict, issues: dict, apply: bool) -> None:
         number = issue["number"]
         if issue["state"] == "CLOSED":
             status = STATUS_DONE
-        elif BUSY in issue["labels"]:
+        elif issue["labels"] & HOLD:
+            # In Progress covers both «агент пишет» and «PR ждёт человека»:
+            # заводить на доске отдельную колонку под второе — не наша забота,
+            # поля там создаются руками, и отсутствующая опция сыпала бы
+            # предупреждением в каждый прогон.
             status = STATUS_BUSY
         else:
             status = STATUS_TODO
@@ -127,6 +163,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--no-board", action="store_true")
+    ap.add_argument("--clear-deferred", action="store_true",
+                    help="снять agent-deferred: новая ночь — новая попытка "
+                         "(plan.yml передаёт этот флаг только на ночном cron)")
     args = ap.parse_args()
 
     tasks = bl.load_tasks()
@@ -136,7 +175,7 @@ def main() -> None:
     for task_id in sorted(set(tasks) - set(issues)):
         print(f"!! {task_id}: есть в BACKLOG, ишью нет — запусти create-issues.py --apply")
 
-    changes = plan_labels(tasks, issues)
+    changes = plan_labels(tasks, issues, clear_deferred=args.clear_deferred)
     if not changes:
         print("метки: всё уже сходится")
     for c in changes:
@@ -147,14 +186,8 @@ def main() -> None:
         apply_labels(changes)
 
     # State after the plan lands, so a dry run reports the same queue as --apply.
-    ready = {i for i, s in issues.items()
-             if s["state"] == "OPEN" and READY in s["labels"]}
-    for c in changes:
-        if READY in c["add"]:
-            ready.add(c["id"])
-        if READY in c["remove"]:
-            ready.discard(c["id"])
-    print(f"готовы к агенту: {', '.join(sorted(ready)) or 'нет'}")
+    queue = queue_after(issues, changes)
+    print(f"готовы к агенту: {', '.join(sorted(queue)) or 'нет'}")
 
     if not args.no_board:
         # The board is a view, the labels are the queue: a broken board must not
