@@ -14,7 +14,10 @@ name: plan
 
 on:
   issues:
-    types: [closed, reopened, deleted]
+    # opened: свежая ишью из create-issues.py приходит без очередной метки —
+    # без этого она ждала бы метку до ближайшего cron (до суток).
+    # НЕ labeled/unlabeled: планировщик сам правит метки, это был бы цикл.
+    types: [opened, closed, reopened, deleted]
   push:
     branches: [develop]
     paths:
@@ -43,6 +46,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Test the BACKLOG parser
+        # Планировщик читает граф только отсюда: сломанный парсер = сломанная
+        # очередь. Дешевле упасть здесь, чем разметить ишью мусором.
+        run: |
+          pip install pytest
+          python -m pytest .claude/scripts -q
 
       - name: Reconcile labels and project board
         env:

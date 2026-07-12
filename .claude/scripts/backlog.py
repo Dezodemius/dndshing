@@ -166,7 +166,12 @@ def load_board() -> dict:
     fields, items, cursor = {}, {}, None
     project_id = None
     while True:
-        data = gql(_PROJECT_Q, owner=PROJECT_OWNER, number=PROJECT_NUMBER, cursor=cursor or "")
+        variables = {"owner": PROJECT_OWNER, "number": PROJECT_NUMBER}
+        if cursor:
+            # Omitted on the first page: `gh api -f cursor=` would send an empty
+            # string, and `after: ""` is not the same as `after: null`.
+            variables["cursor"] = cursor
+        data = gql(_PROJECT_Q, **variables)
         p = data["user"]["projectV2"]
         project_id = p["id"]
         for f in p["fields"]["nodes"]:
@@ -194,13 +199,30 @@ def add_to_board(board: dict, issue_node_id: str) -> str:
     return data["addProjectV2ItemById"]["item"]["id"]
 
 
-def set_board_field(board: dict, item_id: str, field: str, option: str) -> None:
-    f = board["fields"][field]
+def board_option_id(board: dict, field: str, option: str) -> str | None:
+    """Option id, or None if the board has no such single-select field or option.
+
+    Board fields are created by hand in the GitHub UI: a fresh board has no
+    Эпик/Область at all, and either can be renamed out from under us. Callers
+    skip what the board cannot hold rather than fail — labels are the queue,
+    the board is only a view of it.
+    """
+    f = board["fields"].get(field)
+    return f["options"].get(option) if f else None
+
+
+def set_board_field(board: dict, item_id: str, field: str, option: str) -> bool:
+    """False (and nothing written) if the board has no such field/option."""
+    option_id = board_option_id(board, field, option)
+    if option_id is None:
+        return False
     q = ('mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {'
          ' updateProjectV2ItemFieldValue(input: {projectId: $project, itemId: $item,'
          ' fieldId: $field, value: {singleSelectOptionId: $option}})'
          ' { projectV2Item { id } } }')
-    gql(q, project=board["id"], item=item_id, field=f["id"], option=f["options"][option])
+    gql(q, project=board["id"], item=item_id,
+        field=board["fields"][field]["id"], option=option_id)
+    return True
 
 
 def issue_node_id(number: int) -> str:

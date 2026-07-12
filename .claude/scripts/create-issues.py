@@ -19,6 +19,10 @@ import sys
 
 import backlog as bl
 
+# Owned by plan-tasks.py, derived from the dependency graph. If one slips into a
+# `labels:` line in BACKLOG it is dropped here, not put on a fresh issue.
+QUEUE_LABELS = {"agent-ready", "blocked", "in-progress"}
+
 STATIC_LABELS = {
     "agent-ready": ("0E8A16", "Все зависимости закрыты — можно запускать агента"),
     "in-progress": ("FBCA04", "Агент работает / PR открыт"),
@@ -76,21 +80,23 @@ def main() -> None:
         if t["id"] in done:
             continue
         title = f"{t['id']} · {t['title']}"
+        labels = [l for l in t["labels"] if l not in QUEUE_LABELS]
         if args.apply:
-            # No queue label here: plan-tasks.py derives agent-ready/blocked
-            # from the dependency graph, including for brand-new issues.
             bl.sh(["gh", "issue", "create", "--title", title,
-                   "--body", build_body(t), "--label", ",".join(t["labels"])])
+                   "--body", build_body(t), "--label", ",".join(labels)])
             print(f"created: {title}")
         else:
-            print(f"[dry-run] issue: {title}  labels={t['labels']}  "
+            print(f"[dry-run] issue: {title}  labels={labels}  "
                   f"depends={t['depends']}")
         created += 1
 
     if not created:
         print("Новых задач нет — все уже в GitHub.")
     elif args.apply:
-        print(f"\nСоздано: {created}. Теперь запусти:\n"
+        # plan.yml also fires on `issues: opened`, so the queue label lands on
+        # its own within a minute. Running the planner here just makes it now.
+        print(f"\nСоздано: {created}. Очередную метку выдаст планировщик "
+              f"(plan.yml на issues: opened). Сразу, не дожидаясь:\n"
               f"  python .claude/scripts/plan-tasks.py --apply")
 
 

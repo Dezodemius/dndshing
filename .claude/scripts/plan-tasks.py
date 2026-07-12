@@ -71,11 +71,11 @@ def apply_labels(changes: list[dict]) -> None:
         for label in c["remove"]:
             args += ["--remove-label", label]
         bl.sh(args)
-        print(f"labels {c['id']}: +{c['add'] or '—'} -{c['remove'] or '—'}")
 
 
 def sync_board(tasks: dict, issues: dict, apply: bool) -> None:
     board = bl.load_board()
+    missing = set()
     for task_id, issue in sorted(issues.items()):
         task = tasks.get(task_id)
         if task is None:
@@ -103,11 +103,18 @@ def sync_board(tasks: dict, issues: dict, apply: bool) -> None:
         for field, option in want.items():
             if option is None or item["values"].get(field) == option:
                 continue
+            if bl.board_option_id(board, field, option) is None:
+                missing.add((field, option))  # board not configured for it — skip
+                continue
             if not apply:
                 print(f"[dry-run] board {task_id}: {field} -> {option}")
                 continue
             bl.set_board_field(board, item["id"], field, option)
             print(f"board {task_id}: {field} -> {option}")
+
+    for field, option in sorted(missing):
+        print(f"!! доска: нет поля «{field}» с опцией «{option}» — не проставлено. "
+              f"Создай single-select поле и опцию с точно таким именем.", file=sys.stderr)
 
 
 def main() -> None:
@@ -144,11 +151,15 @@ def main() -> None:
     print(f"готовы к агенту: {', '.join(sorted(ready)) or 'нет'}")
 
     if not args.no_board:
+        # The board is a view, the labels are the queue: a broken board must not
+        # fail the run, or every plan.yml run goes red and the agent queue with it.
         try:
             sync_board(tasks, issues, args.apply)
         except subprocess.CalledProcessError as e:
             print(f"!! доска не обновлена (нужен токен со scope `project`): "
                   f"{(e.stderr or '').strip()[:200]}", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001
+            print(f"!! доска не обновлена: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":

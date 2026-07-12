@@ -72,9 +72,11 @@ cd frontend && npm run dev    # фронт локально
 | Скрипт / воркфлоу | Что делает | Когда |
 |---|---|---|
 | `.claude/scripts/create-issues.py --apply` | новые `### DND-NNN` из BACKLOG → ишью + метки. Существующие ишью не трогает | вручную, после добавления задач |
-| `.claude/scripts/plan-tasks.py --apply` | граф `depends:` → метки `agent-ready` / `blocked`; доска: Эпик, Область, Status | `plan.yml`: закрытие ишью, push в BACKLOG, cron 00:05 UTC |
+| `.claude/scripts/plan-tasks.py --apply` | граф `depends:` → метки `agent-ready` / `blocked`; доска: Эпик, Область, Status | `plan.yml`: создание/закрытие ишью, push в BACKLOG, cron 00:05 UTC |
 | `.github/workflows/agent.yml` | берёт первую открытую `agent-ready`, вешает `in-progress`, гонит агента, открывает PR | cron 00:17 UTC |
 
 Метку `agent-ready` руками не ставят — её выдаёт планировщик, когда все зависимости закрыты. `in-progress` принадлежит агенту, планировщик её не трогает.
 
-Доска — Projects v2 у пользователя, поэтому `plan.yml` ходит под `secrets.GH_PAT` (у `GITHUB_TOKEN` нет scope `project`). Если доска недоступна — метки всё равно проставятся, воркфлоу не падает.
+Доска — Projects v2 у пользователя, поэтому `plan.yml` ходит под `secrets.GH_PAT` (у `GITHUB_TOKEN` нет scope `project`). Доска — витрина, очередь — метки: если доски нет, токен без scope или на ней не заведены поля `Эпик` / `Область` (single-select, опции — точь-в-точь как в `backlog.py`), планировщик пишет предупреждение и идёт дальше. Метки проставятся, воркфлоу зелёный.
+
+Парсер BACKLOG и планировщик покрыты тестами (`.claude/scripts/test_backlog.py`, гоняются в `plan.yml`): сломанный парсер разметил бы очередь мусором, поэтому падать он должен до записи в GitHub.
