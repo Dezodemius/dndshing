@@ -55,7 +55,8 @@ docker compose up -d --build                        # весь стек: api + p
 pytest                                               # тесты backend (сами применяют миграции к тестовой БД)
 ruff check .                                         # линт backend
 
-cd frontend && npm run dev                           # фронт локально (появится в DND-003)
+cd frontend && npm install && npm run dev             # фронт локально, http://localhost:5173
+cd frontend && npm run build                          # tsc -b && vite build
 ```
 
 ## Definition of Done задачи

@@ -1,0 +1,60 @@
+{
+  "app": {
+    "title": "D&D Campaign Platform"
+  },
+  "nav": {
+    "landing": "Главная",
+    "login": "Вход",
+    "register": "Регистрация",
+    "dashboard": "Кабинет",
+    "adminImport": "Импорт контента"
+  },
+  "pages": {
+    "landing": {
+      "title": "Лендинг",
+      "description": "Живой лист персонажа, кампании и торговцы для D&D 5e."
+    },
+    "login": {
+      "title": "Вход"
+    },
+    "register": {
+      "title": "Регистрация"
+    },
+    "verifyEmail": {
+      "title": "Подтверждение почты"
+    },
+    "dashboard": {
+      "title": "Кабинет"
+    },
+    "characterNew": {
+      "title": "Создание персонажа"
+    },
+    "characterSheet": {
+      "title": "Лист персонажа"
+    },
+    "levelUp": {
+      "title": "Прокачка персонажа"
+    },
+    "campaign": {
+      "title": "Кампания"
+    },
+    "campaignJoin": {
+      "title": "Присоединиться к кампании"
+    },
+    "merchantEditor": {
+      "title": "Конструктор торговца"
+    },
+    "shop": {
+      "title": "Витрина торговца"
+    },
+    "adminImport": {
+      "title": "Импорт контента"
+    },
+    "notFound": {
+      "title": "Страница не найдена"
+    }
+  },
+  "common": {
+    "comingSoon": "Экран в разработке."
+  }
+}
