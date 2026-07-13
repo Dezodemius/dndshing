@@ -1,0 +1,67 @@
+# .github/workflows/cd.yml
+#
+# CD: деплой на прод-сервер по мержу в main. Работает на self-hosted
+# раннере, зарегистрированном владельцем на самом прод-сервере (регистрация —
+# инфраструктурный шаг вне репозитория), поэтому checkout на этот раннер и
+# есть "доставка" кода: отдельного шага копирования на сервер не нужно.
+#
+# Секретов прода в репозитории нет (правило 12 CLAUDE.md): .env с реальными
+# POSTGRES_* лежит на сервере в рабочей директории раннера, не в git.
+# docker-compose.yml уже требует эти переменные через ${VAR:?...} без
+# дефолтов, так что при отсутствии файла деплой упадёт сам, а не подставит
+# секрет по умолчанию.
+
+name: cd
+
+on:
+  push:
+    branches: [main]
+
+# Раннер персистентный (это и есть прод-сервер) — параллельный деплой поверх
+# ещё не завершившегося опасен для docker compose и БД, поэтому очередь, а не
+# отмена: второй пуш в main должен доехать, а не потерять деплой.
+concurrency:
+  group: cd-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # clean: false — не затирать .env в рабочей директории раннера.
+          # Дефолтный git clean -ffdx удалил бы его перед каждым чекаутом.
+          clean: false
+
+      - name: Build images
+        run: docker compose build
+
+      - name: Run database migrations
+        # Тот же образ api, что пойдёт в прод; db поднимется по depends_on
+        # (condition: service_healthy) до старта команды.
+        run: docker compose run --rm api alembic upgrade head
+
+      - name: Deploy
+        run: docker compose up -d
+
+      - name: Healthz check
+        # Неудачный healthz валит деплой: retry с паузой на прогрев контейнера,
+        # затем жёсткий провал шага — весь workflow-run красный, сигнал виден
+        # владельцу без отдельного мониторинга.
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            if curl -fsS http://localhost:8000/healthz; then
+              echo "healthz OK"
+              exit 0
+            fi
+            echo "healthz not ready yet ($i/10), retrying in 3s..."
+            sleep 3
+          done
+          echo "::error::healthz did not become healthy after deploy"
+          exit 1
