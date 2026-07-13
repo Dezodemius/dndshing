@@ -37,6 +37,12 @@ jobs:
       # (on: issues: closed) — иначе следующая задача ждёт метку agent-ready
       # до ночного cron.
       GH_TOKEN: ${{ secrets.GH_PAT }}
+      # Джоб работает без actions/checkout — трогать код незачем, нужен только
+      # API. Но без чекаута gh не может вывести репозиторий из git remote и
+      # падает: «failed to run git: fatal: not a git repository». GITHUB_REPOSITORY
+      # он сам не читает — репозиторий берётся только из GH_REPO. Дешевле
+      # проставить его, чем клонировать репозиторий ради двух вызовов API.
+      GH_REPO: ${{ github.repository }}
       BRANCH: ${{ github.event.pull_request.head.ref }}
       PR: ${{ github.event.pull_request.number }}
       MERGED: ${{ github.event.pull_request.merged }}
