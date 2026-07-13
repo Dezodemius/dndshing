@@ -50,6 +50,13 @@ def create_refresh_token(user_id: int) -> str:
     return _create_token(user_id, "refresh", timedelta(days=settings.jwt_refresh_expire_days))
 
 
+def create_email_verification_token(user_id: int) -> str:
+    settings = get_settings()
+    return _create_token(
+        user_id, "email_verification", timedelta(hours=settings.email_verification_expire_hours)
+    )
+
+
 def decode_token(token: str) -> dict[str, Any]:
     settings = get_settings()
     try:

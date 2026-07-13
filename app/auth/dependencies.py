@@ -1,7 +1,7 @@
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.errors import NotAuthenticatedError
+from app.auth.errors import EmailNotVerifiedError, NotAuthenticatedError
 from app.auth.models import User
 from app.auth.security import TokenError, decode_token
 from app.core.db import get_db
@@ -25,4 +25,11 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     if user is None:
         raise NotAuthenticatedError()
 
+    return user
+
+
+async def get_verified_user(user: User = Depends(get_current_user)) -> User:
+    """For endpoints outside auth/*: access is closed until the email is verified."""
+    if not user.email_verified:
+        raise EmailNotVerifiedError()
     return user

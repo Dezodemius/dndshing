@@ -23,3 +23,15 @@ class NotAuthenticatedError(AppError):
     code = "not_authenticated"
     message = "Требуется авторизация"
     status_code = 401
+
+
+class InvalidVerificationTokenError(AppError):
+    code = "invalid_verification_token"
+    message = "Ссылка для подтверждения email недействительна или устарела"
+    status_code = 400
+
+
+class EmailNotVerifiedError(AppError):
+    code = "email_not_verified"
+    message = "Подтвердите email, чтобы получить доступ"
+    status_code = 403
