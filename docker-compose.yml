@@ -30,6 +30,7 @@ services:
       # not taken from DATABASE_URL in .env: that one points at localhost for the
       # host-side alembic/pytest runs, while the container reaches postgres as `db`.
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env}
     depends_on:
       db:
         condition: service_healthy
