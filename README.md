@@ -49,8 +49,6 @@ Backend — модульный монолит: `app/{core,auth,content,character
 
 ### Команды
 
-Backend-команды доступны начиная с `DND-001`; фронтовые появятся вместе с `DND-003`.
-
 ```bash
 cp .env.example .env                # локальный конфиг: заполнить пустые значения (см. ниже)
 pip install -r requirements-dev.txt # зависимости backend
@@ -60,7 +58,9 @@ alembic upgrade head                # миграции (локально, вне
 pytest                              # тесты backend
 ruff check .                        # линт backend
 
-cd frontend && npm run dev          # фронт локально (появится в DND-003)
+cd frontend && cp .env.example .env && npm install    # зависимости и конфиг фронта
+cd frontend && npm run dev                            # фронт локально, http://localhost:5173
+cd frontend && npm run build                          # tsc -b && vite build
 ```
 
 ### Секреты

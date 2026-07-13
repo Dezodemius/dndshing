@@ -1,8 +1,9 @@
 # .github/workflows/ci.yml
 #
-# Обязательный чек на каждый PR в develop: линт и тесты backend.
-# Красный чек на падающем тесте/линте — сигнал ревьюеру и merge-гейт
-# после включения required status check в настройках репозитория.
+# Обязательный чек на каждый PR в develop: линт и тесты backend, typecheck
+# и build фронта. Красный чек на падающем тесте/линте/сборке — сигнал
+# ревьюеру и merge-гейт после включения required status check в настройках
+# репозитория.
 
 name: ci
 
@@ -69,3 +70,25 @@ jobs:
 
       - name: Test
         run: pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck + build
+        run: npm run build
