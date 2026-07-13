@@ -4,7 +4,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.auth.errors import InvalidRefreshTokenError
 from app.auth.models import User
-from app.auth.schemas import LoginRequest, RegisterRequest, TokenResponse, UserResponse
+from app.auth.schemas import (
+    LoginRequest,
+    MessageResponse,
+    RegisterRequest,
+    ResendVerificationRequest,
+    TokenResponse,
+    UserResponse,
+)
 from app.auth.service import AuthService
 from app.core.config import get_settings
 from app.core.db import get_db
@@ -60,6 +67,20 @@ async def refresh(
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(response: Response) -> None:
     response.delete_cookie(_REFRESH_COOKIE_NAME, path=_REFRESH_COOKIE_PATH)
+
+
+@router.get("/auth/verify-email", response_model=MessageResponse)
+async def verify_email(token: str, db: AsyncSession = Depends(get_db)) -> MessageResponse:
+    await AuthService(db).verify_email(token)
+    return MessageResponse(message="Email подтверждён")
+
+
+@router.post("/auth/verify-email/resend", response_model=MessageResponse)
+async def resend_verification(
+    data: ResendVerificationRequest, db: AsyncSession = Depends(get_db)
+) -> MessageResponse:
+    await AuthService(db).resend_verification(data.email)
+    return MessageResponse(message="Если email зарегистрирован и не подтверждён, письмо отправлено")
 
 
 @router.get("/me", response_model=UserResponse)

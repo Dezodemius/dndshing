@@ -20,6 +20,23 @@ class Settings(BaseSettings):
     jwt_secret_key: str
     jwt_access_expire_minutes: int = 15
     jwt_refresh_expire_days: int = 30
+    email_verification_expire_hours: int = 24
+
+    # smtp_host has no default: a silently defaulted "localhost" would let a prod
+    # deploy that forgot to set it boot successfully while silently failing to
+    # ever deliver mail (rule 12). smtp_user/password stay optional — `None`
+    # means "no auth", not a guessable fallback credential.
+    smtp_host: str
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str = "noreply@dndshing.local"
+    smtp_use_tls: bool = False
+
+    # No default: used to build links in emails (e.g. email verification) that
+    # must open the SPA. A defaulted "localhost:5173" would let a prod deploy
+    # that forgot to set it silently mail out dev links (rule 12).
+    frontend_base_url: str
 
     # Phase 2 groundwork (BR §6): the AI endpoint is unused in the MVP, but the
     # config must already exist so the future integration is not blocked.
