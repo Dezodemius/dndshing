@@ -1,0 +1,178 @@
+# .github/workflows/fix.yml
+#
+# Команда «исправить» в комментарии к PR: агент правит замечания ревью
+# прямо в ветке PR.
+#
+# Перепроверку отдельным ревьюером здесь НЕ запускаем: пуш идёт под GH_PAT
+# (пользовательский токен), поэтому PR получает событие `synchronize` и
+# review.yml поднимается сам — он же и пишет по каждому прежнему замечанию,
+# исправлено оно или нет. Своя копия ревью здесь дала бы два ревью на один
+# пуш: двойная цена и два противоречащих вердикта в PR.
+#
+# Правки самого этого файла в ветке PR ни на что не влияют: воркфлоу на
+# issue_comment GitHub всегда берёт с дефолтной ветки (develop) — в отличие от
+# pull_request-воркфлоу (ci.yml, review.yml), которые едут из ветки PR. Значит
+# проверять команду можно только после мержа в develop, и сломанный fix.yml
+# ломает команду сразу во всех открытых PR.
+#
+# Loop-guard: этот воркфлоу срабатывает, только если комментарий НАЧИНАЕТСЯ
+# с команды и оставлен человеком (не ботом). Отчёт о правках и все служебные
+# комментарии пишутся под github.token — от github-actions[bot], который
+# отсечён проверкой `user.type != 'Bot'`. Поэтому агент не может перезапустить
+# сам себя, а ревьюер — фразой «нужно исправить X» в тексте замечания.
+
+name: fix
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: fix-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write   # claude-code-action@v1 обменивает OAuth-токен через OIDC
+
+jobs:
+  fix:
+    # issue_comment приходит и на ишью, и на PR — отсюда проверка на
+    # .pull_request. startsWith/contains в выражениях GHA регистронезависимы,
+    # так что «Исправить» и «ИСПРАВИТЬ» тоже подойдут.
+    if: >-
+      github.event.issue.pull_request != null &&
+      github.event.issue.state == 'open' &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      (startsWith(github.event.comment.body, 'исправить') || startsWith(github.event.comment.body, '/fix'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.issue.number }}
+      COMMENT_ID: ${{ github.event.comment.id }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Ack the command
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST --silent \
+            "repos/$GH_REPO/issues/comments/$COMMENT_ID/reactions" -f content=eyes || true
+
+      - name: Resolve the PR branch
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch=$(gh pr view "$PR" --json headRefName --jq .headRefName)
+          fork=$(gh pr view "$PR" --json isCrossRepository --jq .isCrossRepository)
+          sha=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
+          if [ "$fork" = "true" ]; then
+            gh pr comment "$PR" --body "Команда «исправить» работает только с ветками этого репозитория: PR из форка агент запушить не сможет."
+            exit 1
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Fix the review remarks
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # PAT, а не токен GitHub App — по двум причинам:
+          #   1) App'у запрещено пушить .github/workflows/ без разрешения
+          #      `workflow` (то же, что в agent.yml);
+          #   2) пуш под GITHUB_TOKEN не порождает событий — review.yml не
+          #      проснулся бы на synchronize, и проверять правки было бы некому.
+          github_token: ${{ secrets.GH_PAT }}
+          prompt: |
+            Ты — агент-исправитель. Владелец репозитория оставил в PR
+            #${{ env.PR }} команду «исправить». Ветка PR уже выкачана в
+            рабочую копию — работай в ней.
+
+            Дословный текст команды владельца:
+            ---
+            ${{ github.event.comment.body }}
+            ---
+
+            ФАЗА 1 — ЧТО ЧИНИТЬ. Собери замечания к PR:
+            - `gh pr view ${{ env.PR }} --comments` — общие комментарии
+              (вердикт ревьюера — в последнем из них);
+            - `gh api repos/${{ github.repository }}/pulls/${{ env.PR }}/comments`
+              — инлайн-замечания к строкам;
+            - `gh api repos/${{ github.repository }}/pulls/${{ env.PR }}/reviews`
+              — тела ревью.
+            Актуален ПОСЛЕДНИЙ вердикт ревьюера; замечания, уже отмеченные в
+            более поздних комментариях как исправленные, пропусти. Если в
+            команде владельца есть уточнение («исправить только 2 и 3», «пункт
+            про тесты не трогай») — оно главнее списка ревьюера: чини ровно
+            то, что просят. Если замечаний нет вообще — ничего не выдумывай,
+            переходи к фазе 5 с пустым отчётом.
+
+            ФАЗА 2 — КОНТЕКСТ. Прочитай .claude/docs/CLAUDE.md (правила и DoD),
+            связанную ишью (номер — в теле PR после «Closes #») и её секцию в
+            .claude/docs/BACKLOG.md, а также актуальный код мест, о которых
+            замечание. Скиллы .claude/skills/ применяй по их описаниям.
+
+            ФАЗА 3 — ПРАВКИ. Только по замечаниям: ни новых фич, ни рефакторинга
+            «раз уж рядом», ничего из фазы 2 (BR §6). Если считаешь замечание
+            ошибочным — код НЕ правь, а зафиксируй возражение в отчёте (фаза 5).
+
+            ФАЗА 4 — ПРОВЕРКА. `ruff check .` и `pytest` должны быть зелёными.
+            Сломал — чини сейчас.
+
+            ФАЗА 5 — ОФОРМЛЕНИЕ. Атомарные коммиты, сообщения на английском.
+            Запушь в ТУ ЖЕ ветку PR (она уже checked out). Новых веток не
+            создавай, PR не мержи, не закрывай и не переоткрывай.
+            Комментарии в PR НЕ пиши — отчёт положи в файл .claude/fix-report.md,
+            его отправит следующий шаг workflow. Формат — строка на замечание:
+              - **Исправлено:** <замечание кратко> — <что сделал, файл:строка>
+              - **Не исправлено:** <замечание кратко> — <почему>
+            Ничего не менял — так и напиши одной строкой.
+          claude_args: "--max-turns 60 --dangerously-skip-permissions"
+
+      - name: Report back
+        if: success()
+        env:
+          # github.token, а не PAT: комментарий приходит от github-actions[bot],
+          # а бот отсечён guard'ом наверху — иначе отчёт со словом «исправить»
+          # в цитате замечания перезапустил бы этот воркфлоу.
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.pr.outputs.branch }}
+          BEFORE: ${{ steps.pr.outputs.sha }}
+        run: |
+          set -euo pipefail
+          after=$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)
+          body=$(mktemp)
+          if [ "$after" != "$BEFORE" ]; then
+            printf '### Правки внесены (`%s`)\n\nРевьюер перепроверит замечания и отпишется здесь же.\n\n' "${after:0:7}" > "$body"
+          else
+            printf '### Код не изменился\n\nАгент ничего не запушил — ревью не перезапустится.\n\n' > "$body"
+          fi
+          if [ -s .claude/fix-report.md ]; then
+            cat .claude/fix-report.md >> "$body"
+          else
+            printf 'Отчёт агент не оставил — смотри [лог прогона](%s).\n' "$RUN_URL" >> "$body"
+          fi
+          gh pr comment "$PR" --body-file "$body"
+          gh api -X POST --silent \
+            "repos/$GH_REPO/issues/comments/$COMMENT_ID/reactions" -f content=rocket || true
+
+      - name: Report the failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "$PR" --body "Команда «исправить» упала — правки не запушены. [Лог прогона]($RUN_URL)."
+          gh api -X POST --silent \
+            "repos/$GH_REPO/issues/comments/$COMMENT_ID/reactions" -f content=confused || true
