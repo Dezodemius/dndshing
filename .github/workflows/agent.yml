@@ -196,6 +196,9 @@ jobs:
       TEST_DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/dndshing_test
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
 
       - name: Create test database
         # Сервис-контейнер поднимается до checkout, поэтому init-скрипт из
@@ -205,9 +208,6 @@ jobs:
         env:
           PGPASSWORD: ci
         run: psql -h localhost -U ci -d dndshing -c "CREATE DATABASE dndshing_test"
-        with:
-          ref: develop
-          fetch-depth: 0
 
       # Падаем до запуска агента, а не после: иначе прогон сжигает ~4 минуты
       # и ~$1, чтобы упасть на git push в самом конце.
