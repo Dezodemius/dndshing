@@ -194,6 +194,11 @@ jobs:
       ISSUE: ${{ needs.pick.outputs.issue }}
       DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/dndshing
       TEST_DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/dndshing_test
+      # Ровно как в ci.yml: Settings.jwt_secret_key обязателен и без дефолта, а
+      # tests/conftest.py зовёт get_settings() на импорте — без этой переменной
+      # pytest у агента падает на сборе тестов там, где CI зелёный. Ключ
+      # эфемерный, живёт в рамках job-рана; в проде секрет приезжает из окружения.
+      JWT_SECRET_KEY: ci-test-secret-not-a-real-credential
     steps:
       - uses: actions/checkout@v4
         with:
