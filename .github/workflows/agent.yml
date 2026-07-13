@@ -167,13 +167,52 @@ jobs:
     # Зависший агент держал бы concurrency-группу дефолтные 6 часов и съел бы
     # всю ночь. Час — потолок здоровой задачи; дольше — это уже не задача.
     timeout-minutes: 60
+
+    # Та же БД, что и в ci.yml. Без неё фаза 4 («запусти тесты, добейся
+    # зелёного») была невыполнима: агент физически не мог поднять postgres,
+    # поэтому тесты с БД у него не запускались, и он сдавал задачу вслепую.
+    # Так и уехал DND-010: агент отчитался, ревьюер (он читает дифф, а не гоняет
+    # тесты) поставил approve, а CI на PR покраснел весь — приложение ходило в
+    # одну базу, миграции накатывались в другую. Ловить такое должен агент, а не
+    # человек утром. Креды эфемерные, живут в рамках job-рана.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: dndshing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d dndshing"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     env:
       ISSUE: ${{ needs.pick.outputs.issue }}
+      DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/dndshing
+      TEST_DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/dndshing_test
+      # Ровно как в ci.yml: Settings.jwt_secret_key обязателен и без дефолта, а
+      # tests/conftest.py зовёт get_settings() на импорте — без этой переменной
+      # pytest у агента падает на сборе тестов там, где CI зелёный. Ключ
+      # эфемерный, живёт в рамках job-рана; в проде секрет приезжает из окружения.
+      JWT_SECRET_KEY: ci-test-secret-not-a-real-credential
     steps:
       - uses: actions/checkout@v4
         with:
           ref: develop
           fetch-depth: 0
+
+      - name: Create test database
+        # Сервис-контейнер поднимается до checkout, поэтому init-скрипт из
+        # docker/postgres сюда не примонтировать — заводим тестовую БД шагом.
+        # Один в один с ci.yml: агент должен видеть ровно то же, что потом
+        # увидит CI на его PR.
+        env:
+          PGPASSWORD: ci
+        run: psql -h localhost -U ci -d dndshing -c "CREATE DATABASE dndshing_test"
 
       # Падаем до запуска агента, а не после: иначе прогон сжигает ~4 минуты
       # и ~$1, чтобы упасть на git push в самом конце.
@@ -244,6 +283,11 @@ jobs:
             приёмки задачи; DoD из .claude/docs/CLAUDE.md; скилла security-review;
             скилла code-style. Запусти тесты и линт, добейся зелёного.
             Найденное — исправь сейчас.
+            Postgres 16 поднят рядом, DATABASE_URL и TEST_DATABASE_URL уже в
+            окружении, база dndshing_test создана — то есть `pytest` и
+            `ruff check .` обязаны реально отработать здесь, в точности как
+            потом отработает CI на твоём PR. «Тесты не запустить, БД нет» —
+            больше не оправдание: не запустил и не позеленил — задача не сдана.
 
             ФАЗА 5 — ОФОРМЛЕНИЕ. Запиши тело PR в файл .claude/pr-body.md:
             Что сделано / Как проверял (тесты + ручные шаги) / Решения и
