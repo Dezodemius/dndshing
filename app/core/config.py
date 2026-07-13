@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     database_url: str
     test_database_url: str | None = None
 
+    # No default: a missing secret must abort the boot, not sign tokens with a
+    # guessable fallback.
+    jwt_secret_key: str
+    jwt_access_expire_minutes: int = 15
+    jwt_refresh_expire_days: int = 30
+
     # Phase 2 groundwork (BR §6): the AI endpoint is unused in the MVP, but the
     # config must already exist so the future integration is not blocked.
     ai_base_url: str | None = None
