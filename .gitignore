@@ -25,6 +25,8 @@ venv/
 .claude/worktrees/
 # черновик тела PR: агент пишет его в workspace, workflow читает с диска — в git не нужен
 .claude/pr-body.md
+# то же для отчёта команды «исправить» (fix.yml)
+.claude/fix-report.md
 
 # logs
 npm-debug.log*
