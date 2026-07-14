@@ -33,6 +33,11 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env}
       SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST in .env, see .env.example}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?set FRONTEND_BASE_URL in .env, see .env.example}
+      # Optional: unset keeps the Yandex OAuth provider disabled (rule 12 does
+      # not apply here — this is not a required-to-boot secret).
+      YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:-}
+      YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:-}
+      YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:-}
     depends_on:
       db:
         condition: service_healthy

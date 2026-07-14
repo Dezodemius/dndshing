@@ -4,13 +4,15 @@ import smtplib
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import yandex_client
 from app.auth.errors import (
     EmailAlreadyRegisteredError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
     InvalidVerificationTokenError,
+    OAuthProviderError,
 )
-from app.auth.models import User
+from app.auth.models import OAuthAccount, User
 from app.auth.schemas import RegisterRequest
 from app.auth.security import (
     TokenError,
@@ -112,3 +114,51 @@ class AuthService:
             raise InvalidRefreshTokenError()
 
         return self.issue_tokens(user)
+
+    async def login_via_yandex_code(
+        self, code: str, client_id: str, client_secret: str, redirect_uri: str
+    ) -> User:
+        try:
+            access_token = await yandex_client.exchange_code(
+                code, client_id, client_secret, redirect_uri
+            )
+            profile = await yandex_client.fetch_profile(access_token)
+        except yandex_client.YandexOAuthError as exc:
+            raise OAuthProviderError() from exc
+
+        return await self._login_via_yandex_profile(profile)
+
+    async def _login_via_yandex_profile(self, profile: yandex_client.YandexProfile) -> User:
+        account = await self._db.scalar(
+            select(OAuthAccount).where(
+                OAuthAccount.provider == "yandex",
+                OAuthAccount.provider_user_id == profile.provider_user_id,
+            )
+        )
+        if account is not None:
+            user = await self._db.get(User, account.user_id)
+            assert user is not None
+            return user
+
+        user = await self._db.scalar(select(User).where(User.email == profile.email))
+        if user is None:
+            user = User(
+                email=profile.email,
+                display_name=profile.display_name,
+                email_verified=True,
+            )
+            self._db.add(user)
+            await self._db.flush()
+        elif not user.email_verified:
+            # Yandex just proved ownership of this email, so linking an existing
+            # unverified account may as well clear the email_not_verified gate.
+            user.email_verified = True
+
+        self._db.add(
+            OAuthAccount(
+                user_id=user.id, provider="yandex", provider_user_id=profile.provider_user_id
+            )
+        )
+        await self._db.commit()
+        await self._db.refresh(user)
+        return user
