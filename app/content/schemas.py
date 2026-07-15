@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -76,7 +77,7 @@ class ItemRead(BaseModel):
     price_g: int
     price_s: int
     price_c: int
-    weight: float
+    weight: Decimal
     description: str
     data: dict[str, Any]
 
