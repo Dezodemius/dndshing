@@ -105,7 +105,7 @@ async def test_callback_creates_new_verified_user(
 
     assert response.status_code == 302
     assert response.headers["location"].startswith(
-        "http://testfrontend/oauth/callback#access_token="
+        f"{get_settings().frontend_base_url}/oauth/callback#access_token="
     )
     assert "refresh_token" in response.cookies
 
