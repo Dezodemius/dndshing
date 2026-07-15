@@ -179,6 +179,29 @@ async def test_item_slug_locale_unique(db_session: AsyncSession) -> None:
         await db_session.flush()
 
 
+async def test_race_defaults_locale_and_data(db_session: AsyncSession) -> None:
+    race = Race(slug="dwarf", name="Дварф")
+    db_session.add(race)
+    await db_session.flush()
+
+    assert race.locale == "ru"
+    assert race.data == {}
+
+
+async def test_item_defaults_price_and_weight(db_session: AsyncSession) -> None:
+    item = Item(
+        slug="dagger", name="Кинжал", type="weapon", rarity="обычный", description="Малое оружие."
+    )
+    db_session.add(item)
+    await db_session.flush()
+
+    assert item.price_g == 0
+    assert item.price_s == 0
+    assert item.price_c == 0
+    assert item.weight == 0
+    assert item.data == {}
+
+
 async def test_background_slug_locale_unique(db_session: AsyncSession) -> None:
     db_session.add(Background(slug="soldier", locale="ru", name="Солдат"))
     await db_session.flush()
