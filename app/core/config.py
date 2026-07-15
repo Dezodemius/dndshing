@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     ai_model: str | None = None
     ai_api_key: str | None = None
 
+    # OAuth: Яндекс. All three optional and default to None on purpose — the
+    # provider is only active when all of them are configured (rule 12: no
+    # partial/guessable fallback), so a deploy that never set up Yandex OAuth
+    # simply has the endpoints respond "provider disabled" instead of crashing.
+    yandex_client_id: str | None = None
+    yandex_client_secret: str | None = None
+    yandex_redirect_uri: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
