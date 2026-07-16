@@ -53,3 +53,9 @@ class OAuthProviderError(AppError):
     code = "oauth_provider_error"
     message = "Не удалось войти через выбранный сервис, попробуйте позже"
     status_code = 502
+
+
+class OAuthPendingTokenInvalidError(AppError):
+    code = "oauth_pending_token_invalid"
+    message = "Регистрация устарела, попробуйте войти через VK ещё раз"
+    status_code = 400
