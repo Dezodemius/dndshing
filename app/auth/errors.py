@@ -53,3 +53,9 @@ class OAuthProviderError(AppError):
     code = "oauth_provider_error"
     message = "Не удалось войти через выбранный сервис, попробуйте позже"
     status_code = 502
+
+
+class AdminRequiredError(AppError):
+    code = "admin_required"
+    message = "Требуются права администратора"
+    status_code = 403
