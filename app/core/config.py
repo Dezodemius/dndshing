@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     vk_client_secret: str | None = None
     vk_redirect_uri: str | None = None
 
+    # OAuth: Mail.ru. Same all-or-nothing rule as Yandex above.
+    mailru_client_id: str | None = None
+    mailru_client_secret: str | None = None
+    mailru_redirect_uri: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
