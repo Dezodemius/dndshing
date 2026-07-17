@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import mailru_client, yandex_client
+from app.auth import mailru_client, vk_client, yandex_client
 from app.auth.dependencies import get_current_user
 from app.auth.errors import (
     InvalidRefreshTokenError,
@@ -15,6 +15,8 @@ from app.auth.models import User
 from app.auth.schemas import (
     LoginRequest,
     MessageResponse,
+    OAuthCompleteRequest,
+    OAuthConfirmRequest,
     RegisterRequest,
     ResendVerificationRequest,
     TokenResponse,
@@ -30,6 +32,8 @@ _REFRESH_COOKIE_NAME = "refresh_token"
 _REFRESH_COOKIE_PATH = "/api/v1/auth"
 _OAUTH_STATE_COOKIE_NAME = "oauth_state"
 _OAUTH_STATE_COOKIE_PATH = "/api/v1/auth/oauth/yandex"
+_VK_OAUTH_PATH = "/api/v1/auth/oauth/vk"
+_VK_CODE_VERIFIER_COOKIE_NAME = "oauth_code_verifier"
 _MAILRU_OAUTH_STATE_COOKIE_PATH = "/api/v1/auth/oauth/mailru"
 
 
@@ -156,6 +160,16 @@ async def yandex_callback(
     return redirect
 
 
+def _require_vk_config() -> tuple[str, str, str]:
+    settings = get_settings()
+    client_id = settings.vk_client_id
+    client_secret = settings.vk_client_secret
+    redirect_uri = settings.vk_redirect_uri
+    if not (client_id and client_secret and redirect_uri):
+        raise OAuthProviderDisabledError()
+    return client_id, client_secret, redirect_uri
+
+
 def _require_mailru_config() -> tuple[str, str, str]:
     settings = get_settings()
     client_id = settings.mailru_client_id
@@ -164,6 +178,37 @@ def _require_mailru_config() -> tuple[str, str, str]:
     if not (client_id and client_secret and redirect_uri):
         raise OAuthProviderDisabledError()
     return client_id, client_secret, redirect_uri
+
+
+@router.get("/auth/oauth/vk/authorize")
+async def vk_authorize() -> RedirectResponse:
+    client_id, _client_secret, redirect_uri = _require_vk_config()
+
+    state = secrets.token_urlsafe(24)
+    code_verifier, code_challenge = vk_client.generate_pkce_pair()
+    authorize_url = vk_client.build_authorize_url(client_id, redirect_uri, state, code_challenge)
+
+    redirect = RedirectResponse(authorize_url, status_code=status.HTTP_302_FOUND)
+    is_secure = get_settings().app_env != "local"
+    redirect.set_cookie(
+        key=_OAUTH_STATE_COOKIE_NAME,
+        value=state,
+        httponly=True,
+        secure=is_secure,
+        samesite="lax",
+        max_age=600,
+        path=_VK_OAUTH_PATH,
+    )
+    redirect.set_cookie(
+        key=_VK_CODE_VERIFIER_COOKIE_NAME,
+        value=code_verifier,
+        httponly=True,
+        secure=is_secure,
+        samesite="lax",
+        max_age=600,
+        path=_VK_OAUTH_PATH,
+    )
+    return redirect
 
 
 @router.get("/auth/oauth/mailru/authorize")
@@ -183,6 +228,68 @@ async def mailru_authorize() -> RedirectResponse:
         path=_MAILRU_OAUTH_STATE_COOKIE_PATH,
     )
     return redirect
+
+
+@router.get("/auth/oauth/vk/callback")
+async def vk_callback(
+    request: Request, code: str, state: str, db: AsyncSession = Depends(get_db)
+) -> RedirectResponse:
+    client_id, client_secret, redirect_uri = _require_vk_config()
+
+    # Same CSRF protection as Yandex, plus the PKCE code_verifier minted at
+    # /authorize — VK ID (OAuth 2.1) requires it for the token exchange.
+    cookie_state = request.cookies.get(_OAUTH_STATE_COOKIE_NAME)
+    code_verifier = request.cookies.get(_VK_CODE_VERIFIER_COOKIE_NAME)
+    if not cookie_state or not code_verifier or not secrets.compare_digest(cookie_state, state):
+        raise OAuthStateMismatchError()
+
+    service = AuthService(db)
+    outcome = await service.login_via_vk_code(
+        code, client_id, client_secret, redirect_uri, code_verifier
+    )
+
+    settings = get_settings()
+    if outcome.user is not None:
+        jwt_access_token, refresh_token = service.issue_tokens(outcome.user)
+        callback_url = (
+            f"{settings.frontend_base_url}/oauth/callback"
+            f"#access_token={jwt_access_token}&token_type=bearer"
+        )
+        redirect = RedirectResponse(callback_url, status_code=status.HTTP_302_FOUND)
+        _set_refresh_cookie(redirect, refresh_token)
+    else:
+        # VK didn't return an email: frontend must show a form to collect it
+        # and POST /auth/oauth/vk/complete with this token.
+        callback_url = (
+            f"{settings.frontend_base_url}/oauth/callback"
+            f"#oauth_pending_token={outcome.pending_token}&provider=vk"
+        )
+        redirect = RedirectResponse(callback_url, status_code=status.HTTP_302_FOUND)
+
+    redirect.delete_cookie(_OAUTH_STATE_COOKIE_NAME, path=_VK_OAUTH_PATH)
+    redirect.delete_cookie(_VK_CODE_VERIFIER_COOKIE_NAME, path=_VK_OAUTH_PATH)
+    return redirect
+
+
+@router.post("/auth/oauth/vk/complete", response_model=MessageResponse)
+async def vk_complete_registration(
+    data: OAuthCompleteRequest, db: AsyncSession = Depends(get_db)
+) -> MessageResponse:
+    # The email here is typed by hand and unverified — we don't create or link
+    # an account yet, only mail a confirmation link (see AuthService docstring).
+    await AuthService(db).request_vk_email_confirmation(data.pending_token, data.email)
+    return MessageResponse(message="Проверьте почту и перейдите по ссылке, чтобы завершить вход")
+
+
+@router.post("/auth/oauth/vk/confirm", response_model=TokenResponse)
+async def vk_confirm_email_link(
+    data: OAuthConfirmRequest, response: Response, db: AsyncSession = Depends(get_db)
+) -> TokenResponse:
+    service = AuthService(db)
+    user = await service.confirm_vk_email_link(data.token)
+    access_token, refresh_token = service.issue_tokens(user)
+    _set_refresh_cookie(response, refresh_token)
+    return TokenResponse(access_token=access_token)
 
 
 @router.get("/auth/oauth/mailru/callback")

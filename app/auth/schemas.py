@@ -35,5 +35,14 @@ class ResendVerificationRequest(BaseModel):
     email: EmailStr
 
 
+class OAuthCompleteRequest(BaseModel):
+    pending_token: str
+    email: EmailStr
+
+
+class OAuthConfirmRequest(BaseModel):
+    token: str
+
+
 class MessageResponse(BaseModel):
     message: str
