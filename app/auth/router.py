@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import yandex_client
+from app.auth import mailru_client, yandex_client
 from app.auth.dependencies import get_current_user
 from app.auth.errors import (
     InvalidRefreshTokenError,
@@ -30,6 +30,7 @@ _REFRESH_COOKIE_NAME = "refresh_token"
 _REFRESH_COOKIE_PATH = "/api/v1/auth"
 _OAUTH_STATE_COOKIE_NAME = "oauth_state"
 _OAUTH_STATE_COOKIE_PATH = "/api/v1/auth/oauth/yandex"
+_MAILRU_OAUTH_STATE_COOKIE_PATH = "/api/v1/auth/oauth/mailru"
 
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
@@ -152,4 +153,59 @@ async def yandex_callback(
     redirect = RedirectResponse(callback_url, status_code=status.HTTP_302_FOUND)
     _set_refresh_cookie(redirect, refresh_token)
     redirect.delete_cookie(_OAUTH_STATE_COOKIE_NAME, path=_OAUTH_STATE_COOKIE_PATH)
+    return redirect
+
+
+def _require_mailru_config() -> tuple[str, str, str]:
+    settings = get_settings()
+    client_id = settings.mailru_client_id
+    client_secret = settings.mailru_client_secret
+    redirect_uri = settings.mailru_redirect_uri
+    if not (client_id and client_secret and redirect_uri):
+        raise OAuthProviderDisabledError()
+    return client_id, client_secret, redirect_uri
+
+
+@router.get("/auth/oauth/mailru/authorize")
+async def mailru_authorize() -> RedirectResponse:
+    client_id, _client_secret, redirect_uri = _require_mailru_config()
+
+    state = secrets.token_urlsafe(24)
+    authorize_url = mailru_client.build_authorize_url(client_id, redirect_uri, state)
+    redirect = RedirectResponse(authorize_url, status_code=status.HTTP_302_FOUND)
+    redirect.set_cookie(
+        key=_OAUTH_STATE_COOKIE_NAME,
+        value=state,
+        httponly=True,
+        secure=get_settings().app_env != "local",
+        samesite="lax",
+        max_age=600,
+        path=_MAILRU_OAUTH_STATE_COOKIE_PATH,
+    )
+    return redirect
+
+
+@router.get("/auth/oauth/mailru/callback")
+async def mailru_callback(
+    request: Request, code: str, state: str, db: AsyncSession = Depends(get_db)
+) -> RedirectResponse:
+    client_id, client_secret, redirect_uri = _require_mailru_config()
+
+    # CSRF protection: same rationale as the Yandex callback above.
+    cookie_state = request.cookies.get(_OAUTH_STATE_COOKIE_NAME)
+    if not cookie_state or not secrets.compare_digest(cookie_state, state):
+        raise OAuthStateMismatchError()
+
+    service = AuthService(db)
+    user = await service.login_via_mailru_code(code, client_id, client_secret, redirect_uri)
+    jwt_access_token, refresh_token = service.issue_tokens(user)
+
+    settings = get_settings()
+    callback_url = (
+        f"{settings.frontend_base_url}/oauth/callback"
+        f"#access_token={jwt_access_token}&token_type=bearer"
+    )
+    redirect = RedirectResponse(callback_url, status_code=status.HTTP_302_FOUND)
+    _set_refresh_cookie(redirect, refresh_token)
+    redirect.delete_cookie(_OAUTH_STATE_COOKIE_NAME, path=_MAILRU_OAUTH_STATE_COOKIE_PATH)
     return redirect

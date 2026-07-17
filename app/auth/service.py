@@ -4,7 +4,7 @@ import smtplib
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import yandex_client
+from app.auth import mailru_client, yandex_client
 from app.auth.errors import (
     EmailAlreadyRegisteredError,
     InvalidCredentialsError,
@@ -157,6 +157,54 @@ class AuthService:
         self._db.add(
             OAuthAccount(
                 user_id=user.id, provider="yandex", provider_user_id=profile.provider_user_id
+            )
+        )
+        await self._db.commit()
+        await self._db.refresh(user)
+        return user
+
+    async def login_via_mailru_code(
+        self, code: str, client_id: str, client_secret: str, redirect_uri: str
+    ) -> User:
+        try:
+            access_token = await mailru_client.exchange_code(
+                code, client_id, client_secret, redirect_uri
+            )
+            profile = await mailru_client.fetch_profile(access_token)
+        except mailru_client.MailRuOAuthError as exc:
+            raise OAuthProviderError() from exc
+
+        return await self._login_via_mailru_profile(profile)
+
+    async def _login_via_mailru_profile(self, profile: mailru_client.MailRuProfile) -> User:
+        account = await self._db.scalar(
+            select(OAuthAccount).where(
+                OAuthAccount.provider == "mailru",
+                OAuthAccount.provider_user_id == profile.provider_user_id,
+            )
+        )
+        if account is not None:
+            user = await self._db.get(User, account.user_id)
+            assert user is not None
+            return user
+
+        user = await self._db.scalar(select(User).where(User.email == profile.email))
+        if user is None:
+            user = User(
+                email=profile.email,
+                display_name=profile.display_name,
+                email_verified=True,
+            )
+            self._db.add(user)
+            await self._db.flush()
+        elif not user.email_verified:
+            # Mail.ru just proved ownership of this email, so linking an existing
+            # unverified account may as well clear the email_not_verified gate.
+            user.email_verified = True
+
+        self._db.add(
+            OAuthAccount(
+                user_id=user.id, provider="mailru", provider_user_id=profile.provider_user_id
             )
         )
         await self._db.commit()

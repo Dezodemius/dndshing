@@ -38,6 +38,10 @@ services:
       YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:-}
       YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:-}
       YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:-}
+      # Optional: unset keeps the Mail.ru OAuth provider disabled, same as above.
+      MAILRU_CLIENT_ID: ${MAILRU_CLIENT_ID:-}
+      MAILRU_CLIENT_SECRET: ${MAILRU_CLIENT_SECRET:-}
+      MAILRU_REDIRECT_URI: ${MAILRU_REDIRECT_URI:-}
     depends_on:
       db:
         condition: service_healthy
