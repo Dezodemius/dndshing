@@ -16,6 +16,7 @@ from app.auth.schemas import (
     LoginRequest,
     MessageResponse,
     OAuthCompleteRequest,
+    OAuthConfirmRequest,
     RegisterRequest,
     ResendVerificationRequest,
     TokenResponse,
@@ -240,12 +241,22 @@ async def vk_callback(
     return redirect
 
 
-@router.post("/auth/oauth/vk/complete", response_model=TokenResponse)
+@router.post("/auth/oauth/vk/complete", response_model=MessageResponse)
 async def vk_complete_registration(
-    data: OAuthCompleteRequest, response: Response, db: AsyncSession = Depends(get_db)
+    data: OAuthCompleteRequest, db: AsyncSession = Depends(get_db)
+) -> MessageResponse:
+    # The email here is typed by hand and unverified — we don't create or link
+    # an account yet, only mail a confirmation link (see AuthService docstring).
+    await AuthService(db).request_vk_email_confirmation(data.pending_token, data.email)
+    return MessageResponse(message="Проверьте почту и перейдите по ссылке, чтобы завершить вход")
+
+
+@router.post("/auth/oauth/vk/confirm", response_model=TokenResponse)
+async def vk_confirm_email_link(
+    data: OAuthConfirmRequest, response: Response, db: AsyncSession = Depends(get_db)
 ) -> TokenResponse:
     service = AuthService(db)
-    user = await service.complete_vk_registration(data.pending_token, data.email)
+    user = await service.confirm_vk_email_link(data.token)
     access_token, refresh_token = service.issue_tokens(user)
     _set_refresh_cookie(response, refresh_token)
     return TokenResponse(access_token=access_token)

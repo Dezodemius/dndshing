@@ -40,5 +40,9 @@ class OAuthCompleteRequest(BaseModel):
     email: EmailStr
 
 
+class OAuthConfirmRequest(BaseModel):
+    token: str
+
+
 class MessageResponse(BaseModel):
     message: str

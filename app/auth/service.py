@@ -11,6 +11,7 @@ from app.auth.errors import (
     InvalidCredentialsError,
     InvalidRefreshTokenError,
     InvalidVerificationTokenError,
+    OAuthLinkConfirmationInvalidError,
     OAuthPendingTokenInvalidError,
     OAuthProviderError,
 )
@@ -20,6 +21,7 @@ from app.auth.security import (
     TokenError,
     create_access_token,
     create_email_verification_token,
+    create_oauth_link_confirmation_token,
     create_oauth_pending_token,
     create_refresh_token,
     decode_token,
@@ -220,7 +222,14 @@ class AuthService:
         )
         return VkLoginOutcome(user=user, pending_token=None)
 
-    async def complete_vk_registration(self, pending_token: str, email: str) -> User:
+    async def request_vk_email_confirmation(self, pending_token: str, email: str) -> None:
+        # The email on this step is typed by hand, unlike the VK-provided one
+        # in _login_via_vk_profile, so it is NOT proof of ownership yet — VK
+        # never attested it. Linking or creating an account on it directly
+        # would let an attacker take over any account by re-typing its email
+        # (see PR #63 review). Instead we mail a confirmation link and only
+        # act on the email once its owner proves control of the inbox by
+        # opening it — mirrors the registration email_verification flow.
         try:
             payload = decode_token(pending_token)
         except TokenError as exc:
@@ -232,11 +241,48 @@ class AuthService:
         provider_user_id = payload["provider_user_id"]
         display_name = payload.get("display_name") or email
 
+        confirmation_token = create_oauth_link_confirmation_token(
+            "vk", provider_user_id, display_name, email
+        )
+        await self._send_vk_link_confirmation_email(email, display_name, confirmation_token)
+
+    async def confirm_vk_email_link(self, confirmation_token: str) -> User:
+        try:
+            payload = decode_token(confirmation_token)
+        except TokenError as exc:
+            raise OAuthLinkConfirmationInvalidError() from exc
+
+        if payload.get("type") != "oauth_link_confirmation" or payload.get("provider") != "vk":
+            raise OAuthLinkConfirmationInvalidError()
+
+        provider_user_id = payload["provider_user_id"]
+        email = payload["email"]
+        display_name = payload.get("display_name") or email
+
         existing_user = await self._find_vk_account_user(provider_user_id)
         if existing_user is not None:
             return existing_user
 
         return await self._link_or_create_vk_user(provider_user_id, email, display_name)
+
+    async def _send_vk_link_confirmation_email(
+        self, email: str, display_name: str, token: str
+    ) -> None:
+        settings = get_settings()
+        confirm_url = f"{settings.frontend_base_url}/oauth/vk/confirm?token={token}"
+        body = (
+            f"Здравствуйте, {display_name}!\n\n"
+            f"Подтвердите этот email, чтобы завершить вход через VK: {confirm_url}\n\n"
+            f"Если вы не пытались войти через VK, проигнорируйте это письмо.\n\n"
+            f"Ссылка действительна {settings.email_verification_expire_hours} ч."
+        )
+        try:
+            await asyncio.to_thread(
+                send_email, email, "Подтверждение входа через VK — D&D Campaign Platform", body
+            )
+        except (OSError, smtplib.SMTPException):
+            # Same boundary reasoning as _send_verification_email.
+            pass
 
     async def _link_or_create_vk_user(
         self, provider_user_id: str, email: str, display_name: str

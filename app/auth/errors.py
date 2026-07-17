@@ -59,3 +59,9 @@ class OAuthPendingTokenInvalidError(AppError):
     code = "oauth_pending_token_invalid"
     message = "Регистрация устарела, попробуйте войти через VK ещё раз"
     status_code = 400
+
+
+class OAuthLinkConfirmationInvalidError(AppError):
+    code = "oauth_link_confirmation_invalid"
+    message = "Ссылка подтверждения недействительна или устарела, попробуйте войти через VK ещё раз"
+    status_code = 400
