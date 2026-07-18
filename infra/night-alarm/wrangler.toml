@@ -1,0 +1,18 @@
+# Внешний будильник ночного конвейера — см. worker.js и README.md.
+name = "dndshing-night-alarm"
+main = "worker.js"
+compatibility_date = "2026-07-01"
+
+# Секрет GH_PAT (тот же PAT, что в секретах репозитория: scope repo + workflow)
+# заводится отдельно: npx wrangler secret put GH_PAT
+
+[vars]
+REPO = "Dezodemius/dndshing"
+BRANCH = "develop"
+
+[triggers]
+# UTC. Меняешь ночное окно agent.yml — меняй и здесь.
+# 50 23 * * * — plan.yml, за 10 минут до окна (метки + снятие agent-deferred).
+# 7 0-5 * * * — agent.yml, раз в час всю ночь: первый звонок открывает ночь,
+#               остальные страхуют от смерти цепочки посреди неё.
+crons = ["50 23 * * *", "7 0-5 * * *"]
