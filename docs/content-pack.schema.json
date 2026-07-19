@@ -1,0 +1,374 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "BackgroundImport": {
+      "properties": {
+        "slug": {
+          "title": "Slug",
+          "type": "string",
+          "description": "Устойчивый ключ (slug), уникальный в пределах locale \"ru\"; используется для upsert при повторном импорте"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "description": "Название предыстории на русском"
+        },
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object",
+          "description": "Владения, снаряжение и черта предыстории"
+        }
+      },
+      "required": [
+        "slug",
+        "name"
+      ],
+      "title": "Предыстория",
+      "type": "object"
+    },
+    "ClassImport": {
+      "properties": {
+        "slug": {
+          "title": "Slug",
+          "type": "string",
+          "description": "Устойчивый ключ (slug), уникальный в пределах locale \"ru\"; используется для upsert при повторном импорте"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "description": "Название класса на русском"
+        },
+        "hit_die": {
+          "title": "Hit Die",
+          "type": "integer",
+          "description": "Кость хитов класса (например 10 — к10)"
+        },
+        "primary_ability": {
+          "title": "Primary Ability",
+          "type": "string",
+          "description": "Основная характеристика класса (например strength)"
+        },
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object",
+          "description": "Спасброски, владения оружием/доспехами и другие структурные данные класса"
+        },
+        "levels": {
+          "items": {
+            "$ref": "#/$defs/ClassLevelImport"
+          },
+          "title": "Levels",
+          "type": "array",
+          "description": "Особенности класса по уровням (1–20)"
+        },
+        "subclasses": {
+          "items": {
+            "$ref": "#/$defs/SubclassImport"
+          },
+          "title": "Subclasses",
+          "type": "array",
+          "description": "Подклассы (архетипы), открывающиеся на определённом уровне"
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "hit_die",
+        "primary_ability"
+      ],
+      "title": "Класс",
+      "type": "object"
+    },
+    "ClassLevelImport": {
+      "properties": {
+        "level": {
+          "title": "Level",
+          "type": "integer",
+          "description": "Номер уровня класса (1–20)"
+        },
+        "features": {
+          "additionalProperties": true,
+          "title": "Features",
+          "type": "object",
+          "description": "Фичи, открывающиеся на этом уровне"
+        },
+        "spell_slots": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spell Slots",
+          "description": "Слоты заклинаний на этом уровне по кругам; null, если класс не кастует на этом уровне"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "title": "Уровень класса",
+      "type": "object"
+    },
+    "ItemImport": {
+      "properties": {
+        "slug": {
+          "title": "Slug",
+          "type": "string",
+          "description": "Устойчивый ключ (slug), уникальный в пределах locale \"ru\"; используется для upsert при повторном импорте"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "description": "Название предмета на русском"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string",
+          "description": "Тип предмета: weapon | armor | potion | scroll | magic | quest | gear"
+        },
+        "rarity": {
+          "title": "Rarity",
+          "type": "string",
+          "description": "Редкость предмета на русском (например \"обычный\")"
+        },
+        "price_g": {
+          "default": 0,
+          "title": "Price G",
+          "type": "integer",
+          "description": "Цена в золотых монетах"
+        },
+        "price_s": {
+          "default": 0,
+          "title": "Price S",
+          "type": "integer",
+          "description": "Цена в серебряных монетах"
+        },
+        "price_c": {
+          "default": 0,
+          "title": "Price C",
+          "type": "integer",
+          "description": "Цена в медных монетах"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Weight",
+          "description": "Вес предмета"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string",
+          "description": "Описание предмета на русском"
+        },
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object",
+          "description": "Дополнительные структурные данные предмета"
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "type",
+        "rarity",
+        "description"
+      ],
+      "title": "Предмет",
+      "type": "object"
+    },
+    "RaceImport": {
+      "properties": {
+        "slug": {
+          "title": "Slug",
+          "type": "string",
+          "description": "Устойчивый ключ (slug), уникальный в пределах locale \"ru\"; используется для upsert при повторном импорте"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "description": "Название расы на русском"
+        },
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object",
+          "description": "Структурные данные расы: скорость, тёмное зрение, бонусы характеристик, черты, языки"
+        }
+      },
+      "required": [
+        "slug",
+        "name"
+      ],
+      "title": "Раса",
+      "type": "object"
+    },
+    "SpellImport": {
+      "properties": {
+        "slug": {
+          "title": "Slug",
+          "type": "string",
+          "description": "Устойчивый ключ (slug), уникальный в пределах locale \"ru\"; используется для upsert при повторном импорте"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "description": "Название заклинания на русском"
+        },
+        "level": {
+          "title": "Level",
+          "type": "integer",
+          "description": "Круг заклинания (0 — заговор, 1–9 — круги)"
+        },
+        "school": {
+          "title": "School",
+          "type": "string",
+          "description": "Школа магии"
+        },
+        "casting_time": {
+          "title": "Casting Time",
+          "type": "string",
+          "description": "Время накладывания"
+        },
+        "range": {
+          "title": "Range",
+          "type": "string",
+          "description": "Дистанция"
+        },
+        "components": {
+          "title": "Components",
+          "type": "string",
+          "description": "Компоненты (V, S, M)"
+        },
+        "duration": {
+          "title": "Duration",
+          "type": "string",
+          "description": "Длительность"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string",
+          "description": "Описание эффекта на русском"
+        },
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object",
+          "description": "Дополнительные структурные данные заклинания"
+        },
+        "classes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Classes",
+          "type": "array",
+          "description": "Slug-и классов, которым доступно заклинание (должны существовать в паке или уже быть импортированы)"
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "level",
+        "school",
+        "casting_time",
+        "range",
+        "components",
+        "duration",
+        "description"
+      ],
+      "title": "Заклинание",
+      "type": "object"
+    },
+    "SubclassImport": {
+      "properties": {
+        "slug": {
+          "title": "Slug",
+          "type": "string",
+          "description": "Устойчивый ключ (slug), уникальный в пределах locale \"ru\"; используется для upsert при повторном импорте"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "description": "Название подкласса на русском"
+        },
+        "unlock_level": {
+          "title": "Unlock Level",
+          "type": "integer",
+          "description": "Уровень класса, на котором подкласс становится доступен"
+        },
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object",
+          "description": "Фичи и описания подкласса"
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "unlock_level"
+      ],
+      "title": "Подкласс (архетип)",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "races": {
+      "items": {
+        "$ref": "#/$defs/RaceImport"
+      },
+      "title": "Races",
+      "type": "array",
+      "description": "Расы"
+    },
+    "classes": {
+      "items": {
+        "$ref": "#/$defs/ClassImport"
+      },
+      "title": "Classes",
+      "type": "array",
+      "description": "Классы (с уровнями и подклассами внутри)"
+    },
+    "spells": {
+      "items": {
+        "$ref": "#/$defs/SpellImport"
+      },
+      "title": "Spells",
+      "type": "array",
+      "description": "Заклинания"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ItemImport"
+      },
+      "title": "Items",
+      "type": "array",
+      "description": "Предметы"
+    },
+    "backgrounds": {
+      "items": {
+        "$ref": "#/$defs/BackgroundImport"
+      },
+      "title": "Backgrounds",
+      "type": "array",
+      "description": "Предыстории"
+    }
+  },
+  "title": "Пак игрового контента D&D 5e",
+  "type": "object",
+  "description": "JSON-пак для импорта через POST /api/v1/admin/content/import (только is_admin). Обновление существующих записей выполняется по slug (upsert), locale пака всегда \"ru\". Частично битый пак не применяется целиком (см. отчёт created/updated/errors)."
+}
