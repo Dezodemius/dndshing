@@ -22,7 +22,10 @@ export default function OAuthCallbackPage() {
 
     loginWithToken(accessToken)
       .then(() => navigate('/app', { replace: true }))
-      .catch(() => setError(t('errors.unknown')))
+      .catch(() => {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        setError(t('errors.unknown'))
+      })
   }, [loginWithToken, navigate, t])
 
   if (error) {
