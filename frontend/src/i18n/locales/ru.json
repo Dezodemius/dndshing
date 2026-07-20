@@ -98,7 +98,9 @@
       "emailInvalid": "Введите корректный email",
       "passwordRequired": "Введите пароль",
       "passwordMin": "Пароль должен быть не короче 8 символов",
+      "passwordMax": "Пароль должен быть не длиннее 128 символов",
       "displayNameRequired": "Введите имя",
+      "displayNameMax": "Имя должно быть не длиннее 100 символов",
       "passwordMismatch": "Пароли не совпадают"
     }
   },

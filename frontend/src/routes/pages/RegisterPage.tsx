@@ -65,7 +65,13 @@ export default function RegisterPage() {
 
         <label htmlFor="register-display-name">{t('auth.displayName')}</label>
         <input id="register-display-name" type="text" {...register('displayName')} />
-        {errors.displayName && <p role="alert">{t('auth.errors.displayNameRequired')}</p>}
+        {errors.displayName && (
+          <p role="alert">
+            {errors.displayName.type === 'too_big'
+              ? t('auth.errors.displayNameMax')
+              : t('auth.errors.displayNameRequired')}
+          </p>
+        )}
 
         <label htmlFor="register-password">{t('auth.password')}</label>
         <input
@@ -74,7 +80,13 @@ export default function RegisterPage() {
           autoComplete="new-password"
           {...register('password')}
         />
-        {errors.password && <p role="alert">{t('auth.errors.passwordMin')}</p>}
+        {errors.password && (
+          <p role="alert">
+            {errors.password.type === 'too_big'
+              ? t('auth.errors.passwordMax')
+              : t('auth.errors.passwordMin')}
+          </p>
+        )}
 
         <label htmlFor="register-confirm-password">{t('auth.confirmPassword')}</label>
         <input
