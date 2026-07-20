@@ -15,13 +15,24 @@ export class ApiError extends Error {
   }
 }
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+
+// Kept in memory only (not localStorage/sessionStorage) to limit XSS exfiltration;
+// AuthContext restores it on load via the httpOnly refresh cookie.
+let accessToken: string | null = null
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   headers.set('Content-Type', 'application/json')
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`)
+  }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers,
     credentials: 'include',
