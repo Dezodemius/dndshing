@@ -1,6 +1,12 @@
 import { createBrowserRouter } from 'react-router-dom'
 import Layout from './Layout'
+import RequireAuth from './RequireAuth'
 import LandingPage from './pages/LandingPage'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import VerifyEmailPage from './pages/VerifyEmailPage'
+import OAuthCallbackPage from './pages/OAuthCallbackPage'
+import DashboardPage from './pages/DashboardPage'
 import StubPage from './pages/StubPage'
 import NotFoundPage from './pages/NotFoundPage'
 
@@ -10,16 +16,26 @@ export const router = createBrowserRouter([
     element: <Layout />,
     children: [
       { index: true, element: <LandingPage /> },
-      { path: 'login', element: <StubPage titleKey="pages.login.title" /> },
-      { path: 'register', element: <StubPage titleKey="pages.register.title" /> },
-      { path: 'verify', element: <StubPage titleKey="pages.verifyEmail.title" /> },
-      { path: 'app', element: <StubPage titleKey="pages.dashboard.title" /> },
-      { path: 'app/characters/new', element: <StubPage titleKey="pages.characterNew.title" /> },
-      { path: 'app/characters/:characterId', element: <StubPage titleKey="pages.characterSheet.title" /> },
-      { path: 'app/characters/:characterId/level-up', element: <StubPage titleKey="pages.levelUp.title" /> },
-      { path: 'app/campaigns/join', element: <StubPage titleKey="pages.campaignJoin.title" /> },
-      { path: 'app/campaigns/:campaignId', element: <StubPage titleKey="pages.campaign.title" /> },
-      { path: 'app/merchants/:merchantId', element: <StubPage titleKey="pages.merchantEditor.title" /> },
+      { path: 'login', element: <LoginPage /> },
+      { path: 'register', element: <RegisterPage /> },
+      { path: 'verify', element: <VerifyEmailPage /> },
+      { path: 'oauth/callback', element: <OAuthCallbackPage /> },
+      {
+        path: 'app',
+        element: <RequireAuth />,
+        children: [
+          { index: true, element: <DashboardPage /> },
+          { path: 'characters/new', element: <StubPage titleKey="pages.characterNew.title" /> },
+          { path: 'characters/:characterId', element: <StubPage titleKey="pages.characterSheet.title" /> },
+          {
+            path: 'characters/:characterId/level-up',
+            element: <StubPage titleKey="pages.levelUp.title" />,
+          },
+          { path: 'campaigns/join', element: <StubPage titleKey="pages.campaignJoin.title" /> },
+          { path: 'campaigns/:campaignId', element: <StubPage titleKey="pages.campaign.title" /> },
+          { path: 'merchants/:merchantId', element: <StubPage titleKey="pages.merchantEditor.title" /> },
+        ],
+      },
       { path: 'shop/:shareCode', element: <StubPage titleKey="pages.shop.title" /> },
       { path: 'admin/import', element: <StubPage titleKey="pages.adminImport.title" /> },
       { path: '*', element: <NotFoundPage /> },
