@@ -12,11 +12,13 @@ from app.auth.errors import (
     OAuthStateMismatchError,
 )
 from app.auth.models import User
+from app.auth.oauth import list_active_providers
 from app.auth.schemas import (
     LoginRequest,
     MessageResponse,
     OAuthCompleteRequest,
     OAuthConfirmRequest,
+    OAuthProvidersResponse,
     RegisterRequest,
     ResendVerificationRequest,
     TokenResponse,
@@ -101,6 +103,11 @@ async def resend_verification(
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)) -> User:
     return current_user
+
+
+@router.get("/auth/oauth/providers", response_model=OAuthProvidersResponse)
+async def oauth_providers() -> OAuthProvidersResponse:
+    return OAuthProvidersResponse(providers=list_active_providers(get_settings()))
 
 
 def _require_yandex_config() -> tuple[str, str, str]:
