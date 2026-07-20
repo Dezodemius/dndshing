@@ -48,6 +48,11 @@ class SubclassRead(BaseModel):
     data: dict[str, Any]
 
 
+class ClassDetailRead(ClassRead):
+    levels: list[ClassLevelRead]
+    subclasses: list[SubclassRead]
+
+
 class SpellRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

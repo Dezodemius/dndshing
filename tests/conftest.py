@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from alembic import command
+from app.content.cache import content_cache
 from app.core.config import get_settings
 from app.core.db import Base, get_db
 from app.main import app
@@ -60,6 +61,14 @@ async def _reset_database() -> AsyncIterator[None]:
             await session.execute(text(f'TRUNCATE TABLE "{table.name}" RESTART IDENTITY CASCADE'))
         await session.commit()
     await test_engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _reset_content_cache() -> None:
+    # content_cache is a module-level singleton, so it outlives _reset_database's
+    # TRUNCATE and would otherwise leak stale entries between tests.
+    yield
+    content_cache.clear()
 
 
 @pytest_asyncio.fixture

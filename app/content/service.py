@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.content.cache import content_cache
 from app.content.models import (
     Background,
     Class,
@@ -15,13 +16,21 @@ from app.content.models import (
 )
 from app.content.schemas import (
     BackgroundImport,
+    BackgroundRead,
+    ClassDetailRead,
     ClassImport,
+    ClassLevelRead,
+    ClassRead,
     ContentPackImport,
     ImportErrorItem,
     ImportReport,
     ItemImport,
+    ItemRead,
     RaceImport,
+    RaceRead,
     SpellImport,
+    SpellRead,
+    SubclassRead,
 )
 
 _LOCALE = "ru"
@@ -79,6 +88,7 @@ class ContentImportService:
             return ImportReport(created=0, updated=0, errors=errors)
 
         await self._db.commit()
+        content_cache.clear()
         return ImportReport(created=created, updated=updated, errors=[])
 
     async def _import_races(
@@ -413,3 +423,134 @@ class ContentImportService:
                 created += 1
 
         return created, updated
+
+
+class ContentQueryService:
+    """Read-only queries for content reference tables (DND-022). Results are
+    cached in-process with a short TTL; ContentImportService clears the cache
+    on every successful import so a fresh pack is visible right away."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self._db = db
+
+    async def list_races(self) -> list[RaceRead]:
+        key = ("races",)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+
+        rows = (
+            await self._db.scalars(
+                select(Race).where(Race.locale == _LOCALE).order_by(Race.name)
+            )
+        ).all()
+        result = [RaceRead.model_validate(row) for row in rows]
+        content_cache.set(key, result)
+        return result
+
+    async def list_classes(self) -> list[ClassDetailRead]:
+        key = ("classes",)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+
+        classes = (
+            await self._db.scalars(
+                select(Class).where(Class.locale == _LOCALE).order_by(Class.name)
+            )
+        ).all()
+        result = [await self._build_class_detail(klass) for klass in classes]
+        content_cache.set(key, result)
+        return result
+
+    async def get_class(self, slug: str) -> ClassDetailRead | None:
+        key = ("class", slug)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+
+        klass = await self._db.scalar(
+            select(Class).where(Class.slug == slug, Class.locale == _LOCALE)
+        )
+        if klass is None:
+            return None
+
+        result = await self._build_class_detail(klass)
+        content_cache.set(key, result)
+        return result
+
+    async def _build_class_detail(self, klass: Class) -> ClassDetailRead:
+        levels = (
+            await self._db.scalars(
+                select(ClassLevel)
+                .where(ClassLevel.class_id == klass.id)
+                .order_by(ClassLevel.level)
+            )
+        ).all()
+        subclasses = (
+            await self._db.scalars(
+                select(Subclass)
+                .where(Subclass.class_id == klass.id, Subclass.locale == _LOCALE)
+                .order_by(Subclass.unlock_level)
+            )
+        ).all()
+        return ClassDetailRead(
+            **ClassRead.model_validate(klass).model_dump(),
+            levels=[ClassLevelRead.model_validate(level) for level in levels],
+            subclasses=[SubclassRead.model_validate(subclass) for subclass in subclasses],
+        )
+
+    async def list_spells(
+        self, *, class_slug: str | None, level: int | None
+    ) -> list[SpellRead]:
+        key = ("spells", class_slug, level)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+
+        query = select(Spell).where(Spell.locale == _LOCALE)
+        if class_slug is not None:
+            query = (
+                query.join(SpellClass, SpellClass.spell_id == Spell.id)
+                .join(Class, Class.id == SpellClass.class_id)
+                .where(Class.slug == class_slug, Class.locale == _LOCALE)
+            )
+        if level is not None:
+            query = query.where(Spell.level == level)
+        query = query.order_by(Spell.level, Spell.name)
+
+        rows = (await self._db.scalars(query)).all()
+        result = [SpellRead.model_validate(row) for row in rows]
+        content_cache.set(key, result)
+        return result
+
+    async def list_items(self, *, item_type: str | None) -> list[ItemRead]:
+        key = ("items", item_type)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+
+        query = select(Item).where(Item.locale == _LOCALE)
+        if item_type is not None:
+            query = query.where(Item.type == item_type)
+        query = query.order_by(Item.name)
+
+        rows = (await self._db.scalars(query)).all()
+        result = [ItemRead.model_validate(row) for row in rows]
+        content_cache.set(key, result)
+        return result
+
+    async def list_backgrounds(self) -> list[BackgroundRead]:
+        key = ("backgrounds",)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+
+        rows = (
+            await self._db.scalars(
+                select(Background).where(Background.locale == _LOCALE).order_by(Background.name)
+            )
+        ).all()
+        result = [BackgroundRead.model_validate(row) for row in rows]
+        content_cache.set(key, result)
+        return result
