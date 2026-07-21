@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from typing import Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -539,6 +540,23 @@ class ContentQueryService:
         result = [ItemRead.model_validate(row) for row in rows]
         content_cache.set(key, result)
         return result
+
+    async def get_spell_slots(self, *, class_id: int, level: int) -> dict[str, Any] | None:
+        """Spell slots for a class at a given level (AR §3: slots come from
+        class_levels data; used by characters.service for the `computed` block)."""
+        key = ("spell_slots", class_id, level)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+
+        row = await self._db.scalar(
+            select(ClassLevel.spell_slots).where(
+                ClassLevel.class_id == class_id, ClassLevel.level == level
+            )
+        )
+        if row is not None:
+            content_cache.set(key, row)
+        return row
 
     async def list_backgrounds(self) -> list[BackgroundRead]:
         key = ("backgrounds",)
