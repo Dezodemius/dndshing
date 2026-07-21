@@ -56,11 +56,14 @@ pip install -r requirements-dev.txt # зависимости backend
 docker compose up -d --build        # postgres + api в контейнерах
 alembic upgrade head                # миграции (локально, вне контейнера)
 pytest                              # тесты backend
+pytest --cov=app --cov-report=term-missing   # тесты backend + покрытие (htmlcov/ — отчёт в браузере)
 ruff check .                        # линт backend
 
 cd frontend && cp .env.example .env && npm install    # зависимости и конфиг фронта
 cd frontend && npm run dev                            # фронт локально, http://localhost:5173
 cd frontend && npm run build                          # tsc -b && vite build
+cd frontend && npm run test                            # тесты фронта (vitest)
+cd frontend && npm run test:coverage                   # тесты фронта + покрытие (coverage/ — отчёт в браузере)
 ```
 
 ### Секреты

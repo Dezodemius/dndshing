@@ -4,6 +4,10 @@
 # и build фронта. Красный чек на падающем тесте/линте/сборке — сигнал
 # ревьюеру и merge-гейт после включения required status check в настройках
 # репозитория.
+#
+# Покрытие тестами (backend: pytest-cov, frontend: vitest --coverage) —
+# информационное: попадает в job summary и HTML-артефакт, но не роняет чек.
+# Порог для жёсткого гейта вводить рано — сначала нужна база для сравнения.
 
 name: ci
 
@@ -75,7 +79,21 @@ jobs:
         run: psql -h localhost -U ci -d dndshing -c "CREATE DATABASE dndshing_test"
 
       - name: Test
-        run: pytest
+        run: pytest --cov=app --cov-report=term-missing --cov-report=html
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          echo "## Backend coverage" >> "$GITHUB_STEP_SUMMARY"
+          coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload backend coverage HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-html
+          path: htmlcov/
+          retention-days: 14
 
   frontend:
     runs-on: ubuntu-latest
@@ -98,3 +116,18 @@ jobs:
 
       - name: Typecheck + build
         run: npm run build
+
+      - name: Test
+        run: npm run test:coverage
+
+      - name: Coverage summary
+        if: always()
+        run: node scripts/print-coverage-summary.mjs
+
+      - name: Upload frontend coverage HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-html
+          path: frontend/coverage/
+          retention-days: 14
