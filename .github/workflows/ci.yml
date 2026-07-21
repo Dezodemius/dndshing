@@ -85,7 +85,7 @@ jobs:
         if: always()
         run: |
           echo "## Backend coverage" >> "$GITHUB_STEP_SUMMARY"
-          coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+          coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || echo "No coverage data (test run likely failed before it could write any)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload backend coverage HTML report
         if: always()
