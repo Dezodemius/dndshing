@@ -5,6 +5,16 @@ import './LandingPage.css'
 type Good = { name: string; info: string }
 type PartyMember = { name: string; cls: string; icon: 'rogue' | 'fighter' | 'wizard' }
 
+function D20Outline({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 2 20.5 7v10L12 22 3.5 17V7L12 2Z" />
+      <path d="M12 8 7.2 15h9.6L12 8Z" />
+      <path d="M12 2v6M3.5 7l3.7 8M20.5 7l-3.7 8M12 22v-7" />
+    </svg>
+  )
+}
+
 function SparkleIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -68,6 +78,7 @@ export default function LandingPage() {
   return (
     <div className="landing">
       <section className="landing__hero" aria-labelledby="landing-hero-title">
+        <D20Outline className="landing__hero-d20" />
         <div className="landing__hero-copy">
           <h1 id="landing-hero-title" className="landing__title">{t('pages.landing.hero.title')}</h1>
           <p className="landing__subtitle">{t('pages.landing.hero.subtitle')}</p>
@@ -115,7 +126,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="landing__section" aria-labelledby="landing-players-title">
+      <section className="landing__section landing__section--players" aria-labelledby="landing-players-title">
         <div className="landing__section-head">
           <h2 id="landing-players-title" className="landing__section-title">{t('pages.landing.players.title')}</h2>
           <span className="landing__rule" aria-hidden="true" />
@@ -169,7 +180,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="landing__section" aria-labelledby="landing-masters-title">
+      <section className="landing__section landing__section--masters" aria-labelledby="landing-masters-title">
         <div className="landing__section-head">
           <h2 id="landing-masters-title" className="landing__section-title">{t('pages.landing.masters.title')}</h2>
           <span className="landing__rule" aria-hidden="true" />
