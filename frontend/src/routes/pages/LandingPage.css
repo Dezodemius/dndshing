@@ -406,16 +406,10 @@
 }
 
 .landing__step + .landing__step::before {
-  content: '→';
-  position: absolute;
-  margin-left: calc(-1 * var(--space-2) - 14px);
+  content: '→ ';
   color: var(--color-text-muted);
   font-size: 12px;
 }
-
-.landing__step { position: relative; margin-left: 14px; }
-.landing__step:first-child { margin-left: 0; }
-.landing__step:first-child::before { content: none; }
 
 .landing__pluslist {
   list-style: none;
