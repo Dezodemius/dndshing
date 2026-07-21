@@ -2,15 +2,16 @@
   color-scheme: dark;
 
   --color-bg: #16141c;
+  --color-bg-rgb: 22 20 28;
   --color-surface: #1f1c28;
   --color-border: #34303f;
   --color-text: #e8e3f0;
   --color-text-muted: #a89fb8;
-  --color-text-muted-rgb: 168, 159, 184;
+  --color-text-muted-rgb: 168 159 184;
   --color-accent: #c08a3e;
-  --color-accent-rgb: 192, 138, 62;
+  --color-accent-rgb: 192 138 62;
   --color-accent-strong: #d9a45a;
-  --color-accent-strong-rgb: 217, 164, 90;
+  --color-accent-strong-rgb: 217 164 90;
   --color-danger: #b0483f;
   --color-success: #4c8a5e;
 
