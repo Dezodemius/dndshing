@@ -22,6 +22,8 @@ class AbilityScores(BaseModel):
 
 
 class CharacterCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(min_length=1, max_length=200)
     race_id: int
     class_id: int
@@ -46,6 +48,8 @@ class CharacterCreate(BaseModel):
 class CharacterUpdate(BaseModel):
     """Partial update. `level` is accepted only so its presence can be detected
     and rejected with `level_direct_edit_forbidden` — it is never applied."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     race_id: int | None = None
