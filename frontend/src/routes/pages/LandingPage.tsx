@@ -29,8 +29,8 @@ export default function LandingPage() {
             {t('pages.landing.players.title')}
           </h2>
           <ul className="landing__list">
-            {playerItems.map((item) => (
-              <li key={item}>{item}</li>
+            {playerItems.map((item, index) => (
+              <li key={`player-${index}`}>{item}</li>
             ))}
           </ul>
         </section>
@@ -40,8 +40,8 @@ export default function LandingPage() {
             {t('pages.landing.masters.title')}
           </h2>
           <ul className="landing__list">
-            {masterItems.map((item) => (
-              <li key={item}>{item}</li>
+            {masterItems.map((item, index) => (
+              <li key={`master-${index}`}>{item}</li>
             ))}
           </ul>
         </section>
