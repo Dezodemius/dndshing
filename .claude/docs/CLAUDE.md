@@ -53,11 +53,22 @@ uvicorn app.main:app --reload                       # backend локально, 
 docker compose up -d --build                        # весь стек: api + postgres в контейнерах
 
 pytest                                               # тесты backend (сами применяют миграции к тестовой БД)
+pytest --cov=app --cov-report=term-missing           # тесты backend + покрытие (htmlcov/ — HTML-отчёт)
 ruff check .                                         # линт backend
 
 cd frontend && npm install && npm run dev             # фронт локально, http://localhost:5173
 cd frontend && npm run build                          # tsc -b && vite build
+cd frontend && npm run test                            # тесты фронта (vitest)
+cd frontend && npm run test:coverage                    # тесты фронта + покрытие (coverage/ — HTML-отчёт)
 ```
+
+## Покрытие тестами
+
+`ci.yml` считает покрытие для backend (`pytest-cov`) и frontend (`vitest --coverage`) на каждом PR:
+итоговые проценты — в job summary прогона, HTML-отчёт — в артефактах Actions (`backend-coverage-html`,
+`frontend-coverage-html`). Гейт пока информационный — низкое покрытие не роняет чек. Это не отменяет
+правило 9: конкретные области (rules_5e, покупка/продажа, level-up/rollback, права доступа) тестами
+покрыты обязательно вне зависимости от общего процента.
 
 ## Definition of Done задачи
 
