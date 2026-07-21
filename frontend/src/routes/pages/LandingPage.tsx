@@ -5,8 +5,8 @@ import './LandingPage.css'
 export default function LandingPage() {
   const { t } = useTranslation()
 
-  const playerItems = t('pages.landing.players.items', { returnObjects: true }) as string[]
-  const masterItems = t('pages.landing.masters.items', { returnObjects: true }) as string[]
+  const playerItems = t('pages.landing.players.items', { returnObjects: true, defaultValue: [] }) as string[]
+  const masterItems = t('pages.landing.masters.items', { returnObjects: true, defaultValue: [] }) as string[]
 
   return (
     <div className="landing">
