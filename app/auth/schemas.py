@@ -46,3 +46,7 @@ class OAuthConfirmRequest(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
+
+
+class OAuthProvidersResponse(BaseModel):
+    providers: list[str]

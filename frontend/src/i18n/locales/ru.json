@@ -7,7 +7,8 @@
     "login": "Вход",
     "register": "Регистрация",
     "dashboard": "Кабинет",
-    "adminImport": "Импорт контента"
+    "adminImport": "Импорт контента",
+    "logout": "Выйти"
   },
   "pages": {
     "landing": {
@@ -24,7 +25,21 @@
       "title": "Подтверждение почты"
     },
     "dashboard": {
-      "title": "Кабинет"
+      "title": "Кабинет",
+      "characters": {
+        "title": "Мои персонажи",
+        "empty": "У вас пока нет персонажей.",
+        "create": "Создать первого персонажа"
+      },
+      "campaigns": {
+        "title": "Мои кампании",
+        "empty": "У вас пока нет кампаний.",
+        "join": "Присоединиться по коду приглашения"
+      },
+      "merchants": {
+        "title": "Мои торговцы",
+        "empty": "У вас пока нет торговцев."
+      }
     },
     "characterNew": {
       "title": "Создание персонажа"
@@ -55,6 +70,47 @@
     }
   },
   "common": {
-    "comingSoon": "Экран в разработке."
+    "comingSoon": "Экран в разработке.",
+    "loading": "Загрузка…"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Пароль",
+    "confirmPassword": "Повторите пароль",
+    "displayName": "Имя",
+    "loginSubmit": "Войти",
+    "registerSubmit": "Зарегистрироваться",
+    "goToRegister": "Ещё нет аккаунта? Зарегистрироваться",
+    "goToLogin": "Уже есть аккаунт? Войти",
+    "oauthDivider": "Или войдите через:",
+    "oauthProviders": {
+      "yandex": "Яндекс",
+      "vk": "VK",
+      "mailru": "Mail.ru"
+    },
+    "oauthPendingUnsupported": "Этот способ входа сейчас недоступен, попробуйте другой",
+    "registerSuccessBody": "Мы отправили письмо со ссылкой для подтверждения email. Перейдите по ней, чтобы завершить регистрацию.",
+    "verifySuccess": "Email подтверждён. Теперь вы можете войти.",
+    "resendTitle": "Мы отправили письмо со ссылкой для подтверждения email.",
+    "resendSubmit": "Отправить письмо ещё раз",
+    "resendSent": "Если email зарегистрирован и не подтверждён, письмо отправлено.",
+    "errors": {
+      "emailInvalid": "Введите корректный email",
+      "passwordRequired": "Введите пароль",
+      "passwordMin": "Пароль должен быть не короче 8 символов",
+      "passwordMax": "Пароль должен быть не длиннее 128 символов",
+      "displayNameRequired": "Введите имя",
+      "displayNameMax": "Имя должно быть не длиннее 100 символов",
+      "passwordMismatch": "Пароли не совпадают"
+    }
+  },
+  "errors": {
+    "emailAlreadyRegistered": "Пользователь с таким email уже зарегистрирован",
+    "invalidCredentials": "Неверный email или пароль",
+    "invalidVerificationToken": "Ссылка для подтверждения email недействительна или устарела",
+    "oauthProviderDisabled": "Этот способ входа сейчас недоступен",
+    "oauthStateMismatch": "Сессия входа устарела или недействительна, попробуйте снова",
+    "oauthProviderError": "Не удалось войти через выбранный сервис, попробуйте позже",
+    "unknown": "Что-то пошло не так, попробуйте позже"
   }
 }

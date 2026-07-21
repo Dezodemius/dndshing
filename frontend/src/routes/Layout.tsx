@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useAuth } from '../auth/AuthContext'
 
 const NAV_ITEMS = [
   { to: '/', labelKey: 'nav.landing' },
@@ -11,6 +12,13 @@ const NAV_ITEMS = [
 
 export default function Layout() {
   const { t } = useTranslation()
+  const { status, logout } = useAuth()
+  const navigate = useNavigate()
+
+  async function handleLogout() {
+    await logout()
+    navigate('/login')
+  }
 
   return (
     <>
@@ -22,6 +30,11 @@ export default function Layout() {
               {t(item.labelKey)}
             </NavLink>
           ))}
+          {status === 'authenticated' && (
+            <button type="button" onClick={handleLogout}>
+              {t('nav.logout')}
+            </button>
+          )}
         </nav>
       </header>
       <main>
