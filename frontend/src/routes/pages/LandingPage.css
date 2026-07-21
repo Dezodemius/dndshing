@@ -29,21 +29,21 @@
   display: flex;
   align-items: center;
   gap: var(--space-5);
-  background: var(--color-surface);
+  background-color: var(--color-surface);
+  background-image:
+    linear-gradient(
+      90deg,
+      rgb(var(--color-bg-rgb) / 0.9) 0%,
+      rgb(var(--color-bg-rgb) / 0.45) 45%,
+      rgb(var(--color-bg-rgb) / 0.1) 100%
+    ),
+    url('../../assets/landing/landing-bg-top.webp');
+  background-position: 0 0, right center;
+  background-size: cover;
+  background-repeat: no-repeat;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 48px 40px;
-}
-
-.landing__hero-d20 {
-  position: absolute;
-  left: 44%;
-  top: -70px;
-  width: 300px;
-  height: 300px;
-  color: var(--color-border);
-  transform: rotate(-10deg);
-  pointer-events: none;
 }
 
 .landing__hero-copy {
@@ -619,10 +619,23 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  min-height: 200px;
   border: 1px solid var(--color-accent);
   border-radius: var(--radius-md);
   padding: var(--space-4) var(--space-5);
-  background: rgb(var(--color-accent-rgb) / 0.07);
+  overflow: hidden;
+  background-color: var(--color-surface);
+  background-image:
+    linear-gradient(
+      90deg,
+      rgb(var(--color-bg-rgb) / 0.88) 0%,
+      rgb(var(--color-bg-rgb) / 0.55) 50%,
+      rgb(var(--color-bg-rgb) / 0.3) 100%
+    ),
+    url('../../assets/landing/landing-bg-bottom.webp');
+  background-position: 0 0, right center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 .landing__not-vtt-icon {
@@ -692,14 +705,15 @@
     flex-direction: column;
     align-items: stretch;
     padding: var(--space-5) var(--space-4);
-  }
-
-  .landing__hero-d20 {
-    left: auto;
-    right: -60px;
-    top: -60px;
-    width: 200px;
-    height: 200px;
+    background-image:
+      linear-gradient(
+        180deg,
+        rgb(var(--color-bg-rgb) / 0.8) 0%,
+        rgb(var(--color-bg-rgb) / 0.5) 55%,
+        rgb(var(--color-bg-rgb) / 0.25) 100%
+      ),
+      url('../../assets/landing/landing-bg-top.webp');
+    background-position: 0 0, 68% center;
   }
 
   .landing__title {
@@ -772,6 +786,14 @@
   .landing__not-vtt {
     flex-direction: column;
     align-items: flex-start;
+    min-height: 0;
     padding: var(--space-4);
+    background-image:
+      linear-gradient(
+        rgb(var(--color-bg-rgb) / 0.82) 0%,
+        rgb(var(--color-bg-rgb) / 0.68) 100%
+      ),
+      url('../../assets/landing/landing-bg-bottom.webp');
+    background-position: 0 0, 70% center;
   }
 }
