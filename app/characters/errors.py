@@ -19,6 +19,30 @@ class InvalidReferenceError(AppError):
     status_code = 400
 
 
+class LevelUpNotAvailableError(AppError):
+    code = "level_up_not_available"
+    message = "Недостаточно опыта для повышения уровня"
+    status_code = 400
+
+
+class AsiFeatConflictError(AppError):
+    code = "asi_feat_conflict"
+    message = "Нельзя выбрать одновременно улучшение характеристик и черту"
+    status_code = 400
+
+
+class SubclassWrongLevelError(AppError):
+    code = "subclass_wrong_level"
+    message = "Подкласс можно выбрать только на уровне, который его открывает"
+    status_code = 400
+
+
+class InvalidHpRollError(AppError):
+    code = "invalid_hp_roll"
+    message = "Результат броска хитов вне допустимого диапазона"
+    status_code = 400
+
+
 class InventoryPayloadInvalidError(AppError):
     code = "inventory_payload_invalid"
     message = "Нужно указать либо item_id, либо custom_name — но не оба сразу и не ни одного"

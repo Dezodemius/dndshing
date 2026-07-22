@@ -541,6 +541,34 @@ class ContentQueryService:
         content_cache.set(key, result)
         return result
 
+    async def get_class_by_id(self, class_id: int) -> ClassRead | None:
+        klass = await self._db.get(Class, class_id)
+        return ClassRead.model_validate(klass) if klass is not None else None
+
+    async def get_class_level(self, *, class_id: int, level: int) -> ClassLevelRead | None:
+        row = await self._db.scalar(
+            select(ClassLevel).where(ClassLevel.class_id == class_id, ClassLevel.level == level)
+        )
+        return ClassLevelRead.model_validate(row) if row is not None else None
+
+    async def get_subclass(self, subclass_id: int) -> SubclassRead | None:
+        row = await self._db.get(Subclass, subclass_id)
+        return SubclassRead.model_validate(row) if row is not None else None
+
+    async def get_spells_by_ids(self, spell_ids: list[int], *, class_id: int) -> list[SpellRead]:
+        """Only spells on the given class's spell list are returned — ids for
+        another class's spells are silently dropped, same as unknown ids."""
+        if not spell_ids:
+            return []
+        rows = (
+            await self._db.scalars(
+                select(Spell)
+                .join(SpellClass, SpellClass.spell_id == Spell.id)
+                .where(Spell.id.in_(spell_ids), SpellClass.class_id == class_id)
+            )
+        ).all()
+        return [SpellRead.model_validate(row) for row in rows]
+
     async def spell_ids_on_class_list(
         self, *, spell_ids: Iterable[int], class_id: int
     ) -> set[int]:

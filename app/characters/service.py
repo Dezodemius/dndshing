@@ -4,14 +4,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.characters import rules_5e
 from app.characters.errors import (
+    AsiFeatConflictError,
     CharacterNotFoundError,
+    InvalidHpRollError,
     InvalidReferenceError,
     InventoryEntryNotFoundError,
     InventoryPayloadInvalidError,
     LevelDirectEditForbiddenError,
+    LevelUpNotAvailableError,
     SpellNotInClassListError,
+    SubclassWrongLevelError,
 )
-from app.characters.models import Character, CharacterSpell, InventoryEntry
+from app.characters.models import Character, CharacterSpell, InventoryEntry, LevelUpRecord
 from app.characters.schemas import (
     CharacterCreate,
     CharacterDetailRead,
@@ -22,6 +26,8 @@ from app.characters.schemas import (
     InventoryEntryCreate,
     InventoryEntryRead,
     InventoryEntryUpdate,
+    LevelUpRecordRead,
+    LevelUpRequest,
     SpellsUpdate,
 )
 from app.content.service import ContentQueryService
@@ -79,8 +85,15 @@ class CharacterService:
         await self._db.refresh(character)
         return await self._to_detail(character)
 
-    async def get_owned(self, character_id: int, user_id: int) -> Character:
-        character = await self._db.get(Character, character_id)
+    async def get_owned(
+        self, character_id: int, user_id: int, *, for_update: bool = False
+    ) -> Character:
+        if for_update:
+            character = await self._db.scalar(
+                select(Character).where(Character.id == character_id).with_for_update()
+            )
+        else:
+            character = await self._db.get(Character, character_id)
         if character is None or character.user_id != user_id:
             raise CharacterNotFoundError()
         return character
@@ -113,6 +126,103 @@ class CharacterService:
         character = await self.get_owned(character_id, user_id)
         await self._db.delete(character)
         await self._db.commit()
+
+    async def level_up(
+        self, character_id: int, user_id: int, payload: LevelUpRequest
+    ) -> LevelUpRecordRead:
+        character = await self.get_owned(character_id, user_id, for_update=True)
+        from_level = character.level
+        to_level = from_level + 1
+
+        if from_level >= rules_5e.MAX_LEVEL or character.xp < rules_5e.xp_threshold(to_level):
+            raise LevelUpNotAvailableError()
+        if payload.asi is not None and payload.feat is not None:
+            raise AsiFeatConflictError()
+
+        content = ContentQueryService(self._db)
+
+        klass = await content.get_class_by_id(character.class_id)
+        if klass is None:
+            raise InvalidReferenceError()
+
+        con_modifier = rules_5e.ability_modifier((character.ability_scores or {}).get("con", 10))
+        if payload.hp_method == "average":
+            hp_gained = rules_5e.average_hp_gain(klass.hit_die, con_modifier)
+        else:
+            if payload.hp_rolled is None:
+                raise InvalidHpRollError()
+            try:
+                hp_gained = rules_5e.rolled_hp_gain(klass.hit_die, payload.hp_rolled, con_modifier)
+            except ValueError as exc:
+                raise InvalidHpRollError() from exc
+
+        subclass_chosen: str | None = None
+        if payload.subclass_id is not None:
+            subclass = await content.get_subclass(payload.subclass_id)
+            if subclass is None or subclass.class_id != character.class_id:
+                raise InvalidReferenceError()
+            if subclass.unlock_level != to_level:
+                raise SubclassWrongLevelError()
+            subclass_chosen = subclass.slug
+            character.subclass_id = subclass.id
+
+        class_level = await content.get_class_level(class_id=character.class_id, level=to_level)
+        features_unlocked = (
+            list((class_level.features or {}).keys()) if class_level is not None else []
+        )
+
+        spells = await content.get_spells_by_ids(
+            payload.spells_learned, class_id=character.class_id
+        )
+        if {spell.id for spell in spells} != set(payload.spells_learned):
+            raise InvalidReferenceError()
+
+        already_known = set(
+            (
+                await self._db.scalars(
+                    select(CharacterSpell.spell_id).where(
+                        CharacterSpell.character_id == character.id
+                    )
+                )
+            ).all()
+        )
+        newly_learned_spells = [spell for spell in spells if spell.id not in already_known]
+        for spell in newly_learned_spells:
+            self._db.add(CharacterSpell(character_id=character.id, spell_id=spell.id))
+
+        if payload.asi is not None:
+            ability_scores = dict(character.ability_scores or {})
+            for ability, increase in payload.asi.items():
+                ability_scores[ability] = ability_scores.get(ability, 10) + increase
+            character.ability_scores = ability_scores
+
+        character.level = to_level
+        character.hp_max += hp_gained
+        character.hp_current += hp_gained
+
+        delta = {
+            "hp_gained": hp_gained,
+            "hp_method": payload.hp_method,
+            "asi": payload.asi,
+            "feat": payload.feat,
+            "subclass_chosen": subclass_chosen,
+            "features_unlocked": features_unlocked,
+            "spells_learned": [spell.slug for spell in newly_learned_spells],
+            "spells_forgotten": [],
+        }
+        record = LevelUpRecord(
+            character_id=character.id, from_level=from_level, to_level=to_level, delta=delta
+        )
+        self._db.add(record)
+
+        try:
+            await self._db.flush()
+        except IntegrityError as exc:
+            await self._db.rollback()
+            raise InvalidReferenceError() from exc
+        await self._db.commit()
+        await self._db.refresh(record)
+        return LevelUpRecordRead.model_validate(record)
 
     async def add_inventory_item(
         self, character_id: int, user_id: int, payload: InventoryEntryCreate
