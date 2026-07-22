@@ -115,5 +115,56 @@ class ComputedBlock(BaseModel):
     spell_slots: dict[str, Any]
 
 
+class InventoryEntryCreate(BaseModel):
+    """Exactly one of item_id/custom_name must be set — BR US-11."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    item_id: int | None = None
+    custom_name: str | None = Field(default=None, min_length=1, max_length=200)
+    quantity: int = Field(default=1, ge=1)
+    equipped: bool = False
+
+
+class InventoryEntryUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    quantity: int | None = Field(default=None, ge=1)
+    equipped: bool | None = None
+
+
+class InventoryEntryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    character_id: int
+    item_id: int | None
+    custom_name: str | None
+    quantity: int
+    equipped: bool
+
+
+class SpellSelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    spell_id: int
+    prepared: bool = False
+
+
+class SpellsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    spells: list[SpellSelection] = Field(default_factory=list)
+
+
+class CharacterSpellRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    spell_id: int
+    prepared: bool
+
+
 class CharacterDetailRead(CharacterRead):
     computed: ComputedBlock
+    inventory: list[InventoryEntryRead]
+    spells: list[CharacterSpellRead]

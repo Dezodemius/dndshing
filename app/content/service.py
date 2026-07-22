@@ -541,6 +541,16 @@ class ContentQueryService:
         content_cache.set(key, result)
         return result
 
+    async def spell_belongs_to_class(self, *, spell_id: int, class_id: int) -> bool:
+        """True if the spell exists and is on the given class's spell list
+        (used by characters.service to validate PUT /characters/{id}/spells)."""
+        row = await self._db.scalar(
+            select(SpellClass.spell_id).where(
+                SpellClass.spell_id == spell_id, SpellClass.class_id == class_id
+            )
+        )
+        return row is not None
+
     async def get_spell_slots(self, *, class_id: int, level: int) -> dict[str, Any] | None:
         """Spell slots for a class at a given level (AR §3: slots come from
         class_levels data; used by characters.service for the `computed` block)."""
