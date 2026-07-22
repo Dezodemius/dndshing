@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+_ABILITY_KEYS = {"str", "dex", "con", "int", "wis", "cha"}
 
 
 class AbilityScores(BaseModel):
@@ -117,3 +119,40 @@ class ComputedBlock(BaseModel):
 
 class CharacterDetailRead(CharacterRead):
     computed: ComputedBlock
+
+
+class LevelUpRequest(BaseModel):
+    """`asi`/`feat` are mutually exclusive (5e: a level either grants an ASI or
+    lets you take a feat instead, never both) — checked in the service, so the
+    conflict maps to the project's `{error:{code,message}}` format instead of
+    a generic validation error. `subclass_id` is only accepted on the level a
+    class opens subclass choice — also enforced in the service, since it
+    depends on content data. `spells_learned` are ids from the character's
+    known-spell list for its class."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hp_method: Literal["average", "rolled"]
+    hp_rolled: int | None = Field(default=None, ge=1)
+    asi: dict[str, int] | None = None
+    feat: str | None = Field(default=None, min_length=1, max_length=200)
+    subclass_id: int | None = None
+    spells_learned: list[int] = Field(default_factory=list)
+
+    @field_validator("asi")
+    @classmethod
+    def _check_asi_keys(cls, value: dict[str, int] | None) -> dict[str, int] | None:
+        if value is not None and not set(value).issubset(_ABILITY_KEYS):
+            raise ValueError(f"asi keys must be a subset of {sorted(_ABILITY_KEYS)}")
+        return value
+
+
+class LevelUpRecordRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    character_id: int
+    from_level: int
+    to_level: int
+    delta: dict[str, Any]
+    created_at: datetime

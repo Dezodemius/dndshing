@@ -541,6 +541,28 @@ class ContentQueryService:
         content_cache.set(key, result)
         return result
 
+    async def get_class_by_id(self, class_id: int) -> ClassRead | None:
+        klass = await self._db.get(Class, class_id)
+        return ClassRead.model_validate(klass) if klass is not None else None
+
+    async def get_class_level(self, *, class_id: int, level: int) -> ClassLevelRead | None:
+        row = await self._db.scalar(
+            select(ClassLevel).where(ClassLevel.class_id == class_id, ClassLevel.level == level)
+        )
+        return ClassLevelRead.model_validate(row) if row is not None else None
+
+    async def get_subclass(self, subclass_id: int) -> SubclassRead | None:
+        row = await self._db.get(Subclass, subclass_id)
+        return SubclassRead.model_validate(row) if row is not None else None
+
+    async def get_spells_by_ids(self, spell_ids: list[int]) -> list[SpellRead]:
+        if not spell_ids:
+            return []
+        rows = (
+            await self._db.scalars(select(Spell).where(Spell.id.in_(spell_ids)))
+        ).all()
+        return [SpellRead.model_validate(row) for row in rows]
+
     async def get_spell_slots(self, *, class_id: int, level: int) -> dict[str, Any] | None:
         """Spell slots for a class at a given level (AR §3: slots come from
         class_levels data; used by characters.service for the `computed` block)."""

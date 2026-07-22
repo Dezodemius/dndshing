@@ -7,6 +7,8 @@ from app.characters.schemas import (
     CharacterDetailRead,
     CharacterRead,
     CharacterUpdate,
+    LevelUpRecordRead,
+    LevelUpRequest,
 )
 from app.characters.service import CharacterService
 from app.core.db import get_db
@@ -59,3 +61,13 @@ async def delete_character(
     _user=Depends(get_verified_user),
 ) -> None:
     await CharacterService(db).delete(character_id, _user.id)
+
+
+@router.post("/characters/{character_id}/level-up", response_model=LevelUpRecordRead)
+async def level_up_character(
+    character_id: int,
+    payload: LevelUpRequest,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> LevelUpRecordRead:
+    return await CharacterService(db).level_up(character_id, _user.id, payload)
