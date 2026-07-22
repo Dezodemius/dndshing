@@ -7,6 +7,7 @@ import RegisterPage from './pages/RegisterPage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
 import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import DashboardPage from './pages/DashboardPage'
+import CharacterSheetPage from './pages/CharacterSheetPage'
 import StubPage from './pages/StubPage'
 import NotFoundPage from './pages/NotFoundPage'
 
@@ -26,7 +27,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardPage /> },
           { path: 'characters/new', element: <StubPage titleKey="pages.characterNew.title" /> },
-          { path: 'characters/:characterId', element: <StubPage titleKey="pages.characterSheet.title" /> },
+          { path: 'characters/:characterId', element: <CharacterSheetPage /> },
           {
             path: 'characters/:characterId/level-up',
             element: <StubPage titleKey="pages.levelUp.title" />,

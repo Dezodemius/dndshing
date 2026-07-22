@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,19 +8,27 @@ from app.characters.errors import (
     CharacterNotFoundError,
     InvalidHpRollError,
     InvalidReferenceError,
+    InventoryEntryNotFoundError,
+    InventoryPayloadInvalidError,
     LevelDirectEditForbiddenError,
     LevelUpNotAvailableError,
+    SpellNotInClassListError,
     SubclassWrongLevelError,
 )
-from app.characters.models import Character, CharacterSpell, LevelUpRecord
+from app.characters.models import Character, CharacterSpell, InventoryEntry, LevelUpRecord
 from app.characters.schemas import (
     CharacterCreate,
     CharacterDetailRead,
     CharacterRead,
+    CharacterSpellRead,
     CharacterUpdate,
     ComputedBlock,
+    InventoryEntryCreate,
+    InventoryEntryRead,
+    InventoryEntryUpdate,
     LevelUpRecordRead,
     LevelUpRequest,
+    SpellsUpdate,
 )
 from app.content.service import ContentQueryService
 
@@ -216,10 +224,106 @@ class CharacterService:
         await self._db.refresh(record)
         return LevelUpRecordRead.model_validate(record)
 
+    async def add_inventory_item(
+        self, character_id: int, user_id: int, payload: InventoryEntryCreate
+    ) -> InventoryEntryRead:
+        character = await self.get_owned(character_id, user_id)
+        if (payload.item_id is None) == (payload.custom_name is None):
+            raise InventoryPayloadInvalidError()
+
+        entry = InventoryEntry(
+            character_id=character.id,
+            item_id=payload.item_id,
+            custom_name=payload.custom_name,
+            quantity=payload.quantity,
+            equipped=payload.equipped,
+        )
+        self._db.add(entry)
+        try:
+            await self._db.flush()
+        except IntegrityError as exc:
+            await self._db.rollback()
+            raise InvalidReferenceError() from exc
+        await self._db.commit()
+        await self._db.refresh(entry)
+        return InventoryEntryRead.model_validate(entry)
+
+    async def _get_owned_inventory_entry(
+        self, character_id: int, entry_id: int, user_id: int
+    ) -> InventoryEntry:
+        await self.get_owned(character_id, user_id)
+        entry = await self._db.get(InventoryEntry, entry_id)
+        if entry is None or entry.character_id != character_id:
+            raise InventoryEntryNotFoundError()
+        return entry
+
+    async def update_inventory_item(
+        self, character_id: int, entry_id: int, user_id: int, payload: InventoryEntryUpdate
+    ) -> InventoryEntryRead:
+        entry = await self._get_owned_inventory_entry(character_id, entry_id, user_id)
+        for field, value in payload.model_dump(exclude_unset=True).items():
+            setattr(entry, field, value)
+        await self._db.commit()
+        await self._db.refresh(entry)
+        return InventoryEntryRead.model_validate(entry)
+
+    async def delete_inventory_item(self, character_id: int, entry_id: int, user_id: int) -> None:
+        entry = await self._get_owned_inventory_entry(character_id, entry_id, user_id)
+        await self._db.delete(entry)
+        await self._db.commit()
+
+    async def update_spells(
+        self, character_id: int, user_id: int, payload: SpellsUpdate
+    ) -> list[CharacterSpellRead]:
+        character = await self.get_owned(character_id, user_id)
+        content = ContentQueryService(self._db)
+
+        selections = {selection.spell_id: selection.prepared for selection in payload.spells}
+        allowed_spell_ids = await content.spell_ids_on_class_list(
+            spell_ids=selections.keys(), class_id=character.class_id
+        )
+        if not selections.keys() <= allowed_spell_ids:
+            raise SpellNotInClassListError()
+
+        await self._db.execute(
+            delete(CharacterSpell).where(CharacterSpell.character_id == character.id)
+        )
+        for spell_id, prepared in selections.items():
+            self._db.add(
+                CharacterSpell(character_id=character.id, spell_id=spell_id, prepared=prepared)
+            )
+        await self._db.commit()
+
+        rows = (
+            await self._db.scalars(
+                select(CharacterSpell)
+                .where(CharacterSpell.character_id == character.id)
+                .order_by(CharacterSpell.spell_id)
+            )
+        ).all()
+        return [CharacterSpellRead.model_validate(row) for row in rows]
+
     async def _to_detail(self, character: Character) -> CharacterDetailRead:
         computed = await self._compute(character)
+        inventory = (
+            await self._db.scalars(
+                select(InventoryEntry)
+                .where(InventoryEntry.character_id == character.id)
+                .order_by(InventoryEntry.id)
+            )
+        ).all()
+        spells = (
+            await self._db.scalars(
+                select(CharacterSpell)
+                .where(CharacterSpell.character_id == character.id)
+                .order_by(CharacterSpell.spell_id)
+            )
+        ).all()
         return CharacterDetailRead(
-            **CharacterRead.model_validate(character).model_dump(), computed=computed
+            **CharacterRead.model_validate(character).model_dump(),
+            computed=computed,
+            inventory=[InventoryEntryRead.model_validate(entry) for entry in inventory],
+            spells=[CharacterSpellRead.model_validate(spell) for spell in spells],
         )
 
     async def _compute(self, character: Character) -> ComputedBlock:
@@ -233,10 +337,23 @@ class CharacterService:
             if character.ac_override is not None
             else rules_5e.base_armor_class(dex_score)
         )
-        skills = (character.proficiencies or {}).get("skills", [])
+        proficient_skills = set((character.proficiencies or {}).get("skills", []))
+        proficient_saves = set((character.proficiencies or {}).get("saves", []))
         passive_perception = rules_5e.passive_perception(
-            wis_score, "perception" in skills, prof_bonus
+            wis_score, "perception" in proficient_skills, prof_bonus
         )
+        saving_throws = {
+            ability: rules_5e.proficient_modifier(
+                modifiers.get(ability, 0), ability in proficient_saves, prof_bonus
+            )
+            for ability in rules_5e.ABILITIES
+        }
+        skills = {
+            skill: rules_5e.proficient_modifier(
+                modifiers.get(ability, 0), skill in proficient_skills, prof_bonus
+            )
+            for skill, ability in rules_5e.SKILL_ABILITIES.items()
+        }
         xp_to_next = rules_5e.xp_to_next_level(character.level, character.xp)
         level_up_available = character.level < rules_5e.MAX_LEVEL and character.xp >= (
             rules_5e.xp_threshold(character.level + 1)
@@ -251,6 +368,8 @@ class CharacterService:
         return ComputedBlock(
             prof_bonus=prof_bonus,
             modifiers=modifiers,
+            saving_throws=saving_throws,
+            skills=skills,
             ac=ac,
             initiative=rules_5e.initiative(dex_score),
             passive_perception=passive_perception,

@@ -136,7 +136,11 @@ async def test_computed_block_is_correct_for_reference_character(
     setup = await _player_setup(client, db_session, "player2@example.com")
 
     create_response = await client.post(
-        CHARACTERS_URL, json=_character_payload(setup), headers=setup["headers"]
+        CHARACTERS_URL,
+        json=_character_payload(
+            setup, proficiencies={"skills": ["perception"], "saves": ["int", "wis"]}
+        ),
+        headers=setup["headers"],
     )
     assert create_response.status_code == 201, create_response.text
     character_id = create_response.json()["id"]
@@ -146,9 +150,10 @@ async def test_computed_block_is_correct_for_reference_character(
     assert response.status_code == 200, response.text
     computed = response.json()["computed"]
     # Reference character: str16 dex14 con12 int10 wis15 cha8, level 1, proficient
-    # in perception. Expected values below are hand-computed against the 5e
-    # tables (ARCHITECTURE.md §3), not re-derived from rules_5e, so this test
-    # would catch a bug shared between production code and its own formulas.
+    # in perception (skill) and int/wis (saves). Expected values below are
+    # hand-computed against the 5e tables (ARCHITECTURE.md §3), not re-derived
+    # from rules_5e, so this test would catch a bug shared between production
+    # code and its own formulas.
     assert computed["prof_bonus"] == 2
     assert computed["modifiers"] == {
         "str": 3,
@@ -158,6 +163,18 @@ async def test_computed_block_is_correct_for_reference_character(
         "wis": 2,
         "cha": -1,
     }
+    assert computed["saving_throws"] == {
+        "str": 3,  # not proficient: modifier only
+        "dex": 2,  # not proficient: modifier only
+        "con": 1,  # not proficient: modifier only
+        "int": 2,  # proficient: modifier (0) + prof_bonus (2)
+        "wis": 4,  # proficient: modifier (2) + prof_bonus (2)
+        "cha": -1,  # not proficient: modifier only
+    }
+    assert computed["skills"]["perception"] == 4  # proficient: wis mod (2) + prof_bonus (2)
+    assert computed["skills"]["stealth"] == 2  # not proficient: dex mod only
+    assert computed["skills"]["athletics"] == 3  # not proficient: str mod only
+    assert len(computed["skills"]) == 18
     assert computed["ac"] == 12  # 10 + dex mod (2), no ac_override
     assert computed["initiative"] == 2  # dex mod
     assert computed["passive_perception"] == 14  # 10 + wis mod (2) + prof_bonus (2)

@@ -569,6 +569,19 @@ class ContentQueryService:
         ).all()
         return [SpellRead.model_validate(row) for row in rows]
 
+    async def spell_ids_on_class_list(
+        self, *, spell_ids: Iterable[int], class_id: int
+    ) -> set[int]:
+        """Subset of `spell_ids` that are on the given class's spell list
+        (used by characters.service to validate PUT /characters/{id}/spells
+        in a single query instead of one per spell)."""
+        rows = await self._db.scalars(
+            select(SpellClass.spell_id).where(
+                SpellClass.spell_id.in_(spell_ids), SpellClass.class_id == class_id
+            )
+        )
+        return set(rows.all())
+
     async def get_spell_slots(self, *, class_id: int, level: int) -> dict[str, Any] | None:
         """Spell slots for a class at a given level (AR §3: slots come from
         class_levels data; used by characters.service for the `computed` block)."""

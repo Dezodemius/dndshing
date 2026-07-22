@@ -6,9 +6,14 @@ from app.characters.schemas import (
     CharacterCreate,
     CharacterDetailRead,
     CharacterRead,
+    CharacterSpellRead,
     CharacterUpdate,
+    InventoryEntryCreate,
+    InventoryEntryRead,
+    InventoryEntryUpdate,
     LevelUpRecordRead,
     LevelUpRequest,
+    SpellsUpdate,
 )
 from app.characters.service import CharacterService
 from app.core.db import get_db
@@ -71,3 +76,54 @@ async def level_up_character(
     _user=Depends(get_verified_user),
 ) -> LevelUpRecordRead:
     return await CharacterService(db).level_up(character_id, _user.id, payload)
+
+
+@router.post(
+    "/characters/{character_id}/inventory",
+    response_model=InventoryEntryRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_inventory_item(
+    character_id: int,
+    payload: InventoryEntryCreate,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> InventoryEntryRead:
+    return await CharacterService(db).add_inventory_item(character_id, _user.id, payload)
+
+
+@router.patch(
+    "/characters/{character_id}/inventory/{entry_id}", response_model=InventoryEntryRead
+)
+async def update_inventory_item(
+    character_id: int,
+    entry_id: int,
+    payload: InventoryEntryUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> InventoryEntryRead:
+    return await CharacterService(db).update_inventory_item(
+        character_id, entry_id, _user.id, payload
+    )
+
+
+@router.delete(
+    "/characters/{character_id}/inventory/{entry_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_inventory_item(
+    character_id: int,
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> None:
+    await CharacterService(db).delete_inventory_item(character_id, entry_id, _user.id)
+
+
+@router.put("/characters/{character_id}/spells", response_model=list[CharacterSpellRead])
+async def update_spells(
+    character_id: int,
+    payload: SpellsUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> list[CharacterSpellRead]:
+    return await CharacterService(db).update_spells(character_id, _user.id, payload)
