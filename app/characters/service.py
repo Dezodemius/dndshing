@@ -77,8 +77,15 @@ class CharacterService:
         await self._db.refresh(character)
         return await self._to_detail(character)
 
-    async def get_owned(self, character_id: int, user_id: int) -> Character:
-        character = await self._db.get(Character, character_id)
+    async def get_owned(
+        self, character_id: int, user_id: int, *, for_update: bool = False
+    ) -> Character:
+        if for_update:
+            character = await self._db.scalar(
+                select(Character).where(Character.id == character_id).with_for_update()
+            )
+        else:
+            character = await self._db.get(Character, character_id)
         if character is None or character.user_id != user_id:
             raise CharacterNotFoundError()
         return character
@@ -115,7 +122,7 @@ class CharacterService:
     async def level_up(
         self, character_id: int, user_id: int, payload: LevelUpRequest
     ) -> LevelUpRecordRead:
-        character = await self.get_owned(character_id, user_id)
+        character = await self.get_owned(character_id, user_id, for_update=True)
         from_level = character.level
         to_level = from_level + 1
 
