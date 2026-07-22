@@ -169,11 +169,11 @@ class CharacterService:
         content = ContentQueryService(self._db)
 
         selections = {selection.spell_id: selection.prepared for selection in payload.spells}
-        for spell_id in selections:
-            if not await content.spell_belongs_to_class(
-                spell_id=spell_id, class_id=character.class_id
-            ):
-                raise SpellNotInClassListError()
+        allowed_spell_ids = await content.spell_ids_on_class_list(
+            spell_ids=selections.keys(), class_id=character.class_id
+        )
+        if not selections.keys() <= allowed_spell_ids:
+            raise SpellNotInClassListError()
 
         await self._db.execute(
             delete(CharacterSpell).where(CharacterSpell.character_id == character.id)
