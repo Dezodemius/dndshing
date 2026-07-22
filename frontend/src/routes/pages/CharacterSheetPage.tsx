@@ -71,6 +71,9 @@ export default function CharacterSheetPage() {
   } = useForm<SheetFormValues>({
     resolver: zodResolver(sheetSchema),
     values: query.data ? toFormValues(query.data) : undefined,
+    // A background refetch (e.g. refetchOnWindowFocus) must not silently
+    // wipe fields the player is mid-edit on — only resync untouched ones.
+    resetOptions: { keepDirtyValues: true },
   })
 
   const patchMutation = useMutation({
