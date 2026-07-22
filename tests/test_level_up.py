@@ -191,6 +191,22 @@ async def test_level_up_asi_and_feat_conflict(
     assert response.json()["error"]["code"] == "asi_feat_conflict"
 
 
+async def test_level_up_negative_asi_is_rejected(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    setup = await _player_setup(client, db_session, "player7@example.com")
+    character_id = await _create_character(client, setup)
+    await _give_xp_for_level(client, setup, character_id, 2)
+
+    response = await client.post(
+        _url(character_id),
+        json={"hp_method": "average", "asi": {"str": -1}},
+        headers=setup["headers"],
+    )
+
+    assert response.status_code == 422, response.text
+
+
 async def test_level_up_subclass_wrong_level_is_rejected(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:

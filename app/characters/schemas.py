@@ -142,8 +142,12 @@ class LevelUpRequest(BaseModel):
     @field_validator("asi")
     @classmethod
     def _check_asi_keys(cls, value: dict[str, int] | None) -> dict[str, int] | None:
-        if value is not None and not set(value).issubset(_ABILITY_KEYS):
+        if value is None:
+            return value
+        if not set(value).issubset(_ABILITY_KEYS):
             raise ValueError(f"asi keys must be a subset of {sorted(_ABILITY_KEYS)}")
+        if any(increase <= 0 for increase in value.values()):
+            raise ValueError("asi values must be positive")
         return value
 
 
