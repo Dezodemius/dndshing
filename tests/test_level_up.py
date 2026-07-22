@@ -40,7 +40,17 @@ def _content_pack() -> dict:
                 "subclasses": [
                     {"slug": "evocation", "name": "Эвокация", "unlock_level": 2},
                 ],
-            }
+            },
+            {
+                "slug": "cleric",
+                "name": "Жрец",
+                "hit_die": 8,
+                "primary_ability": "wisdom",
+                "levels": [
+                    {"level": 1, "features": {}, "spell_slots": {"1": 2}},
+                ],
+                "subclasses": [],
+            },
         ],
         "spells": [
             {
@@ -54,7 +64,19 @@ def _content_pack() -> dict:
                 "duration": "мгновенная",
                 "description": "Стрелы силовой энергии.",
                 "classes": ["wizard"],
-            }
+            },
+            {
+                "slug": "cure-wounds",
+                "name": "Лечение ран",
+                "level": 1,
+                "school": "evocation",
+                "casting_time": "1 действие",
+                "range": "касание",
+                "components": "V, S",
+                "duration": "мгновенная",
+                "description": "Исцеляет раны.",
+                "classes": ["cleric"],
+            },
         ],
         "backgrounds": [{"slug": "sage", "name": "Мудрец"}],
     }
@@ -107,6 +129,7 @@ async def _content_ids(client: AsyncClient, headers: dict[str, str]) -> dict:
         "background_id": next(b["id"] for b in backgrounds if b["slug"] == "sage"),
         "subclass_id": next(s["id"] for s in wizard["subclasses"] if s["slug"] == "evocation"),
         "spell_id": next(s["id"] for s in spells if s["slug"] == "magic-missile"),
+        "foreign_spell_id": next(s["id"] for s in spells if s["slug"] == "cure-wounds"),
     }
 
 
@@ -331,6 +354,30 @@ async def test_level_up_delta_excludes_already_known_spells(
         )
     ).all()
     assert len(known_spells) == 1
+
+
+async def test_level_up_spell_outside_class_list_is_rejected(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    setup = await _player_setup(client, db_session, "player8@example.com")
+    character_id = await _create_character(client, setup)
+    await _give_xp_for_level(client, setup, character_id, 2)
+
+    response = await client.post(
+        _url(character_id),
+        json={"hp_method": "average", "spells_learned": [setup["foreign_spell_id"]]},
+        headers=setup["headers"],
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["error"]["code"] == "invalid_reference"
+
+    known_spells = (
+        await db_session.scalars(
+            select(CharacterSpell).where(CharacterSpell.character_id == character_id)
+        )
+    ).all()
+    assert known_spells == []
 
 
 async def test_level_up_other_users_character_is_404(

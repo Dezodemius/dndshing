@@ -163,7 +163,9 @@ class CharacterService:
             list((class_level.features or {}).keys()) if class_level is not None else []
         )
 
-        spells = await content.get_spells_by_ids(payload.spells_learned)
+        spells = await content.get_spells_by_ids(
+            payload.spells_learned, class_id=character.class_id
+        )
         if {spell.id for spell in spells} != set(payload.spells_learned):
             raise InvalidReferenceError()
 
