@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,15 +6,23 @@ from app.characters import rules_5e
 from app.characters.errors import (
     CharacterNotFoundError,
     InvalidReferenceError,
+    InventoryEntryNotFoundError,
+    InventoryPayloadInvalidError,
     LevelDirectEditForbiddenError,
+    SpellNotInClassListError,
 )
-from app.characters.models import Character
+from app.characters.models import Character, CharacterSpell, InventoryEntry
 from app.characters.schemas import (
     CharacterCreate,
     CharacterDetailRead,
     CharacterRead,
+    CharacterSpellRead,
     CharacterUpdate,
     ComputedBlock,
+    InventoryEntryCreate,
+    InventoryEntryRead,
+    InventoryEntryUpdate,
+    SpellsUpdate,
 )
 from app.content.service import ContentQueryService
 
@@ -106,10 +114,106 @@ class CharacterService:
         await self._db.delete(character)
         await self._db.commit()
 
+    async def add_inventory_item(
+        self, character_id: int, user_id: int, payload: InventoryEntryCreate
+    ) -> InventoryEntryRead:
+        character = await self.get_owned(character_id, user_id)
+        if (payload.item_id is None) == (payload.custom_name is None):
+            raise InventoryPayloadInvalidError()
+
+        entry = InventoryEntry(
+            character_id=character.id,
+            item_id=payload.item_id,
+            custom_name=payload.custom_name,
+            quantity=payload.quantity,
+            equipped=payload.equipped,
+        )
+        self._db.add(entry)
+        try:
+            await self._db.flush()
+        except IntegrityError as exc:
+            await self._db.rollback()
+            raise InvalidReferenceError() from exc
+        await self._db.commit()
+        await self._db.refresh(entry)
+        return InventoryEntryRead.model_validate(entry)
+
+    async def _get_owned_inventory_entry(
+        self, character_id: int, entry_id: int, user_id: int
+    ) -> InventoryEntry:
+        await self.get_owned(character_id, user_id)
+        entry = await self._db.get(InventoryEntry, entry_id)
+        if entry is None or entry.character_id != character_id:
+            raise InventoryEntryNotFoundError()
+        return entry
+
+    async def update_inventory_item(
+        self, character_id: int, entry_id: int, user_id: int, payload: InventoryEntryUpdate
+    ) -> InventoryEntryRead:
+        entry = await self._get_owned_inventory_entry(character_id, entry_id, user_id)
+        for field, value in payload.model_dump(exclude_unset=True).items():
+            setattr(entry, field, value)
+        await self._db.commit()
+        await self._db.refresh(entry)
+        return InventoryEntryRead.model_validate(entry)
+
+    async def delete_inventory_item(self, character_id: int, entry_id: int, user_id: int) -> None:
+        entry = await self._get_owned_inventory_entry(character_id, entry_id, user_id)
+        await self._db.delete(entry)
+        await self._db.commit()
+
+    async def update_spells(
+        self, character_id: int, user_id: int, payload: SpellsUpdate
+    ) -> list[CharacterSpellRead]:
+        character = await self.get_owned(character_id, user_id)
+        content = ContentQueryService(self._db)
+
+        selections = {selection.spell_id: selection.prepared for selection in payload.spells}
+        allowed_spell_ids = await content.spell_ids_on_class_list(
+            spell_ids=selections.keys(), class_id=character.class_id
+        )
+        if not selections.keys() <= allowed_spell_ids:
+            raise SpellNotInClassListError()
+
+        await self._db.execute(
+            delete(CharacterSpell).where(CharacterSpell.character_id == character.id)
+        )
+        for spell_id, prepared in selections.items():
+            self._db.add(
+                CharacterSpell(character_id=character.id, spell_id=spell_id, prepared=prepared)
+            )
+        await self._db.commit()
+
+        rows = (
+            await self._db.scalars(
+                select(CharacterSpell)
+                .where(CharacterSpell.character_id == character.id)
+                .order_by(CharacterSpell.spell_id)
+            )
+        ).all()
+        return [CharacterSpellRead.model_validate(row) for row in rows]
+
     async def _to_detail(self, character: Character) -> CharacterDetailRead:
         computed = await self._compute(character)
+        inventory = (
+            await self._db.scalars(
+                select(InventoryEntry)
+                .where(InventoryEntry.character_id == character.id)
+                .order_by(InventoryEntry.id)
+            )
+        ).all()
+        spells = (
+            await self._db.scalars(
+                select(CharacterSpell)
+                .where(CharacterSpell.character_id == character.id)
+                .order_by(CharacterSpell.spell_id)
+            )
+        ).all()
         return CharacterDetailRead(
-            **CharacterRead.model_validate(character).model_dump(), computed=computed
+            **CharacterRead.model_validate(character).model_dump(),
+            computed=computed,
+            inventory=[InventoryEntryRead.model_validate(entry) for entry in inventory],
+            spells=[CharacterSpellRead.model_validate(spell) for spell in spells],
         )
 
     async def _compute(self, character: Character) -> ComputedBlock:
