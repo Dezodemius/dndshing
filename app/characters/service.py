@@ -123,10 +123,23 @@ class CharacterService:
             if character.ac_override is not None
             else rules_5e.base_armor_class(dex_score)
         )
-        skills = (character.proficiencies or {}).get("skills", [])
+        proficient_skills = set((character.proficiencies or {}).get("skills", []))
+        proficient_saves = set((character.proficiencies or {}).get("saves", []))
         passive_perception = rules_5e.passive_perception(
-            wis_score, "perception" in skills, prof_bonus
+            wis_score, "perception" in proficient_skills, prof_bonus
         )
+        saving_throws = {
+            ability: rules_5e.proficient_modifier(
+                modifiers.get(ability, 0), ability in proficient_saves, prof_bonus
+            )
+            for ability in rules_5e.ABILITIES
+        }
+        skills = {
+            skill: rules_5e.proficient_modifier(
+                modifiers.get(ability, 0), skill in proficient_skills, prof_bonus
+            )
+            for skill, ability in rules_5e.SKILL_ABILITIES.items()
+        }
         xp_to_next = rules_5e.xp_to_next_level(character.level, character.xp)
         level_up_available = character.level < rules_5e.MAX_LEVEL and character.xp >= (
             rules_5e.xp_threshold(character.level + 1)
@@ -141,6 +154,8 @@ class CharacterService:
         return ComputedBlock(
             prof_bonus=prof_bonus,
             modifiers=modifiers,
+            saving_throws=saving_throws,
+            skills=skills,
             ac=ac,
             initiative=rules_5e.initiative(dex_score),
             passive_perception=passive_perception,

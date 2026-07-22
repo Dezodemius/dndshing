@@ -107,6 +107,8 @@ class CharacterRead(BaseModel):
 class ComputedBlock(BaseModel):
     prof_bonus: int
     modifiers: dict[str, int]
+    saving_throws: dict[str, int]
+    skills: dict[str, int]
     ac: int
     initiative: int
     passive_perception: int
