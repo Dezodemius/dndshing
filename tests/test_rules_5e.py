@@ -1,12 +1,15 @@
 import pytest
 
 from app.characters.rules_5e import (
+    ABILITIES,
+    SKILL_ABILITIES,
     ability_modifier,
     average_hp_gain,
     base_armor_class,
     initiative,
     passive_perception,
     proficiency_bonus,
+    proficient_modifier,
     rolled_hp_gain,
     xp_threshold,
     xp_to_next_level,
@@ -128,3 +131,28 @@ def test_rolled_hp_gain(hit_die, rolled, con_modifier, expected):
 def test_rolled_hp_gain_rejects_out_of_range_roll(rolled):
     with pytest.raises(ValueError):
         rolled_hp_gain(8, rolled, 0)
+
+
+@pytest.mark.parametrize(
+    ("ability_modifier_value", "proficient", "prof_bonus", "expected"),
+    [
+        (2, False, 2, 2),
+        (2, True, 2, 4),
+        (-1, True, 3, 2),
+        (0, False, 3, 0),
+    ],
+)
+def test_proficient_modifier(ability_modifier_value, proficient, prof_bonus, expected):
+    assert proficient_modifier(ability_modifier_value, proficient, prof_bonus) == expected
+
+
+def test_skill_abilities_cover_18_skills():
+    assert len(SKILL_ABILITIES) == 18
+    assert SKILL_ABILITIES["perception"] == "wis"
+    assert SKILL_ABILITIES["athletics"] == "str"
+    assert SKILL_ABILITIES["stealth"] == "dex"
+    assert set(SKILL_ABILITIES.values()) <= set(ABILITIES)
+
+
+def test_abilities_lists_the_six_scores():
+    assert ABILITIES == ("str", "dex", "con", "int", "wis", "cha")

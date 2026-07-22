@@ -178,7 +178,63 @@
       "title": "Создание персонажа"
     },
     "characterSheet": {
-      "title": "Лист персонажа"
+      "title": "Лист персонажа",
+      "levelLabel": "Уровень {{level}}",
+      "levelUpBanner": {
+        "text": "Доступен новый уровень!",
+        "cta": "Прокачаться"
+      },
+      "sections": {
+        "abilities": "Характеристики",
+        "savingThrows": "Спасброски",
+        "skills": "Навыки",
+        "combat": "Боевые параметры",
+        "hp": "Хиты",
+        "notes": "Заметки"
+      },
+      "abilities": {
+        "str": "Сила",
+        "dex": "Ловкость",
+        "con": "Телосложение",
+        "int": "Интеллект",
+        "wis": "Мудрость",
+        "cha": "Харизма"
+      },
+      "skills": {
+        "acrobatics": "Акробатика",
+        "animal-handling": "Уход за животными",
+        "arcana": "Магия",
+        "athletics": "Атлетика",
+        "deception": "Обман",
+        "history": "История",
+        "insight": "Проницательность",
+        "intimidation": "Запугивание",
+        "investigation": "Расследование",
+        "medicine": "Медицина",
+        "nature": "Природа",
+        "perception": "Восприятие",
+        "performance": "Выступление",
+        "persuasion": "Убеждение",
+        "religion": "Религия",
+        "sleight-of-hand": "Ловкость рук",
+        "stealth": "Скрытность",
+        "survival": "Выживание"
+      },
+      "combat": {
+        "ac": "КД",
+        "initiative": "Инициатива",
+        "speed": "Скорость"
+      },
+      "hp": {
+        "current": "Текущие",
+        "temp": "Временные",
+        "max": "Максимум",
+        "invalid": "Введите число не меньше нуля"
+      },
+      "notesLabel": "Заметки персонажа",
+      "notesInvalid": "Слишком длинный текст — не больше 2000 символов",
+      "save": "Сохранить",
+      "saved": "Сохранено"
     },
     "levelUp": {
       "title": "Прокачка персонажа"

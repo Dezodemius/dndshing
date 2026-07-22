@@ -25,6 +25,29 @@ XP_THRESHOLDS: dict[int, int] = {
 
 MAX_LEVEL = 20
 
+ABILITIES: tuple[str, ...] = ("str", "dex", "con", "int", "wis", "cha")
+
+SKILL_ABILITIES: dict[str, str] = {
+    "acrobatics": "dex",
+    "animal-handling": "wis",
+    "arcana": "int",
+    "athletics": "str",
+    "deception": "cha",
+    "history": "int",
+    "insight": "wis",
+    "intimidation": "cha",
+    "investigation": "int",
+    "medicine": "wis",
+    "nature": "int",
+    "perception": "wis",
+    "performance": "cha",
+    "persuasion": "cha",
+    "religion": "int",
+    "sleight-of-hand": "dex",
+    "stealth": "dex",
+    "survival": "wis",
+}
+
 
 def ability_modifier(score: int) -> int:
     return (score - 10) // 2
@@ -55,6 +78,10 @@ def passive_perception(wisdom_score: int, proficient: bool, prof_bonus: int) -> 
 
 def base_armor_class(dexterity_score: int) -> int:
     return 10 + ability_modifier(dexterity_score)
+
+
+def proficient_modifier(ability_modifier_value: int, proficient: bool, prof_bonus: int) -> int:
+    return ability_modifier_value + (prof_bonus if proficient else 0)
 
 
 def average_hp_gain(hit_die: int, con_modifier: int) -> int:
