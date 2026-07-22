@@ -169,9 +169,9 @@ class CharacterService:
                 )
             ).all()
         )
-        for spell in spells:
-            if spell.id not in already_known:
-                self._db.add(CharacterSpell(character_id=character.id, spell_id=spell.id))
+        newly_learned_spells = [spell for spell in spells if spell.id not in already_known]
+        for spell in newly_learned_spells:
+            self._db.add(CharacterSpell(character_id=character.id, spell_id=spell.id))
 
         if payload.asi is not None:
             ability_scores = dict(character.ability_scores or {})
@@ -190,7 +190,7 @@ class CharacterService:
             "feat": payload.feat,
             "subclass_chosen": subclass_chosen,
             "features_unlocked": features_unlocked,
-            "spells_learned": [spell.slug for spell in spells],
+            "spells_learned": [spell.slug for spell in newly_learned_spells],
             "spells_forgotten": [],
         }
         record = LevelUpRecord(

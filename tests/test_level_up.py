@@ -284,6 +284,39 @@ async def test_level_up_applies_delta_and_is_reproducible(
     assert rules_5e.average_hp_gain(6, con_modifier) == record["delta"]["hp_gained"]
 
 
+async def test_level_up_delta_excludes_already_known_spells(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    setup = await _player_setup(client, db_session, "player6@example.com")
+    character_id = await _create_character(client, setup)
+    await _give_xp_for_level(client, setup, character_id, 2)
+
+    first = await client.post(
+        _url(character_id),
+        json={"hp_method": "average", "spells_learned": [setup["spell_id"]]},
+        headers=setup["headers"],
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["delta"]["spells_learned"] == ["magic-missile"]
+
+    await _give_xp_for_level(client, setup, character_id, 3)
+    second = await client.post(
+        _url(character_id),
+        json={"hp_method": "average", "spells_learned": [setup["spell_id"]]},
+        headers=setup["headers"],
+    )
+
+    assert second.status_code == 200, second.text
+    assert second.json()["delta"]["spells_learned"] == []
+
+    known_spells = (
+        await db_session.scalars(
+            select(CharacterSpell).where(CharacterSpell.character_id == character_id)
+        )
+    ).all()
+    assert len(known_spells) == 1
+
+
 async def test_level_up_other_users_character_is_404(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
