@@ -241,7 +241,8 @@ export default function CharacterSheetPage() {
           <h2 id="sheet-notes-heading">{t('pages.characterSheet.sections.notes')}</h2>
           <div className="character-sheet__field">
             <label htmlFor="sheet-notes">{t('pages.characterSheet.notesLabel')}</label>
-            <textarea id="sheet-notes" {...register('notes')} />
+            <textarea id="sheet-notes" maxLength={2000} {...register('notes')} />
+            {errors.notes && <p role="alert">{t('pages.characterSheet.notesInvalid')}</p>}
           </div>
         </section>
 
