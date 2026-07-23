@@ -56,6 +56,7 @@ const baseCharacter: CharacterDetail = {
     spell_slots: {},
   },
   inventory: [],
+  spells: [],
 }
 
 function renderTab(character: CharacterDetail) {

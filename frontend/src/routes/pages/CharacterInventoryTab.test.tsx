@@ -86,6 +86,7 @@ const baseCharacter: CharacterDetail = {
     { id: 1, character_id: 1, item_id: 10, custom_name: null, quantity: 2, equipped: false },
     { id: 2, character_id: 1, item_id: null, custom_name: 'странный ключ', quantity: 1, equipped: true },
   ],
+  spells: [],
 }
 
 function renderTab(character: CharacterDetail) {

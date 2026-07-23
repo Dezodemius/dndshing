@@ -13,6 +13,26 @@
   gap: var(--space-1);
 }
 
+.character-sheet__tabs {
+  display: flex;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.character-sheet__tab {
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.character-sheet__tab--active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-accent);
+}
+
 .character-sheet__level-up-banner {
   display: flex;
   flex-wrap: wrap;

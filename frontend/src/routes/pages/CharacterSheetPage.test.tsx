@@ -88,6 +88,7 @@ const baseCharacter: CharacterDetail = {
   inventory: [
     { id: 1, character_id: 1, item_id: null, custom_name: 'странный ключ', quantity: 1, equipped: false },
   ],
+  spells: [],
 }
 
 function renderPage(character: CharacterDetail) {

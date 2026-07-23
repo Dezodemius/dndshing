@@ -7,11 +7,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { getCharacter, patchCharacter, type CharacterDetail, type CharacterPatch } from '../../api/characters'
 import { translateApiError } from '../../api/errorMessages'
+import CharacterSpellsTab from './CharacterSpellsTab'
 import CharacterInventoryTab from './CharacterInventoryTab'
 import CharacterWalletTab from './CharacterWalletTab'
 import './CharacterSheetPage.css'
 
-const TAB_ORDER = ['sheet', 'inventory', 'wallet'] as const
+const TAB_ORDER = ['sheet', 'spells', 'inventory', 'wallet'] as const
 type SheetTab = (typeof TAB_ORDER)[number]
 
 const ABILITY_ORDER = ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const
@@ -91,6 +92,12 @@ export default function CharacterSheetPage() {
   })
 
   const submittedOnce = useRef(false)
+  const tabRefs = useRef<Record<SheetTab, HTMLButtonElement | null>>({
+    sheet: null,
+    spells: null,
+    inventory: null,
+    wallet: null,
+  })
 
   async function onSubmit(values: SheetFormValues) {
     const payload: CharacterPatch = {}
@@ -130,27 +137,32 @@ export default function CharacterSheetPage() {
         <p>{t('pages.characterSheet.levelLabel', { level: character.level })}</p>
       </header>
 
-      {computed.level_up_available && (
-        <div className="character-sheet__level-up-banner">
-          <span>{t('pages.characterSheet.levelUpBanner.text')}</span>
-          <Link to={`/app/characters/${characterId}/level-up`}>
-            {t('pages.characterSheet.levelUpBanner.cta')}
-          </Link>
-        </div>
-      )}
-
-      <div className="character-sheet__tabs" role="tablist">
+      <div
+        className="character-sheet__tabs"
+        role="tablist"
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+          event.preventDefault()
+          const currentIndex = TAB_ORDER.indexOf(activeTab)
+          const delta = event.key === 'ArrowRight' ? 1 : -1
+          const next = TAB_ORDER[(currentIndex + delta + TAB_ORDER.length) % TAB_ORDER.length]
+          setActiveTab(next)
+          tabRefs.current[next]?.focus()
+        }}
+      >
         {TAB_ORDER.map((tab) => (
           <button
             key={tab}
             type="button"
             role="tab"
-            id={`sheet-tab-${tab}`}
+            id={`character-sheet-tab-${tab}`}
+            ref={(el) => {
+              tabRefs.current[tab] = el
+            }}
+            aria-controls={`character-sheet-panel-${tab}`}
             aria-selected={activeTab === tab}
-            aria-controls={`sheet-tabpanel-${tab}`}
-            className={`character-sheet__tab${
-              activeTab === tab ? ' character-sheet__tab--active' : ''
-            }`}
+            tabIndex={activeTab === tab ? 0 : -1}
+            className={`character-sheet__tab${activeTab === tab ? ' character-sheet__tab--active' : ''}`}
             onClick={() => setActiveTab(tab)}
           >
             {t(`pages.characterSheet.tabs.${tab}`)}
@@ -158,8 +170,23 @@ export default function CharacterSheetPage() {
         ))}
       </div>
 
+      {activeTab === 'spells' && (
+        <div role="tabpanel" id="character-sheet-panel-spells" aria-labelledby="character-sheet-tab-spells">
+          <CharacterSpellsTab character={character} characterId={characterId as string} />
+        </div>
+      )}
+
       {activeTab === 'sheet' && (
-        <div id="sheet-tabpanel-sheet" role="tabpanel" aria-labelledby="sheet-tab-sheet">
+        <div role="tabpanel" id="character-sheet-panel-sheet" aria-labelledby="character-sheet-tab-sheet">
+          {computed.level_up_available && (
+            <div className="character-sheet__level-up-banner">
+              <span>{t('pages.characterSheet.levelUpBanner.text')}</span>
+              <Link to={`/app/characters/${characterId}/level-up`}>
+                {t('pages.characterSheet.levelUpBanner.cta')}
+              </Link>
+            </div>
+          )}
+
           <section className="character-sheet__section" aria-labelledby="sheet-abilities-heading">
             <h2 id="sheet-abilities-heading">{t('pages.characterSheet.sections.abilities')}</h2>
             <div className="character-sheet__ability-grid">
@@ -289,13 +316,13 @@ export default function CharacterSheetPage() {
       )}
 
       {activeTab === 'inventory' && (
-        <div id="sheet-tabpanel-inventory" role="tabpanel" aria-labelledby="sheet-tab-inventory">
+        <div role="tabpanel" id="character-sheet-panel-inventory" aria-labelledby="character-sheet-tab-inventory">
           <CharacterInventoryTab characterId={characterId as string} character={character} />
         </div>
       )}
 
       {activeTab === 'wallet' && (
-        <div id="sheet-tabpanel-wallet" role="tabpanel" aria-labelledby="sheet-tab-wallet">
+        <div role="tabpanel" id="character-sheet-panel-wallet" aria-labelledby="character-sheet-tab-wallet">
           <CharacterWalletTab characterId={characterId as string} character={character} />
         </div>
       )}
