@@ -71,6 +71,7 @@ export default function CharacterSpellsTab({ character, characterId }: Character
   })
 
   const currentClass = classesQuery.data?.find((klass) => klass.id === character.class_id)
+  const classNotFound = classesQuery.isSuccess && !currentClass
   const isCaster = currentClass?.levels.some((level) => level.spell_slots !== null) ?? false
 
   const spellsQuery = useQuery({
@@ -94,6 +95,10 @@ export default function CharacterSpellsTab({ character, characterId }: Character
 
   if (classesQuery.isError) {
     return <p role="alert">{translateApiError(t, classesQuery.error)}</p>
+  }
+
+  if (classNotFound) {
+    return <p role="alert">{t('pages.characterSheet.spells.classNotFound')}</p>
   }
 
   if (!isCaster) {
@@ -154,12 +159,10 @@ export default function CharacterSpellsTab({ character, characterId }: Character
 
       <section className="spells-tab__section" aria-labelledby="spells-known-heading">
         <h2 id="spells-known-heading">{t('pages.characterSheet.spells.known.title')}</h2>
-        {spellsQuery.isLoading && <p>{t('common.loading')}</p>}
         {spellsQuery.isError && <p role="alert">{translateApiError(t, spellsQuery.error)}</p>}
-        {spellsQuery.isSuccess && character.spells.length === 0 && (
+        {character.spells.length === 0 ? (
           <p>{t('pages.characterSheet.spells.known.empty')}</p>
-        )}
-        {spellsQuery.isSuccess && character.spells.length > 0 && (
+        ) : (
           <ul className="spells-tab__list">
             {character.spells.map((selection) => (
               <li className="spells-tab__list-item" key={selection.spell_id}>
