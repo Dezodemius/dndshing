@@ -89,6 +89,8 @@ export default function CharacterSheetPage() {
   })
 
   const submittedOnce = useRef(false)
+  const sheetTabRef = useRef<HTMLButtonElement>(null)
+  const spellsTabRef = useRef<HTMLButtonElement>(null)
 
   async function onSubmit(values: SheetFormValues) {
     const payload: CharacterPatch = {}
@@ -128,11 +130,25 @@ export default function CharacterSheetPage() {
         <p>{t('pages.characterSheet.levelLabel', { level: character.level })}</p>
       </header>
 
-      <div className="character-sheet__tabs" role="tablist">
+      <div
+        className="character-sheet__tabs"
+        role="tablist"
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+          event.preventDefault()
+          const next = activeTab === 'sheet' ? 'spells' : 'sheet'
+          setActiveTab(next)
+          ;(next === 'sheet' ? sheetTabRef : spellsTabRef).current?.focus()
+        }}
+      >
         <button
           type="button"
           role="tab"
+          id="character-sheet-tab-sheet"
+          ref={sheetTabRef}
+          aria-controls="character-sheet-panel-sheet"
           aria-selected={activeTab === 'sheet'}
+          tabIndex={activeTab === 'sheet' ? 0 : -1}
           className={`character-sheet__tab${activeTab === 'sheet' ? ' character-sheet__tab--active' : ''}`}
           onClick={() => setActiveTab('sheet')}
         >
@@ -141,7 +157,11 @@ export default function CharacterSheetPage() {
         <button
           type="button"
           role="tab"
+          id="character-sheet-tab-spells"
+          ref={spellsTabRef}
+          aria-controls="character-sheet-panel-spells"
           aria-selected={activeTab === 'spells'}
+          tabIndex={activeTab === 'spells' ? 0 : -1}
           className={`character-sheet__tab${activeTab === 'spells' ? ' character-sheet__tab--active' : ''}`}
           onClick={() => setActiveTab('spells')}
         >
@@ -150,13 +170,13 @@ export default function CharacterSheetPage() {
       </div>
 
       {activeTab === 'spells' && (
-        <div role="tabpanel">
+        <div role="tabpanel" id="character-sheet-panel-spells" aria-labelledby="character-sheet-tab-spells">
           <CharacterSpellsTab character={character} characterId={characterId as string} />
         </div>
       )}
 
       {activeTab === 'sheet' && (
-        <div role="tabpanel">
+        <div role="tabpanel" id="character-sheet-panel-sheet" aria-labelledby="character-sheet-tab-sheet">
           {computed.level_up_available && (
             <div className="character-sheet__level-up-banner">
               <span>{t('pages.characterSheet.levelUpBanner.text')}</span>
