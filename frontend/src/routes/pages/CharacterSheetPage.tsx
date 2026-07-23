@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
@@ -7,7 +7,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { getCharacter, patchCharacter, type CharacterDetail, type CharacterPatch } from '../../api/characters'
 import { translateApiError } from '../../api/errorMessages'
+import CharacterSpellsTab from './CharacterSpellsTab'
 import './CharacterSheetPage.css'
+
+type SheetTab = 'sheet' | 'spells'
 
 const ABILITY_ORDER = ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const
 
@@ -56,6 +59,7 @@ export default function CharacterSheetPage() {
   const { t } = useTranslation()
   const { characterId } = useParams<{ characterId: string }>()
   const queryClient = useQueryClient()
+  const [activeTab, setActiveTab] = useState<SheetTab>('sheet')
 
   const query = useQuery({
     queryKey: ['character', characterId],
@@ -124,140 +128,171 @@ export default function CharacterSheetPage() {
         <p>{t('pages.characterSheet.levelLabel', { level: character.level })}</p>
       </header>
 
-      {computed.level_up_available && (
-        <div className="character-sheet__level-up-banner">
-          <span>{t('pages.characterSheet.levelUpBanner.text')}</span>
-          <Link to={`/app/characters/${characterId}/level-up`}>
-            {t('pages.characterSheet.levelUpBanner.cta')}
-          </Link>
+      <div className="character-sheet__tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'sheet'}
+          className={`character-sheet__tab${activeTab === 'sheet' ? ' character-sheet__tab--active' : ''}`}
+          onClick={() => setActiveTab('sheet')}
+        >
+          {t('pages.characterSheet.tabs.sheet')}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'spells'}
+          className={`character-sheet__tab${activeTab === 'spells' ? ' character-sheet__tab--active' : ''}`}
+          onClick={() => setActiveTab('spells')}
+        >
+          {t('pages.characterSheet.tabs.spells')}
+        </button>
+      </div>
+
+      {activeTab === 'spells' && (
+        <div role="tabpanel">
+          <CharacterSpellsTab character={character} characterId={characterId as string} />
         </div>
       )}
 
-      <section className="character-sheet__section" aria-labelledby="sheet-abilities-heading">
-        <h2 id="sheet-abilities-heading">{t('pages.characterSheet.sections.abilities')}</h2>
-        <div className="character-sheet__ability-grid">
-          {ABILITY_ORDER.map((ability) => (
-            <div className="character-sheet__ability" key={ability}>
-              <span className="character-sheet__ability-label">
-                {t(`pages.characterSheet.abilities.${ability}`)}
-              </span>
-              <span className="character-sheet__ability-score">
-                {character.ability_scores[ability]}
-              </span>
-              <span className="character-sheet__ability-modifier">
-                {formatModifier(computed.modifiers[ability])}
-              </span>
+      {activeTab === 'sheet' && (
+        <div role="tabpanel">
+          {computed.level_up_available && (
+            <div className="character-sheet__level-up-banner">
+              <span>{t('pages.characterSheet.levelUpBanner.text')}</span>
+              <Link to={`/app/characters/${characterId}/level-up`}>
+                {t('pages.characterSheet.levelUpBanner.cta')}
+              </Link>
             </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="character-sheet__section" aria-labelledby="sheet-saves-heading">
-        <h2 id="sheet-saves-heading">{t('pages.characterSheet.sections.savingThrows')}</h2>
-        <ul className="character-sheet__list">
-          {ABILITY_ORDER.map((ability) => (
-            <li className="character-sheet__list-item" key={ability}>
-              <span
-                className={`character-sheet__proficiency-dot${
-                  proficientSaves.has(ability) ? ' character-sheet__proficiency-dot--filled' : ''
-                }`}
-                aria-hidden="true"
-              />
-              <span className="character-sheet__list-label">
-                {t(`pages.characterSheet.abilities.${ability}`)}
-              </span>
-              <span className="character-sheet__list-modifier">
-                {formatModifier(computed.saving_throws[ability])}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="character-sheet__section" aria-labelledby="sheet-skills-heading">
-        <h2 id="sheet-skills-heading">{t('pages.characterSheet.sections.skills')}</h2>
-        <ul className="character-sheet__list">
-          {SKILL_ORDER.map((skill) => (
-            <li className="character-sheet__list-item" key={skill}>
-              <span
-                className={`character-sheet__proficiency-dot${
-                  proficientSkills.has(skill) ? ' character-sheet__proficiency-dot--filled' : ''
-                }`}
-                aria-hidden="true"
-              />
-              <span className="character-sheet__list-label">
-                {t(`pages.characterSheet.skills.${skill}`)}
-              </span>
-              <span className="character-sheet__list-modifier">
-                {formatModifier(computed.skills[skill])}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="character-sheet__section" aria-labelledby="sheet-combat-heading">
-        <h2 id="sheet-combat-heading">{t('pages.characterSheet.sections.combat')}</h2>
-        <div className="character-sheet__combat-row">
-          <div className="character-sheet__combat-stat">
-            <span>{t('pages.characterSheet.combat.ac')}</span>
-            <span className="character-sheet__combat-value">{computed.ac}</span>
-          </div>
-          <div className="character-sheet__combat-stat">
-            <span>{t('pages.characterSheet.combat.initiative')}</span>
-            <span className="character-sheet__combat-value">
-              {formatModifier(computed.initiative)}
-            </span>
-          </div>
-          <div className="character-sheet__combat-stat">
-            <span>{t('pages.characterSheet.combat.speed')}</span>
-            <span className="character-sheet__combat-value">{character.speed}</span>
-          </div>
-        </div>
-      </section>
-
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <section className="character-sheet__section" aria-labelledby="sheet-hp-heading">
-          <h2 id="sheet-hp-heading">{t('pages.characterSheet.sections.hp')}</h2>
-          <div className="character-sheet__hp-row">
-            <div className="character-sheet__field">
-              <label htmlFor="sheet-hp-current">{t('pages.characterSheet.hp.current')}</label>
-              <input id="sheet-hp-current" type="number" min={0} {...register('hp_current')} />
-              {errors.hp_current && <p role="alert">{t('pages.characterSheet.hp.invalid')}</p>}
-            </div>
-            <div className="character-sheet__field">
-              <label htmlFor="sheet-hp-temp">{t('pages.characterSheet.hp.temp')}</label>
-              <input id="sheet-hp-temp" type="number" min={0} {...register('hp_temp')} />
-              {errors.hp_temp && <p role="alert">{t('pages.characterSheet.hp.invalid')}</p>}
-            </div>
-            <div className="character-sheet__field">
-              <span>{t('pages.characterSheet.hp.max')}</span>
-              <output>{character.hp_max}</output>
-            </div>
-          </div>
-        </section>
-
-        <section className="character-sheet__section" aria-labelledby="sheet-notes-heading">
-          <h2 id="sheet-notes-heading">{t('pages.characterSheet.sections.notes')}</h2>
-          <div className="character-sheet__field">
-            <label htmlFor="sheet-notes">{t('pages.characterSheet.notesLabel')}</label>
-            <textarea id="sheet-notes" maxLength={2000} {...register('notes')} />
-            {errors.notes && <p role="alert">{t('pages.characterSheet.notesInvalid')}</p>}
-          </div>
-        </section>
-
-        <div className="character-sheet__save-row">
-          <button type="submit" disabled={isSubmitting}>
-            {t('pages.characterSheet.save')}
-          </button>
-          {patchMutation.isError && (
-            <p role="alert">{translateApiError(t, patchMutation.error)}</p>
           )}
-          {patchMutation.isSuccess && submittedOnce.current && (
-            <p>{t('pages.characterSheet.saved')}</p>
-          )}
+
+          <section className="character-sheet__section" aria-labelledby="sheet-abilities-heading">
+            <h2 id="sheet-abilities-heading">{t('pages.characterSheet.sections.abilities')}</h2>
+            <div className="character-sheet__ability-grid">
+              {ABILITY_ORDER.map((ability) => (
+                <div className="character-sheet__ability" key={ability}>
+                  <span className="character-sheet__ability-label">
+                    {t(`pages.characterSheet.abilities.${ability}`)}
+                  </span>
+                  <span className="character-sheet__ability-score">
+                    {character.ability_scores[ability]}
+                  </span>
+                  <span className="character-sheet__ability-modifier">
+                    {formatModifier(computed.modifiers[ability])}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="character-sheet__section" aria-labelledby="sheet-saves-heading">
+            <h2 id="sheet-saves-heading">{t('pages.characterSheet.sections.savingThrows')}</h2>
+            <ul className="character-sheet__list">
+              {ABILITY_ORDER.map((ability) => (
+                <li className="character-sheet__list-item" key={ability}>
+                  <span
+                    className={`character-sheet__proficiency-dot${
+                      proficientSaves.has(ability) ? ' character-sheet__proficiency-dot--filled' : ''
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <span className="character-sheet__list-label">
+                    {t(`pages.characterSheet.abilities.${ability}`)}
+                  </span>
+                  <span className="character-sheet__list-modifier">
+                    {formatModifier(computed.saving_throws[ability])}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="character-sheet__section" aria-labelledby="sheet-skills-heading">
+            <h2 id="sheet-skills-heading">{t('pages.characterSheet.sections.skills')}</h2>
+            <ul className="character-sheet__list">
+              {SKILL_ORDER.map((skill) => (
+                <li className="character-sheet__list-item" key={skill}>
+                  <span
+                    className={`character-sheet__proficiency-dot${
+                      proficientSkills.has(skill) ? ' character-sheet__proficiency-dot--filled' : ''
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <span className="character-sheet__list-label">
+                    {t(`pages.characterSheet.skills.${skill}`)}
+                  </span>
+                  <span className="character-sheet__list-modifier">
+                    {formatModifier(computed.skills[skill])}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="character-sheet__section" aria-labelledby="sheet-combat-heading">
+            <h2 id="sheet-combat-heading">{t('pages.characterSheet.sections.combat')}</h2>
+            <div className="character-sheet__combat-row">
+              <div className="character-sheet__combat-stat">
+                <span>{t('pages.characterSheet.combat.ac')}</span>
+                <span className="character-sheet__combat-value">{computed.ac}</span>
+              </div>
+              <div className="character-sheet__combat-stat">
+                <span>{t('pages.characterSheet.combat.initiative')}</span>
+                <span className="character-sheet__combat-value">
+                  {formatModifier(computed.initiative)}
+                </span>
+              </div>
+              <div className="character-sheet__combat-stat">
+                <span>{t('pages.characterSheet.combat.speed')}</span>
+                <span className="character-sheet__combat-value">{character.speed}</span>
+              </div>
+            </div>
+          </section>
+
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <section className="character-sheet__section" aria-labelledby="sheet-hp-heading">
+              <h2 id="sheet-hp-heading">{t('pages.characterSheet.sections.hp')}</h2>
+              <div className="character-sheet__hp-row">
+                <div className="character-sheet__field">
+                  <label htmlFor="sheet-hp-current">{t('pages.characterSheet.hp.current')}</label>
+                  <input id="sheet-hp-current" type="number" min={0} {...register('hp_current')} />
+                  {errors.hp_current && <p role="alert">{t('pages.characterSheet.hp.invalid')}</p>}
+                </div>
+                <div className="character-sheet__field">
+                  <label htmlFor="sheet-hp-temp">{t('pages.characterSheet.hp.temp')}</label>
+                  <input id="sheet-hp-temp" type="number" min={0} {...register('hp_temp')} />
+                  {errors.hp_temp && <p role="alert">{t('pages.characterSheet.hp.invalid')}</p>}
+                </div>
+                <div className="character-sheet__field">
+                  <span>{t('pages.characterSheet.hp.max')}</span>
+                  <output>{character.hp_max}</output>
+                </div>
+              </div>
+            </section>
+
+            <section className="character-sheet__section" aria-labelledby="sheet-notes-heading">
+              <h2 id="sheet-notes-heading">{t('pages.characterSheet.sections.notes')}</h2>
+              <div className="character-sheet__field">
+                <label htmlFor="sheet-notes">{t('pages.characterSheet.notesLabel')}</label>
+                <textarea id="sheet-notes" maxLength={2000} {...register('notes')} />
+                {errors.notes && <p role="alert">{t('pages.characterSheet.notesInvalid')}</p>}
+              </div>
+            </section>
+
+            <div className="character-sheet__save-row">
+              <button type="submit" disabled={isSubmitting}>
+                {t('pages.characterSheet.save')}
+              </button>
+              {patchMutation.isError && (
+                <p role="alert">{translateApiError(t, patchMutation.error)}</p>
+              )}
+              {patchMutation.isSuccess && submittedOnce.current && (
+                <p>{t('pages.characterSheet.saved')}</p>
+              )}
+            </div>
+          </form>
         </div>
-      </form>
+      )}
     </section>
   )
 }
