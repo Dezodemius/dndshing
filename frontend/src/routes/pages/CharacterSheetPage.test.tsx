@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import '../../i18n'
 import CharacterSheetPage from './CharacterSheetPage'
 import * as charactersApi from '../../api/characters'
+import * as contentApi from '../../api/content'
 import type { CharacterDetail } from '../../api/characters'
 
 vi.mock('../../api/characters', async () => {
@@ -16,6 +17,14 @@ vi.mock('../../api/characters', async () => {
     ...actual,
     getCharacter: vi.fn(),
     patchCharacter: vi.fn(),
+  }
+})
+
+vi.mock('../../api/content', async () => {
+  const actual = await vi.importActual<typeof import('../../api/content')>('../../api/content')
+  return {
+    ...actual,
+    listItems: vi.fn(),
   }
 })
 
@@ -76,6 +85,10 @@ const baseCharacter: CharacterDetail = {
     level_up_available: false,
     spell_slots: { '1': 2 },
   },
+  inventory: [
+    { id: 1, character_id: 1, item_id: null, custom_name: 'странный ключ', quantity: 1, equipped: false },
+  ],
+  spells: [],
 }
 
 function renderPage(character: CharacterDetail) {
@@ -95,6 +108,7 @@ function renderPage(character: CharacterDetail) {
 describe('CharacterSheetPage', () => {
   beforeEach(() => {
     vi.mocked(charactersApi.patchCharacter).mockReset()
+    vi.mocked(contentApi.listItems).mockReset().mockResolvedValue([])
   })
 
   it('renders ability modifiers, saving throws, skills and combat stats from computed', async () => {
@@ -143,5 +157,27 @@ describe('CharacterSheetPage', () => {
     await waitFor(() => {
       expect(charactersApi.patchCharacter).toHaveBeenCalledWith('1', { hp_current: 7 })
     })
+  })
+
+  it('switches to the inventory tab and shows its entries', async () => {
+    const user = userEvent.setup()
+    renderPage(baseCharacter)
+
+    await screen.findByRole('heading', { name: 'Ари' })
+    await user.click(screen.getByRole('tab', { name: 'Инвентарь' }))
+
+    expect(await screen.findByText('странный ключ')).toBeInTheDocument()
+  })
+
+  it('switches to the wallet tab and shows the three currency fields', async () => {
+    const user = userEvent.setup()
+    renderPage(baseCharacter)
+
+    await screen.findByRole('heading', { name: 'Ари' })
+    await user.click(screen.getByRole('tab', { name: 'Кошелёк' }))
+
+    expect(await screen.findByLabelText('Золото')).toBeInTheDocument()
+    expect(screen.getByLabelText('Серебро')).toBeInTheDocument()
+    expect(screen.getByLabelText('Медь')).toBeInTheDocument()
   })
 })

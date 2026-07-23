@@ -34,6 +34,15 @@ export interface ComputedBlock {
   spell_slots: Record<string, number>
 }
 
+export interface InventoryEntry {
+  id: number
+  character_id: number
+  item_id: number | null
+  custom_name: string | null
+  quantity: number
+  equipped: boolean
+}
+
 export interface CharacterDetail {
   id: number
   user_id: number
@@ -62,12 +71,28 @@ export interface CharacterDetail {
   updated_at: string
   computed: ComputedBlock
   spells: CharacterSpell[]
+  inventory: InventoryEntry[]
 }
 
 export interface CharacterPatch {
   hp_current?: number
   hp_temp?: number
   notes?: string
+  gold?: number
+  silver?: number
+  copper?: number
+}
+
+export interface InventoryEntryCreate {
+  item_id?: number
+  custom_name?: string
+  quantity?: number
+  equipped?: boolean
+}
+
+export interface InventoryEntryUpdate {
+  quantity?: number
+  equipped?: boolean
 }
 
 export function getCharacter(characterId: string): Promise<CharacterDetail> {
@@ -86,4 +111,26 @@ export function updateSpells(
   spells: CharacterSpell[],
 ): Promise<CharacterSpell[]> {
   return apiClient.put<CharacterSpell[]>(`/characters/${characterId}/spells`, { spells })
+}
+
+export function addInventoryItem(
+  characterId: string,
+  payload: InventoryEntryCreate,
+): Promise<InventoryEntry> {
+  return apiClient.post<InventoryEntry>(`/characters/${characterId}/inventory`, payload)
+}
+
+export function updateInventoryItem(
+  characterId: string,
+  entryId: number,
+  payload: InventoryEntryUpdate,
+): Promise<InventoryEntry> {
+  return apiClient.patch<InventoryEntry>(
+    `/characters/${characterId}/inventory/${entryId}`,
+    payload,
+  )
+}
+
+export function deleteInventoryItem(characterId: string, entryId: number): Promise<void> {
+  return apiClient.delete<void>(`/characters/${characterId}/inventory/${entryId}`)
 }

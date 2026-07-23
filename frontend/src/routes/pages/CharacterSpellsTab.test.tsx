@@ -117,6 +117,7 @@ const baseCharacter: CharacterDetail = {
     spell_slots: { '1': 2 },
   },
   spells: [{ spell_id: magicMissile.id, prepared: true }],
+  inventory: [],
 }
 
 function renderTab(character: CharacterDetail) {

@@ -8,9 +8,12 @@ import { z } from 'zod'
 import { getCharacter, patchCharacter, type CharacterDetail, type CharacterPatch } from '../../api/characters'
 import { translateApiError } from '../../api/errorMessages'
 import CharacterSpellsTab from './CharacterSpellsTab'
+import CharacterInventoryTab from './CharacterInventoryTab'
+import CharacterWalletTab from './CharacterWalletTab'
 import './CharacterSheetPage.css'
 
-type SheetTab = 'sheet' | 'spells'
+const TAB_ORDER = ['sheet', 'spells', 'inventory', 'wallet'] as const
+type SheetTab = (typeof TAB_ORDER)[number]
 
 const ABILITY_ORDER = ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const
 
@@ -89,8 +92,12 @@ export default function CharacterSheetPage() {
   })
 
   const submittedOnce = useRef(false)
-  const sheetTabRef = useRef<HTMLButtonElement>(null)
-  const spellsTabRef = useRef<HTMLButtonElement>(null)
+  const tabRefs = useRef<Record<SheetTab, HTMLButtonElement | null>>({
+    sheet: null,
+    spells: null,
+    inventory: null,
+    wallet: null,
+  })
 
   async function onSubmit(values: SheetFormValues) {
     const payload: CharacterPatch = {}
@@ -136,37 +143,31 @@ export default function CharacterSheetPage() {
         onKeyDown={(event) => {
           if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
           event.preventDefault()
-          const next = activeTab === 'sheet' ? 'spells' : 'sheet'
+          const currentIndex = TAB_ORDER.indexOf(activeTab)
+          const delta = event.key === 'ArrowRight' ? 1 : -1
+          const next = TAB_ORDER[(currentIndex + delta + TAB_ORDER.length) % TAB_ORDER.length]
           setActiveTab(next)
-          ;(next === 'sheet' ? sheetTabRef : spellsTabRef).current?.focus()
+          tabRefs.current[next]?.focus()
         }}
       >
-        <button
-          type="button"
-          role="tab"
-          id="character-sheet-tab-sheet"
-          ref={sheetTabRef}
-          aria-controls="character-sheet-panel-sheet"
-          aria-selected={activeTab === 'sheet'}
-          tabIndex={activeTab === 'sheet' ? 0 : -1}
-          className={`character-sheet__tab${activeTab === 'sheet' ? ' character-sheet__tab--active' : ''}`}
-          onClick={() => setActiveTab('sheet')}
-        >
-          {t('pages.characterSheet.tabs.sheet')}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="character-sheet-tab-spells"
-          ref={spellsTabRef}
-          aria-controls="character-sheet-panel-spells"
-          aria-selected={activeTab === 'spells'}
-          tabIndex={activeTab === 'spells' ? 0 : -1}
-          className={`character-sheet__tab${activeTab === 'spells' ? ' character-sheet__tab--active' : ''}`}
-          onClick={() => setActiveTab('spells')}
-        >
-          {t('pages.characterSheet.tabs.spells')}
-        </button>
+        {TAB_ORDER.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            id={`character-sheet-tab-${tab}`}
+            ref={(el) => {
+              tabRefs.current[tab] = el
+            }}
+            aria-controls={`character-sheet-panel-${tab}`}
+            aria-selected={activeTab === tab}
+            tabIndex={activeTab === tab ? 0 : -1}
+            className={`character-sheet__tab${activeTab === tab ? ' character-sheet__tab--active' : ''}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {t(`pages.characterSheet.tabs.${tab}`)}
+          </button>
+        ))}
       </div>
 
       {activeTab === 'spells' && (
@@ -311,6 +312,18 @@ export default function CharacterSheetPage() {
               )}
             </div>
           </form>
+        </div>
+      )}
+
+      {activeTab === 'inventory' && (
+        <div role="tabpanel" id="character-sheet-panel-inventory" aria-labelledby="character-sheet-tab-inventory">
+          <CharacterInventoryTab characterId={characterId as string} character={character} />
+        </div>
+      )}
+
+      {activeTab === 'wallet' && (
+        <div role="tabpanel" id="character-sheet-panel-wallet" aria-labelledby="character-sheet-tab-wallet">
+          <CharacterWalletTab characterId={characterId as string} character={character} />
         </div>
       )}
     </section>
