@@ -203,4 +203,19 @@ describe('CharacterSpellsTab', () => {
       ])
     })
   })
+
+  it('forgets a known spell via PUT with it removed from the list', async () => {
+    const user = userEvent.setup()
+    vi.mocked(contentApi.listClasses).mockResolvedValue([wizardClass, fighterClass])
+    vi.mocked(contentApi.listSpells).mockResolvedValue([magicMissile, fireball])
+    vi.mocked(charactersApi.updateSpells).mockResolvedValue([])
+
+    renderTab(baseCharacter)
+
+    await user.click(await screen.findByRole('button', { name: 'Забыть' }))
+
+    await waitFor(() => {
+      expect(charactersApi.updateSpells).toHaveBeenCalledWith('1', [])
+    })
+  })
 })
