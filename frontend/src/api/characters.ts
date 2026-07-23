@@ -16,6 +16,11 @@ export interface Proficiencies {
   tools?: string[]
 }
 
+export interface CharacterSpell {
+  spell_id: number
+  prepared: boolean
+}
+
 export interface ComputedBlock {
   prof_bonus: number
   modifiers: AbilityScores
@@ -56,6 +61,7 @@ export interface CharacterDetail {
   created_at: string
   updated_at: string
   computed: ComputedBlock
+  spells: CharacterSpell[]
 }
 
 export interface CharacterPatch {
@@ -73,4 +79,11 @@ export function patchCharacter(
   payload: CharacterPatch,
 ): Promise<CharacterDetail> {
   return apiClient.patch<CharacterDetail>(`/characters/${characterId}`, payload)
+}
+
+export function updateSpells(
+  characterId: string,
+  spells: CharacterSpell[],
+): Promise<CharacterSpell[]> {
+  return apiClient.put<CharacterSpell[]>(`/characters/${characterId}/spells`, { spells })
 }
