@@ -59,3 +59,9 @@ class SpellNotInClassListError(AppError):
     code = "spell_not_in_class_list"
     message = "Заклинание недоступно классу персонажа"
     status_code = 400
+
+
+class RollbackEmptyError(AppError):
+    code = "rollback_empty"
+    message = "История уровней пуста — откатывать нечего"
+    status_code = 400

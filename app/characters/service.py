@@ -12,6 +12,7 @@ from app.characters.errors import (
     InventoryPayloadInvalidError,
     LevelDirectEditForbiddenError,
     LevelUpNotAvailableError,
+    RollbackEmptyError,
     SpellNotInClassListError,
     SubclassWrongLevelError,
 )
@@ -223,6 +224,72 @@ class CharacterService:
         await self._db.commit()
         await self._db.refresh(record)
         return LevelUpRecordRead.model_validate(record)
+
+    async def rollback_level(self, character_id: int, user_id: int) -> CharacterDetailRead:
+        character = await self.get_owned(character_id, user_id, for_update=True)
+        record = await self._db.scalar(
+            select(LevelUpRecord)
+            .where(LevelUpRecord.character_id == character.id)
+            .order_by(LevelUpRecord.id.desc())
+            .limit(1)
+        )
+        if record is None:
+            raise RollbackEmptyError()
+
+        delta = record.delta
+        content = ContentQueryService(self._db)
+
+        asi = delta.get("asi")
+        if asi:
+            ability_scores = dict(character.ability_scores or {})
+            for ability, increase in asi.items():
+                ability_scores[ability] = ability_scores.get(ability, 10) - increase
+            character.ability_scores = ability_scores
+
+        if delta.get("subclass_chosen"):
+            character.subclass_id = None
+
+        learned_ids = await content.get_spell_ids_by_slugs(delta.get("spells_learned") or [])
+        if learned_ids:
+            await self._db.execute(
+                delete(CharacterSpell).where(
+                    CharacterSpell.character_id == character.id,
+                    CharacterSpell.spell_id.in_(learned_ids),
+                )
+            )
+
+        forgotten_ids = await content.get_spell_ids_by_slugs(delta.get("spells_forgotten") or [])
+        for spell_id in forgotten_ids:
+            self._db.add(CharacterSpell(character_id=character.id, spell_id=spell_id))
+
+        hp_gained = delta.get("hp_gained", 0)
+        character.hp_max -= hp_gained
+        character.hp_current -= hp_gained
+        character.level = record.from_level
+
+        await self._db.delete(record)
+
+        try:
+            await self._db.flush()
+        except IntegrityError as exc:
+            await self._db.rollback()
+            raise InvalidReferenceError() from exc
+        await self._db.commit()
+        await self._db.refresh(character)
+        return await self._to_detail(character)
+
+    async def get_level_history(
+        self, character_id: int, user_id: int
+    ) -> list[LevelUpRecordRead]:
+        character = await self.get_owned(character_id, user_id)
+        rows = (
+            await self._db.scalars(
+                select(LevelUpRecord)
+                .where(LevelUpRecord.character_id == character.id)
+                .order_by(LevelUpRecord.id)
+            )
+        ).all()
+        return [LevelUpRecordRead.model_validate(row) for row in rows]
 
     async def add_inventory_item(
         self, character_id: int, user_id: int, payload: InventoryEntryCreate
