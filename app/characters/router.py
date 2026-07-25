@@ -78,6 +78,26 @@ async def level_up_character(
     return await CharacterService(db).level_up(character_id, _user.id, payload)
 
 
+@router.post("/characters/{character_id}/level-rollback", response_model=CharacterDetailRead)
+async def rollback_level(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> CharacterDetailRead:
+    return await CharacterService(db).rollback_level(character_id, _user.id)
+
+
+@router.get(
+    "/characters/{character_id}/level-history", response_model=list[LevelUpRecordRead]
+)
+async def get_level_history(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> list[LevelUpRecordRead]:
+    return await CharacterService(db).get_level_history(character_id, _user.id)
+
+
 @router.post(
     "/characters/{character_id}/inventory",
     response_model=InventoryEntryRead,

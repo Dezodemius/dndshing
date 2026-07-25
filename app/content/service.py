@@ -569,6 +569,16 @@ class ContentQueryService:
         ).all()
         return [SpellRead.model_validate(row) for row in rows]
 
+    async def get_spell_ids_by_slugs(self, slugs: list[str]) -> list[int]:
+        """Resolves spell slugs back to ids (used by characters.service to reverse
+        a LevelUpRecord.delta, which stores spells_learned/spells_forgotten as slugs)."""
+        if not slugs:
+            return []
+        rows = await self._db.scalars(
+            select(Spell.id).where(Spell.slug.in_(slugs), Spell.locale == _LOCALE)
+        )
+        return list(rows.all())
+
     async def spell_ids_on_class_list(
         self, *, spell_ids: Iterable[int], class_id: int
     ) -> set[int]:
