@@ -320,6 +320,20 @@ async def test_dm_can_update_and_view_campaign_detail(
     assert get_response.json()["participants"] == []
 
 
+async def test_update_with_explicit_null_name_is_rejected(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    dm = await _player_setup(client, db_session, "dm11@example.com")
+    campaign = await _create_campaign(client, dm["headers"])
+
+    patch_response = await client.patch(
+        f"{CAMPAIGNS_URL}/{campaign['id']}",
+        json={"name": None},
+        headers=dm["headers"],
+    )
+    assert patch_response.status_code == 422, patch_response.text
+
+
 async def test_kick_available_only_to_dm(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:

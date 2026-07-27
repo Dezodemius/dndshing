@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CampaignCreate(BaseModel):
@@ -19,6 +19,13 @@ class CampaignUpdate(BaseModel):
     description: str | None = None
     next_session_at: datetime | None = None
     next_session_place: str | None = Field(default=None, max_length=200)
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_null(cls, value: str | None) -> str | None:
+        if value is None:
+            raise ValueError("name must not be null")
+        return value
 
 
 class CampaignRead(BaseModel):
