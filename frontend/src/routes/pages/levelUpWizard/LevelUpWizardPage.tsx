@@ -132,9 +132,14 @@ export default function LevelUpWizardPage() {
   ]
 
   if (record) {
+    const resultClassLevel = klass.levels.find((level) => level.level === record.to_level)
+    const resultFeaturesUnlocked = resultClassLevel?.features.items ?? []
+    const resultUnlockingSubclasses = klass.subclasses.filter(
+      (sub) => sub.unlock_level === record.to_level,
+    )
     const subclassName = record.delta.subclass_chosen
-      ? (unlockingSubclasses.find((sub) => sub.slug === record.delta.subclass_chosen)?.name ??
-        record.delta.subclass_chosen)
+      ? (resultUnlockingSubclasses.find((sub) => sub.slug === record.delta.subclass_chosen)
+          ?.name ?? record.delta.subclass_chosen)
       : null
 
     return (
@@ -144,10 +149,10 @@ export default function LevelUpWizardPage() {
         </h1>
         <ul>
           <li>{t('pages.levelUp.result.hp', { value: record.delta.hp_gained })}</li>
-          {featuresUnlocked.length > 0 && (
+          {resultFeaturesUnlocked.length > 0 && (
             <li>
               {t('pages.levelUp.result.features', {
-                names: featuresUnlocked.map((feature) => feature.name).join(', '),
+                names: resultFeaturesUnlocked.map((feature) => feature.name).join(', '),
               })}
             </li>
           )}

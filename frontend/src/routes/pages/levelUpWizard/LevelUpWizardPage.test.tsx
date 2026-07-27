@@ -233,6 +233,54 @@ describe('LevelUpWizardPage', () => {
     })
   })
 
+  it('anchors the result screen to record.to_level even after the post-submit character refetch bumps the level', async () => {
+    const user = userEvent.setup()
+    // The mutation invalidates the character query on success, and the backend has
+    // already applied the level-up by then, so the refetch comes back one level higher.
+    vi.mocked(charactersApi.getCharacter)
+      .mockReset()
+      .mockResolvedValueOnce(makeCharacter({ level: 2 }))
+      .mockResolvedValue(makeCharacter({ level: 3 }))
+
+    const record: LevelUpRecord = {
+      id: 4,
+      character_id: 1,
+      from_level: 2,
+      to_level: 3,
+      delta: {
+        hp_gained: 7,
+        hp_method: 'average',
+        asi: null,
+        feat: null,
+        subclass_chosen: 'champion',
+        features_unlocked: ['items'],
+        spells_learned: [],
+        spells_forgotten: [],
+      },
+      created_at: '2026-01-01T00:00:00Z',
+    }
+    vi.mocked(charactersApi.postLevelUp).mockResolvedValue(record)
+
+    renderWizard()
+
+    await screen.findByRole('heading', { name: 'Уровень 2 → 3' })
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+    await screen.findByRole('heading', { name: 'Улучшение характеристик или черта' })
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+    await screen.findByRole('heading', { name: 'Выберите подкласс' })
+    await user.click(screen.getByRole('radio', { name: 'Чемпион' }))
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+    await screen.findByRole('heading', { name: 'Подтверждение' })
+    await user.click(screen.getByRole('button', { name: 'Подтвердить прокачку' }))
+
+    expect(await screen.findByRole('heading', { name: 'Уровень 3 достигнут!' })).toBeInTheDocument()
+    // Naively deriving from the (now-refetched) character.level would look at level 4,
+    // which doesn't exist for this class, or would fall back to the raw subclass slug.
+    expect(screen.getByText('Новые фичи: Боевой архетип')).toBeInTheDocument()
+    expect(screen.getByText('Подкласс: Чемпион')).toBeInTheDocument()
+    expect(screen.queryByText('Подкласс: champion')).not.toBeInTheDocument()
+  })
+
   it('skips the subclass and spells steps when the level does not unlock them', async () => {
     const user = userEvent.setup()
     vi.mocked(charactersApi.getCharacter).mockResolvedValue(makeCharacter({ level: 1, xp: 300 }))
