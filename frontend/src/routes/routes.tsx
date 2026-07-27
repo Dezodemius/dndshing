@@ -9,6 +9,7 @@ import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import DashboardPage from './pages/DashboardPage'
 import CharacterSheetPage from './pages/CharacterSheetPage'
 import CharacterWizardPage from './pages/characterWizard/CharacterWizardPage'
+import LevelUpWizardPage from './pages/levelUpWizard/LevelUpWizardPage'
 import StubPage from './pages/StubPage'
 import NotFoundPage from './pages/NotFoundPage'
 
@@ -31,7 +32,7 @@ export const router = createBrowserRouter([
           { path: 'characters/:characterId', element: <CharacterSheetPage /> },
           {
             path: 'characters/:characterId/level-up',
-            element: <StubPage titleKey="pages.levelUp.title" />,
+            element: <LevelUpWizardPage />,
           },
           { path: 'campaigns/join', element: <StubPage titleKey="pages.campaignJoin.title" /> },
           { path: 'campaigns/:campaignId', element: <StubPage titleKey="pages.campaign.title" /> },
