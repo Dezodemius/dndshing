@@ -121,6 +121,7 @@ export default function LevelUpWizardPage() {
 
   const featuresUnlocked = classLevel?.features.items ?? []
   const unlockingSubclasses = klass.subclasses.filter((sub) => sub.unlock_level === toLevel)
+  const spellBySlug = new Map((spellsQuery.data ?? []).map((spell) => [spell.slug, spell]))
 
   const steps: LevelUpStep[] = [
     'hp',
@@ -143,17 +144,21 @@ export default function LevelUpWizardPage() {
         </h1>
         <ul>
           <li>{t('pages.levelUp.result.hp', { value: record.delta.hp_gained })}</li>
-          {record.delta.features_unlocked.length > 0 && (
+          {featuresUnlocked.length > 0 && (
             <li>
               {t('pages.levelUp.result.features', {
-                names: record.delta.features_unlocked.join(', '),
+                names: featuresUnlocked.map((feature) => feature.name).join(', '),
               })}
             </li>
           )}
           {subclassName && <li>{t('pages.levelUp.result.subclass', { name: subclassName })}</li>}
           {record.delta.spells_learned.length > 0 && (
             <li>
-              {t('pages.levelUp.result.spells', { names: record.delta.spells_learned.join(', ') })}
+              {t('pages.levelUp.result.spells', {
+                names: record.delta.spells_learned
+                  .map((slug) => spellBySlug.get(slug)?.name ?? slug)
+                  .join(', '),
+              })}
             </li>
           )}
         </ul>
