@@ -1,6 +1,7 @@
 import secrets
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.campaigns.errors import (
@@ -142,7 +143,11 @@ class CampaignService:
             raise AlreadyJoinedError()
 
         self._db.add(CampaignCharacter(campaign_id=campaign.id, character_id=character.id))
-        await self._db.commit()
+        try:
+            await self._db.commit()
+        except IntegrityError as exc:
+            await self._db.rollback()
+            raise AlreadyJoinedError() from exc
         return CampaignPlayerRead.model_validate(campaign)
 
     async def remove_character(
