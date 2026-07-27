@@ -95,6 +95,33 @@ export interface InventoryEntryUpdate {
   equipped?: boolean
 }
 
+export interface LevelUpRequest {
+  hp_method: 'average' | 'rolled'
+  hp_rolled?: number
+  asi?: Partial<AbilityScores>
+  feat?: string
+  subclass_id?: number
+  spells_learned: number[]
+}
+
+export interface LevelUpRecord {
+  id: number
+  character_id: number
+  from_level: number
+  to_level: number
+  delta: {
+    hp_gained: number
+    hp_method: 'average' | 'rolled'
+    asi: Partial<AbilityScores> | null
+    feat: string | null
+    subclass_chosen: string | null
+    features_unlocked: string[]
+    spells_learned: string[]
+    spells_forgotten: string[]
+  }
+  created_at: string
+}
+
 export function getCharacter(characterId: string): Promise<CharacterDetail> {
   return apiClient.get<CharacterDetail>(`/characters/${characterId}`)
 }
@@ -133,4 +160,11 @@ export function updateInventoryItem(
 
 export function deleteInventoryItem(characterId: string, entryId: number): Promise<void> {
   return apiClient.delete<void>(`/characters/${characterId}/inventory/${entryId}`)
+}
+
+export function postLevelUp(
+  characterId: string,
+  payload: LevelUpRequest,
+): Promise<LevelUpRecord> {
+  return apiClient.post<LevelUpRecord>(`/characters/${characterId}/level-up`, payload)
 }

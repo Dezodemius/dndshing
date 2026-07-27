@@ -40,6 +40,7 @@ const klass: ClassSummary = {
   primary_ability: 'strength',
   data: { saving_throws: ['strength', 'constitution'] },
   levels: [{ level: 1, features: { items: [{ name: 'Боевой стиль', description: '...' }] } }],
+  subclasses: [],
 }
 
 const background: BackgroundSummary = {
