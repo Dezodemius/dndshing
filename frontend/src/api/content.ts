@@ -57,6 +57,16 @@ export interface ClassLevelSummary {
   spell_slots: Record<string, unknown> | null
 }
 
+export interface SubclassSummary {
+  id: number
+  class_id: number
+  slug: string
+  locale: string
+  name: string
+  unlock_level: number
+  data: Record<string, unknown>
+}
+
 export interface ClassSummary {
   id: number
   slug: string
@@ -70,6 +80,7 @@ export interface ClassSummary {
     weapon_proficiencies?: string[]
   }
   levels: ClassLevelSummary[]
+  subclasses: SubclassSummary[]
 }
 
 export interface BackgroundSummary {

@@ -35,6 +35,7 @@ const wizardClass: ClassSummary = {
   primary_ability: 'int',
   data: {},
   levels: [{ id: 1, class_id: 1, level: 1, features: {}, spell_slots: { '1': 2 } }],
+  subclasses: [],
 }
 
 const fighterClass: ClassSummary = {
@@ -46,6 +47,7 @@ const fighterClass: ClassSummary = {
   primary_ability: 'str',
   data: {},
   levels: [{ id: 2, class_id: 2, level: 1, features: {}, spell_slots: null }],
+  subclasses: [],
 }
 
 const magicMissile: Spell = {
