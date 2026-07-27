@@ -150,12 +150,24 @@ jobs:
           # Фильтр по списку меток, а не через --search: поисковый индекс GitHub
           # отстаёт на секунды-минуты, и прогон, стартовавший сразу за прошлым,
           # увидел бы старые метки и взял ту же задачу второй раз.
-          picked=$(gh issue list --label agent-ready --state open --limit 100 \
+          candidates=$(gh issue list --label agent-ready --state open --limit 100 \
                     --json number,title,labels \
                     --jq '[ .[] | select([.labels[].name]
                               | any(. == "in-progress" or . == "in-review" or . == "agent-deferred")
-                              | not) ]
-                          | sort_by(.title) | .[0].number // empty')
+                              | not) ]')
+
+          # Баги — вперёд очереди. Заголовки багов не следуют конвенции
+          # DND-NNN (sort_by(.title) на них не рассчитан), поэтому это
+          # отдельный проход: среди agent-ready с меткой `bug` берём самый
+          # старый (FIFO по номеру ишью — кто раньше заведён, тот и чинится
+          # первым). Только если багов нет — падаем на обычную очередь
+          # бэклога, как раньше.
+          picked=$(printf '%s' "$candidates" \
+                    | jq '[ .[] | select([.labels[].name] | any(. == "bug")) ]
+                          | sort_by(.number) | .[0].number // empty')
+          if [ -z "$picked" ]; then
+            picked=$(printf '%s' "$candidates" | jq 'sort_by(.title) | .[0].number // empty')
+          fi
           if [ -z "$picked" ]; then
             echo "Свободных agent-ready задач нет."
           else
