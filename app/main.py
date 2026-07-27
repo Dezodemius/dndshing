@@ -5,6 +5,7 @@ from app.characters.router import router as characters_router
 from app.content.router import router as content_router
 from app.core.errors import register_exception_handlers
 from app.core.router import router as core_router
+from app.merchants.router import router as merchants_router
 
 app = FastAPI(title="D&D Campaign Platform API")
 register_exception_handlers(app)
@@ -12,3 +13,4 @@ app.include_router(core_router)
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(content_router, prefix="/api/v1")
 app.include_router(characters_router, prefix="/api/v1")
+app.include_router(merchants_router, prefix="/api/v1")
