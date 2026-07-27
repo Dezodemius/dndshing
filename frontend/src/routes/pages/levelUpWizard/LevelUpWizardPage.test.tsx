@@ -9,7 +9,7 @@ import * as charactersApi from '../../../api/characters'
 import * as contentApi from '../../../api/content'
 import { ApiError } from '../../../api/client'
 import type { CharacterDetail, LevelUpRecord } from '../../../api/characters'
-import type { ClassSummary } from '../../../api/content'
+import type { ClassSummary, Spell } from '../../../api/content'
 
 vi.mock('../../../api/characters', async () => {
   const actual = await vi.importActual<typeof import('../../../api/characters')>(
@@ -68,6 +68,43 @@ const fighterClass: ClassSummary = {
       data: {},
     },
   ],
+}
+
+const wizardClass: ClassSummary = {
+  id: 2,
+  slug: 'wizard',
+  locale: 'ru',
+  name: 'Волшебник',
+  hit_die: 6,
+  primary_ability: 'int',
+  data: {},
+  levels: [
+    { id: 4, class_id: 2, level: 1, features: { items: [] }, spell_slots: null },
+    { id: 5, class_id: 2, level: 2, features: { items: [] }, spell_slots: null },
+    {
+      id: 6,
+      class_id: 2,
+      level: 3,
+      features: { items: [{ name: 'Тайное восстановление', description: 'Восстановление ячейки.' }] },
+      spell_slots: { '1': 4, '2': 2 },
+    },
+  ],
+  subclasses: [],
+}
+
+const magicMissile: Spell = {
+  id: 100,
+  slug: 'magic-missile',
+  locale: 'ru',
+  name: 'Волшебная стрела',
+  level: 1,
+  school: 'evocation',
+  casting_time: '1 действие',
+  range: '36 метров',
+  components: 'В, С',
+  duration: 'Мгновенная',
+  description: 'Три светящихся снаряда.',
+  data: {},
 }
 
 function makeCharacter(overrides: Partial<CharacterDetail> = {}): CharacterDetail {
@@ -150,7 +187,7 @@ describe('LevelUpWizardPage', () => {
         asi: null,
         feat: null,
         subclass_chosen: 'champion',
-        features_unlocked: ['Боевой архетип'],
+        features_unlocked: ['items'],
         spells_learned: [],
         spells_forgotten: [],
       },
@@ -184,6 +221,10 @@ describe('LevelUpWizardPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Уровень 3 достигнут!' })).toBeInTheDocument()
     expect(screen.getByText('Хиты: +7')).toBeInTheDocument()
+    // The API delta only carries feature dict keys ("items"); the human-readable
+    // name must come from the class-level data already loaded on the page.
+    expect(screen.getByText('Новые фичи: Боевой архетип')).toBeInTheDocument()
+    expect(screen.queryByText('Новые фичи: items')).not.toBeInTheDocument()
     expect(screen.getByText('Подкласс: Чемпион')).toBeInTheDocument()
     expect(vi.mocked(charactersApi.postLevelUp)).toHaveBeenCalledWith('1', {
       hp_method: 'average',
@@ -219,6 +260,137 @@ describe('LevelUpWizardPage', () => {
     await user.click(screen.getByRole('radio', { name: 'Улучшение характеристик' }))
     expect(screen.queryByLabelText('Название черты')).not.toBeInTheDocument()
     expect(screen.getByText('Распределите 2 очка между характеристиками.')).toBeInTheDocument()
+  })
+
+  it('validates the rolled HP range and sends it in the payload', async () => {
+    const user = userEvent.setup()
+    const record: LevelUpRecord = {
+      id: 2,
+      character_id: 1,
+      from_level: 2,
+      to_level: 3,
+      delta: {
+        hp_gained: 5,
+        hp_method: 'rolled',
+        asi: null,
+        feat: null,
+        subclass_chosen: 'champion',
+        features_unlocked: ['items'],
+        spells_learned: [],
+        spells_forgotten: [],
+      },
+      created_at: '2026-01-01T00:00:00Z',
+    }
+    vi.mocked(charactersApi.postLevelUp).mockResolvedValue(record)
+
+    renderWizard()
+
+    await screen.findByRole('heading', { name: 'Уровень 2 → 3' })
+    await user.click(screen.getByRole('radio', { name: 'Бросок кости' }))
+    const rolledInput = screen.getByLabelText('Результат броска (1–10)')
+
+    await user.type(rolledInput, '0')
+    expect(screen.getByRole('alert')).toHaveTextContent('Введите число от 1 до 10')
+    expect(screen.getByRole('button', { name: 'Далее' })).toBeDisabled()
+
+    await user.clear(rolledInput)
+    await user.type(rolledInput, '5')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+
+    await screen.findByRole('heading', { name: 'Улучшение характеристик или черта' })
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+
+    await screen.findByRole('heading', { name: 'Выберите подкласс' })
+    await user.click(screen.getByRole('radio', { name: 'Чемпион' }))
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+
+    await screen.findByRole('heading', { name: 'Подтверждение' })
+    await user.click(screen.getByRole('button', { name: 'Подтвердить прокачку' }))
+
+    expect(vi.mocked(charactersApi.postLevelUp)).toHaveBeenCalledWith('1', {
+      hp_method: 'rolled',
+      hp_rolled: 5,
+      spells_learned: [],
+      subclass_id: 10,
+    })
+  })
+
+  it('distributes ASI points and sends them in the payload', async () => {
+    const user = userEvent.setup()
+    vi.mocked(contentApi.listClasses).mockResolvedValue([wizardClass])
+    vi.mocked(charactersApi.getCharacter).mockResolvedValue(makeCharacter({ class_id: 2 }))
+
+    renderWizard()
+
+    await user.click(await screen.findByRole('button', { name: 'Далее' }))
+    await screen.findByRole('heading', { name: 'Улучшение характеристик или черта' })
+    await user.click(screen.getByRole('radio', { name: 'Улучшение характеристик' }))
+    await user.click(screen.getByRole('button', { name: '+1 Интеллект' }))
+    await user.click(screen.getByRole('button', { name: '+1 Телосложение' }))
+    // The ASI cap is 2 points total — further increases must stay disabled.
+    expect(screen.getByRole('button', { name: '+1 Мудрость' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+
+    await screen.findByRole('heading', { name: 'Новые заклинания' })
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+
+    await screen.findByRole('heading', { name: 'Подтверждение' })
+    await user.click(screen.getByRole('button', { name: 'Подтвердить прокачку' }))
+
+    expect(vi.mocked(charactersApi.postLevelUp)).toHaveBeenCalledWith('1', {
+      hp_method: 'average',
+      spells_learned: [],
+      asi: { int: 1, con: 1 },
+    })
+  })
+
+  it('sends selected spell ids in the payload and shows real names on the result screen', async () => {
+    const user = userEvent.setup()
+    vi.mocked(contentApi.listClasses).mockResolvedValue([wizardClass])
+    vi.mocked(contentApi.listSpells).mockResolvedValue([magicMissile])
+    vi.mocked(charactersApi.getCharacter).mockResolvedValue(makeCharacter({ class_id: 2 }))
+    const record: LevelUpRecord = {
+      id: 3,
+      character_id: 1,
+      from_level: 2,
+      to_level: 3,
+      delta: {
+        hp_gained: 4,
+        hp_method: 'average',
+        asi: null,
+        feat: null,
+        subclass_chosen: null,
+        features_unlocked: [],
+        // The backend returns spell slugs, not display names.
+        spells_learned: ['magic-missile'],
+        spells_forgotten: [],
+      },
+      created_at: '2026-01-01T00:00:00Z',
+    }
+    vi.mocked(charactersApi.postLevelUp).mockResolvedValue(record)
+
+    renderWizard()
+
+    await user.click(await screen.findByRole('button', { name: 'Далее' }))
+    await screen.findByRole('heading', { name: 'Улучшение характеристик или черта' })
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+
+    await screen.findByRole('heading', { name: 'Новые заклинания' })
+    await user.click(screen.getByRole('checkbox', { name: 'Волшебная стрела' }))
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+
+    await screen.findByRole('heading', { name: 'Подтверждение' })
+    await user.click(screen.getByRole('button', { name: 'Подтвердить прокачку' }))
+
+    expect(vi.mocked(charactersApi.postLevelUp)).toHaveBeenCalledWith('1', {
+      hp_method: 'average',
+      spells_learned: [100],
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Уровень 3 достигнут!' })).toBeInTheDocument()
+    expect(screen.getByText('Выучено заклинаний: Волшебная стрела')).toBeInTheDocument()
+    expect(screen.queryByText('Выучено заклинаний: magic-missile')).not.toBeInTheDocument()
   })
 
   it('shows a human-readable error when the confirm submission fails', async () => {
