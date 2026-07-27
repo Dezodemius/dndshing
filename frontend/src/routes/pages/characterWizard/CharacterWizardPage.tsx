@@ -3,15 +3,31 @@ import { useTranslation } from 'react-i18next'
 import RaceStep from './RaceStep'
 import ClassStep from './ClassStep'
 import BackgroundStep from './BackgroundStep'
+import AbilityScoreStep from './AbilityScoreStep'
+import DetailsStep from './DetailsStep'
+import PreviewStep from './PreviewStep'
+import { POINT_BUY_DEFAULT_SCORES } from './abilityRules'
 import { WIZARD_STEPS, type WizardSelection, type WizardStep } from './types'
 import './characterWizard.css'
 
-const INITIAL_SELECTION: WizardSelection = { race: null, klass: null, background: null }
+const INITIAL_SELECTION: WizardSelection = {
+  race: null,
+  klass: null,
+  background: null,
+  abilityMethod: 'point-buy',
+  abilityScores: POINT_BUY_DEFAULT_SCORES,
+  name: '',
+  alignment: '',
+  appearance: '',
+  backstory: '',
+}
 
 function canGoNext(step: WizardStep, selection: WizardSelection): boolean {
   if (step === 'race') return selection.race !== null
   if (step === 'class') return selection.klass !== null
-  return true
+  if (step === 'background') return true
+  if (step === 'abilities') return selection.abilityScores !== null
+  return selection.name.trim() !== '' && selection.alignment !== ''
 }
 
 export default function CharacterWizardPage() {
@@ -69,21 +85,27 @@ export default function CharacterWizardPage() {
         />
       )}
 
-      {isSummary && (
-        <section aria-labelledby="wizard-summary-heading">
-          <h2 id="wizard-summary-heading">{t('pages.characterNew.summary.heading')}</h2>
-          <ul className="character-wizard__summary-list">
-            <li>{t('pages.characterNew.summary.race', { name: selection.race?.name })}</li>
-            <li>{t('pages.characterNew.summary.class', { name: selection.klass?.name })}</li>
-            <li>
-              {selection.background
-                ? t('pages.characterNew.summary.background', { name: selection.background.name })
-                : t('pages.characterNew.summary.backgroundNone')}
-            </li>
-          </ul>
-          <p>{t('pages.characterNew.summary.note')}</p>
-        </section>
+      {currentStep === 'abilities' && (
+        <AbilityScoreStep
+          method={selection.abilityMethod}
+          scores={selection.abilityScores}
+          onChange={(abilityMethod, abilityScores) =>
+            setSelection((current) => ({ ...current, abilityMethod, abilityScores }))
+          }
+        />
       )}
+
+      {currentStep === 'details' && (
+        <DetailsStep
+          name={selection.name}
+          alignment={selection.alignment}
+          appearance={selection.appearance}
+          backstory={selection.backstory}
+          onChange={(patch) => setSelection((current) => ({ ...current, ...patch }))}
+        />
+      )}
+
+      {isSummary && <PreviewStep selection={selection} />}
 
       <div className="character-wizard__nav">
         {stepIndex > 0 && (
