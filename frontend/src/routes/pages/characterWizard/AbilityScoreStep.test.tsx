@@ -56,8 +56,10 @@ describe('AbilityScoreStep', () => {
     const dexSelect = screen.getByLabelText('Ловкость') as HTMLSelectElement
 
     await user.selectOptions(strSelect, '15')
-    const dexOptions = Array.from(dexSelect.options).map((option) => option.value)
-    expect(dexOptions).not.toContain('15')
+    // Options are keyed by pool slot index, not score value, so the used slot
+    // must be checked by its visible label (the score) rather than its value.
+    const dexOptionLabels = Array.from(dexSelect.options).map((option) => option.textContent)
+    expect(dexOptionLabels).not.toContain('15')
   })
 
   it('roll method shows a reroll button and six assignable slots', () => {
