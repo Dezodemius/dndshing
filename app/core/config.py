@@ -62,6 +62,15 @@ class Settings(BaseSettings):
     mailru_client_secret: str | None = None
     mailru_redirect_uri: str | None = None
 
+    @property
+    def cors_allow_origins(self) -> list[str]:
+        origins = [self.frontend_base_url]
+        if self.app_env == "local":
+            for origin in ("http://localhost:5173", "http://127.0.0.1:5173"):
+                if origin not in origins:
+                    origins.append(origin)
+        return origins
+
 
 @lru_cache
 def get_settings() -> Settings:
