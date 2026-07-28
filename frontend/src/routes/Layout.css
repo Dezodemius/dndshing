@@ -1,0 +1,57 @@
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.app-header__brand {
+  color: var(--color-text);
+  font-size: 18px;
+}
+
+.app-header__nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.app-header__link {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.app-header__link:hover {
+  color: var(--color-text);
+  background: rgb(var(--color-accent-rgb) / 0.12);
+}
+
+.app-header__link.active {
+  color: var(--color-bg);
+  background: var(--color-accent);
+}
+
+.app-header__logout {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.app-header__logout:hover {
+  color: var(--color-text);
+  border-color: var(--color-accent);
+}

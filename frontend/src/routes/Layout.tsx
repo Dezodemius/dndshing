@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../auth/AuthContext'
+import './Layout.css'
 
 const NAV_ITEMS = [
   { to: '/', labelKey: 'nav.landing' },
@@ -22,16 +23,21 @@ export default function Layout() {
 
   return (
     <>
-      <header>
-        <strong>{t('app.title')}</strong>
-        <nav>
+      <header className="app-header">
+        <strong className="app-header__brand">{t('app.title')}</strong>
+        <nav className="app-header__nav">
           {NAV_ITEMS.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.to === '/'}>
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              className="app-header__link"
+            >
               {t(item.labelKey)}
             </NavLink>
           ))}
           {status === 'authenticated' && (
-            <button type="button" onClick={handleLogout}>
+            <button type="button" className="app-header__logout" onClick={handleLogout}>
               {t('nav.logout')}
             </button>
           )}
