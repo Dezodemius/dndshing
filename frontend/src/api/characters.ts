@@ -168,3 +168,11 @@ export function postLevelUp(
 ): Promise<LevelUpRecord> {
   return apiClient.post<LevelUpRecord>(`/characters/${characterId}/level-up`, payload)
 }
+
+export function getLevelHistory(characterId: string): Promise<LevelUpRecord[]> {
+  return apiClient.get<LevelUpRecord[]>(`/characters/${characterId}/level-history`)
+}
+
+export function postLevelRollback(characterId: string): Promise<CharacterDetail> {
+  return apiClient.post<CharacterDetail>(`/characters/${characterId}/level-rollback`)
+}

@@ -10,9 +10,10 @@ import { translateApiError } from '../../api/errorMessages'
 import CharacterSpellsTab from './CharacterSpellsTab'
 import CharacterInventoryTab from './CharacterInventoryTab'
 import CharacterWalletTab from './CharacterWalletTab'
+import CharacterHistoryTab from './CharacterHistoryTab'
 import './CharacterSheetPage.css'
 
-const TAB_ORDER = ['sheet', 'spells', 'inventory', 'wallet'] as const
+const TAB_ORDER = ['sheet', 'spells', 'inventory', 'wallet', 'history'] as const
 type SheetTab = (typeof TAB_ORDER)[number]
 
 const ABILITY_ORDER = ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const
@@ -97,6 +98,7 @@ export default function CharacterSheetPage() {
     spells: null,
     inventory: null,
     wallet: null,
+    history: null,
   })
 
   async function onSubmit(values: SheetFormValues) {
@@ -324,6 +326,12 @@ export default function CharacterSheetPage() {
       {activeTab === 'wallet' && (
         <div role="tabpanel" id="character-sheet-panel-wallet" aria-labelledby="character-sheet-tab-wallet">
           <CharacterWalletTab characterId={characterId as string} character={character} />
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div role="tabpanel" id="character-sheet-panel-history" aria-labelledby="character-sheet-tab-history">
+          <CharacterHistoryTab characterId={characterId as string} character={character} />
         </div>
       )}
     </section>

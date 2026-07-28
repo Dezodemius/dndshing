@@ -16,6 +16,7 @@ const ERROR_KEYS: Record<string, string> = {
   asi_feat_conflict: 'errors.asiFeatConflict',
   subclass_wrong_level: 'errors.subclassWrongLevel',
   invalid_hp_roll: 'errors.invalidHpRoll',
+  rollback_empty: 'errors.rollbackEmpty',
 }
 
 export function translateApiError(t: TFunction, error: unknown): string {
