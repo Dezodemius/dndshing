@@ -23,3 +23,9 @@ class CampaignCharacterNotFoundError(AppError):
     code = "campaign_character_not_found"
     message = "Персонаж не состоит в этой кампании"
     status_code = 404
+
+
+class CampaignDmAccessRequiredError(AppError):
+    code = "campaign_dm_access_required"
+    message = "Доступ только для мастера этой кампании"
+    status_code = 403

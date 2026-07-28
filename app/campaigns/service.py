@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.campaigns.errors import (
     AlreadyJoinedError,
     CampaignCharacterNotFoundError,
+    CampaignDmAccessRequiredError,
     CampaignNotFoundError,
     InviteCodeInvalidError,
 )
@@ -21,6 +22,7 @@ from app.campaigns.schemas import (
     CampaignsMineRead,
     CampaignUpdate,
 )
+from app.characters.schemas import CharacterDetailRead
 from app.characters.service import CharacterService
 from app.core.errors import AppError
 
@@ -172,6 +174,23 @@ class CampaignService:
 
         await self._db.delete(membership)
         await self._db.commit()
+
+    async def get_character_for_dm(
+        self, campaign_id: int, character_id: int, user_id: int
+    ) -> CharacterDetailRead:
+        campaign = await self._db.get(Campaign, campaign_id)
+        if campaign is None:
+            raise CampaignNotFoundError()
+        if campaign.dm_user_id != user_id:
+            raise CampaignDmAccessRequiredError()
+
+        membership = await self._db.get(
+            CampaignCharacter, {"campaign_id": campaign_id, "character_id": character_id}
+        )
+        if membership is None:
+            raise CampaignCharacterNotFoundError()
+
+        return await CharacterService(self._db).get_detail_by_id(character_id)
 
     async def _generate_unique_invite_code(self) -> str:
         for _ in range(_INVITE_CODE_MAX_ATTEMPTS):

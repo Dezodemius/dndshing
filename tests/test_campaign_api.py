@@ -397,6 +397,89 @@ async def test_player_can_leave_campaign_with_own_character(
     assert detail.json()["participants"] == []
 
 
+async def test_dm_can_view_joined_character_full_sheet(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    dm = await _player_setup(client, db_session, "dm13@example.com")
+    campaign = await _create_campaign(client, dm["headers"])
+
+    player = await _second_player_setup(client, db_session, "player13@example.com")
+    character_id = await _create_character(client, player)
+    await client.post(
+        f"{CAMPAIGNS_URL}/join",
+        json={"invite_code": campaign["invite_code"], "character_id": character_id},
+        headers=player["headers"],
+    )
+
+    response = await client.get(
+        f"{CAMPAIGNS_URL}/{campaign['id']}/characters/{character_id}",
+        headers=dm["headers"],
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["id"] == character_id
+    assert "computed" in body
+    assert "ac" in body["computed"]
+
+
+async def test_view_character_forbidden_for_non_dm(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    dm = await _player_setup(client, db_session, "dm14@example.com")
+    campaign = await _create_campaign(client, dm["headers"])
+
+    player = await _second_player_setup(client, db_session, "player14@example.com")
+    character_id = await _create_character(client, player)
+    await client.post(
+        f"{CAMPAIGNS_URL}/join",
+        json={"invite_code": campaign["invite_code"], "character_id": character_id},
+        headers=player["headers"],
+    )
+
+    stranger = await _second_player_setup(client, db_session, "stranger14@example.com")
+    response = await client.get(
+        f"{CAMPAIGNS_URL}/{campaign['id']}/characters/{character_id}",
+        headers=stranger["headers"],
+    )
+
+    assert response.status_code == 403, response.text
+    assert response.json()["error"]["code"] == "campaign_dm_access_required"
+
+
+async def test_view_character_outside_campaign_is_not_found(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    dm = await _player_setup(client, db_session, "dm15@example.com")
+    campaign = await _create_campaign(client, dm["headers"])
+
+    player = await _second_player_setup(client, db_session, "player15@example.com")
+    character_id = await _create_character(client, player)
+
+    response = await client.get(
+        f"{CAMPAIGNS_URL}/{campaign['id']}/characters/{character_id}",
+        headers=dm["headers"],
+    )
+
+    assert response.status_code == 404, response.text
+    assert response.json()["error"]["code"] == "campaign_character_not_found"
+
+
+async def test_view_character_unknown_campaign_is_not_found(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    player = await _player_setup(client, db_session, "player16@example.com")
+    character_id = await _create_character(client, player)
+
+    response = await client.get(
+        f"{CAMPAIGNS_URL}/999999/characters/{character_id}",
+        headers=player["headers"],
+    )
+
+    assert response.status_code == 404, response.text
+    assert response.json()["error"]["code"] == "campaign_not_found"
+
+
 async def test_kick_unknown_membership_returns_not_found(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:

@@ -103,6 +103,14 @@ class CharacterService:
         character = await self.get_owned(character_id, user_id)
         return await self._to_detail(character)
 
+    async def get_detail_by_id(self, character_id: int) -> CharacterDetailRead:
+        """Full detail without an ownership check — the caller (campaigns
+        service, for the DM read-only view) must already have verified access."""
+        character = await self._db.get(Character, character_id)
+        if character is None:
+            raise CharacterNotFoundError()
+        return await self._to_detail(character)
+
     async def update(
         self, character_id: int, user_id: int, payload: CharacterUpdate
     ) -> CharacterDetailRead:
