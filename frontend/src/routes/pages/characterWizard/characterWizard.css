@@ -98,6 +98,69 @@
   gap: var(--space-2);
 }
 
+.character-wizard__method-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-right: var(--space-3);
+}
+
+.character-wizard__ability-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.character-wizard__ability-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.character-wizard__ability-name {
+  flex: 1;
+}
+
+.character-wizard__ability-value {
+  min-width: 2em;
+  text-align: center;
+  font-weight: 700;
+}
+
+.character-wizard__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+
+.character-wizard__field label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.character-wizard__field input,
+.character-wizard__field select,
+.character-wizard__field textarea {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  padding: var(--space-2);
+  font-size: 1.1rem;
+}
+
+.character-wizard__field textarea {
+  min-height: 6rem;
+  resize: vertical;
+  font-size: 1rem;
+}
+
 @media (min-width: 640px) {
   .content-card-grid {
     grid-template-columns: repeat(2, 1fr);

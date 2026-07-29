@@ -187,7 +187,9 @@
       "steps": {
         "race": "Раса",
         "class": "Класс",
-        "background": "Предыстория"
+        "background": "Предыстория",
+        "abilities": "Характеристики",
+        "details": "Детали"
       },
       "back": "Назад",
       "next": "Далее",
@@ -211,13 +213,67 @@
         "empty": "Предыстории ещё не загружены. Этот шаг можно пропустить.",
         "skills": "Владения навыками: {{skills}}"
       },
+      "abilities": {
+        "heading": "Определите характеристики",
+        "methods": {
+          "pointBuy": "Покупка очков",
+          "standardArray": "Стандартный массив",
+          "roll": "Броски 4к6",
+          "manual": "Вручную"
+        },
+        "pointBuy": {
+          "budget": "Осталось очков: {{value}} из {{max}}",
+          "increase": "Увеличить {{ability}}",
+          "decrease": "Уменьшить {{ability}}"
+        },
+        "assign": {
+          "placeholder": "— выбрать —",
+          "reroll": "Бросить кости заново"
+        },
+        "manual": {
+          "hint": "Введите значение от 1 до 30 для каждой характеристики."
+        }
+      },
+      "details": {
+        "heading": "Детали персонажа",
+        "name": "Имя",
+        "namePlaceholder": "Как зовут персонажа?",
+        "alignment": "Мировоззрение",
+        "alignmentPlaceholder": "Выберите мировоззрение",
+        "alignments": {
+          "lawful-good": "Законно-добрый",
+          "neutral-good": "Нейтрально-добрый",
+          "chaotic-good": "Хаотично-добрый",
+          "lawful-neutral": "Законно-нейтральный",
+          "true-neutral": "Нейтральный",
+          "chaotic-neutral": "Хаотично-нейтральный",
+          "lawful-evil": "Законно-злой",
+          "neutral-evil": "Нейтрально-злой",
+          "chaotic-evil": "Хаотично-злой"
+        },
+        "appearance": "Внешность",
+        "appearancePlaceholder": "Как выглядит персонаж?",
+        "backstory": "Предыстория",
+        "backstoryPlaceholder": "История персонажа"
+      },
+      "preview": {
+        "heading": "Проверьте персонажа",
+        "submit": "Создать персонажа",
+        "submitting": "Создаём…",
+        "success": "Персонаж создан!",
+        "goToSheet": "Перейти к листу",
+        "computed": {
+          "hp": "Хиты: {{value}}",
+          "ac": "КД: {{value}}",
+          "initiative": "Инициатива: {{value}}"
+        }
+      },
       "summary": {
         "heading": "Выбор сохранён",
         "race": "Раса: {{name}}",
         "class": "Класс: {{name}}",
         "background": "Предыстория: {{name}}",
-        "backgroundNone": "Предыстория: не выбрана",
-        "note": "Дальше — характеристики и детали персонажа."
+        "backgroundNone": "Предыстория: не выбрана"
       }
     },
     "characterSheet": {

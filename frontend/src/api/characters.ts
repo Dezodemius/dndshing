@@ -74,6 +74,28 @@ export interface CharacterDetail {
   inventory: InventoryEntry[]
 }
 
+export interface CharacterCreate {
+  name: string
+  race_id: number
+  class_id: number
+  subclass_id?: number | null
+  background_id?: number | null
+  alignment: string
+  ability_scores: AbilityScores
+  hp_max: number
+  hp_current?: number
+  hp_temp?: number
+  ac_override?: number | null
+  speed: number
+  proficiencies?: Proficiencies
+  appearance?: string | null
+  backstory?: string | null
+  notes?: string | null
+  gold?: number
+  silver?: number
+  copper?: number
+}
+
 export interface CharacterPatch {
   hp_current?: number
   hp_temp?: number
@@ -120,6 +142,10 @@ export interface LevelUpRecord {
     spells_forgotten: string[]
   }
   created_at: string
+}
+
+export function createCharacter(payload: CharacterCreate): Promise<CharacterDetail> {
+  return apiClient.post<CharacterDetail>('/characters', payload)
 }
 
 export function getCharacter(characterId: string): Promise<CharacterDetail> {
