@@ -17,6 +17,8 @@ vi.mock('../../api/characters', async () => {
     ...actual,
     getCharacter: vi.fn(),
     patchCharacter: vi.fn(),
+    getLevelHistory: vi.fn(),
+    postLevelRollback: vi.fn(),
   }
 })
 
@@ -25,6 +27,8 @@ vi.mock('../../api/content', async () => {
   return {
     ...actual,
     listItems: vi.fn(),
+    listClasses: vi.fn(),
+    listSpells: vi.fn(),
   }
 })
 
@@ -108,7 +112,11 @@ function renderPage(character: CharacterDetail) {
 describe('CharacterSheetPage', () => {
   beforeEach(() => {
     vi.mocked(charactersApi.patchCharacter).mockReset()
+    vi.mocked(charactersApi.getLevelHistory).mockReset().mockResolvedValue([])
+    vi.mocked(charactersApi.postLevelRollback).mockReset()
     vi.mocked(contentApi.listItems).mockReset().mockResolvedValue([])
+    vi.mocked(contentApi.listClasses).mockReset().mockResolvedValue([])
+    vi.mocked(contentApi.listSpells).mockReset().mockResolvedValue([])
   })
 
   it('renders ability modifiers, saving throws, skills and combat stats from computed', async () => {
@@ -179,5 +187,19 @@ describe('CharacterSheetPage', () => {
     expect(await screen.findByLabelText('Золото')).toBeInTheDocument()
     expect(screen.getByLabelText('Серебро')).toBeInTheDocument()
     expect(screen.getByLabelText('Медь')).toBeInTheDocument()
+  })
+
+  it('switches to the level history tab and shows the empty state with no records', async () => {
+    const user = userEvent.setup()
+    renderPage(baseCharacter)
+
+    await screen.findByRole('heading', { name: 'Ари' })
+    await user.click(screen.getByRole('tab', { name: 'История уровней' }))
+
+    expect(
+      await screen.findByText(
+        'Пока нет ни одной прокачки — история появится после первого повышения уровня.',
+      ),
+    ).toBeInTheDocument()
   })
 })
