@@ -12,6 +12,7 @@ from app.campaigns.schemas import (
     CampaignUpdate,
 )
 from app.campaigns.service import CampaignService
+from app.characters.schemas import CharacterDetailRead
 from app.core.db import get_db
 
 router = APIRouter(tags=["campaigns"])
@@ -80,6 +81,19 @@ async def join_campaign(
     _user=Depends(get_verified_user),
 ) -> CampaignPlayerRead:
     return await CampaignService(db).join(_user.id, payload)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/characters/{character_id}",
+    response_model=CharacterDetailRead,
+)
+async def get_campaign_character(
+    campaign_id: int,
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> CharacterDetailRead:
+    return await CampaignService(db).get_character_for_dm(campaign_id, character_id, _user.id)
 
 
 @router.delete(
