@@ -100,3 +100,22 @@ class ShopBuyResult(BaseModel):
     character_silver: int
     character_copper: int
     merchant_item_remaining_quantity: int | None
+
+
+class ShopSellRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    character_id: int
+    inventory_entry_id: int
+    quantity: int = Field(default=1, ge=1)
+
+
+class ShopSellResult(BaseModel):
+    quantity_sold: int
+    character_gold: int
+    character_silver: int
+    character_copper: int
+    refund_gold: int
+    refund_silver: int
+    refund_copper: int
+    inventory_entry_remaining_quantity: int | None
