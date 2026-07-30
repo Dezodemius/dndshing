@@ -545,6 +545,10 @@ class ContentQueryService:
         klass = await self._db.get(Class, class_id)
         return ClassRead.model_validate(klass) if klass is not None else None
 
+    async def get_item_by_id(self, item_id: int) -> ItemRead | None:
+        item = await self._db.get(Item, item_id)
+        return ItemRead.model_validate(item) if item is not None else None
+
     async def get_class_level(self, *, class_id: int, level: int) -> ClassLevelRead | None:
         row = await self._db.scalar(
             select(ClassLevel).where(ClassLevel.class_id == class_id, ClassLevel.level == level)

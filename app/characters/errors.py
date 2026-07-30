@@ -65,3 +65,9 @@ class RollbackEmptyError(AppError):
     code = "rollback_empty"
     message = "История уровней пуста — откатывать нечего"
     status_code = 400
+
+
+class InsufficientFundsError(AppError):
+    code = "insufficient_funds"
+    message = "Недостаточно средств"
+    status_code = 400
