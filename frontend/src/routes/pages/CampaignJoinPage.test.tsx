@@ -27,8 +27,8 @@ vi.mock('../../api/characters', async () => {
 })
 
 const characters: CharacterSummary[] = [
-  { id: 1, name: 'Ари', level: 3 },
-  { id: 2, name: 'Бором', level: 5 },
+  { id: 1, name: 'Ари', level: 3, gold: 15, silver: 0, copper: 0 },
+  { id: 2, name: 'Бором', level: 5, gold: 40, silver: 5, copper: 0 },
 ]
 
 function renderPage() {
