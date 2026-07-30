@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -220,7 +220,7 @@ function CampaignEditor({ campaignId }: CampaignEditorProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [copied, setCopied] = useState(false)
-  const savedOnce = useRef(false)
+  const [savedVisible, setSavedVisible] = useState(false)
 
   const query = useQuery({
     queryKey: ['campaign', campaignId],
@@ -245,8 +245,23 @@ function CampaignEditor({ campaignId }: CampaignEditorProps) {
         old ? { ...old, ...updated } : old,
       )
       reset(toCardValues(updated))
+      setSavedVisible(true)
     },
   })
+
+  // Both confirmations are transient: fade out on their own instead of
+  // sticking around (or reappearing) across unrelated later edits.
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+
+  useEffect(() => {
+    if (!savedVisible) return
+    const timer = setTimeout(() => setSavedVisible(false), 2000)
+    return () => clearTimeout(timer)
+  }, [savedVisible])
 
   const regenerateMutation = useMutation({
     mutationFn: () => regenerateInviteCode(campaignId),
@@ -276,7 +291,6 @@ function CampaignEditor({ campaignId }: CampaignEditorProps) {
         values.next_session_place.trim() === '' ? null : values.next_session_place
     }
     if (Object.keys(payload).length === 0) return
-    savedOnce.current = true
     await patchMutation.mutateAsync(payload)
   }
 
@@ -350,7 +364,7 @@ function CampaignEditor({ campaignId }: CampaignEditorProps) {
             {t('pages.campaign.card.save')}
           </button>
           {patchMutation.isError && <p role="alert">{translateApiError(t, patchMutation.error)}</p>}
-          {patchMutation.isSuccess && savedOnce.current && <p>{t('pages.campaign.card.saved')}</p>}
+          {savedVisible && <p>{t('pages.campaign.card.saved')}</p>}
         </div>
       </form>
 
