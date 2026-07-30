@@ -147,7 +147,7 @@ jobs:
               - **Исправлено:** <замечание кратко> — <что сделал, файл:строка>
               - **Не исправлено:** <замечание кратко> — <почему>
             Ничего не менял — так и напиши одной строкой.
-          claude_args: "--max-turns 60 --dangerously-skip-permissions"
+          claude_args: "--max-turns 100 --dangerously-skip-permissions"
 
       - name: Report back
         if: success()
