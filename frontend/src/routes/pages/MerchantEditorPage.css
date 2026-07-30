@@ -1,0 +1,116 @@
+.merchant-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.merchant-editor__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.merchant-editor__section h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.merchant-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.merchant-editor__open-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+}
+
+.merchant-editor__save-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.merchant-editor__link-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.merchant-editor__link-row input {
+  flex: 1;
+}
+
+.merchant-editor__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.merchant-editor__list-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.merchant-editor__item-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.merchant-editor__list-label {
+  font-weight: 600;
+}
+
+.merchant-editor__catalog-price {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.merchant-editor__item-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.merchant-editor__item-fields input {
+  width: 5rem;
+}
+
+.merchant-editor__danger {
+  align-items: flex-start;
+}
+
+.merchant-editor__visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

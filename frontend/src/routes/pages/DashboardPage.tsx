@@ -36,6 +36,8 @@ const SECTIONS: ResourceSectionConfig[] = [
     path: '/merchants',
     titleKey: 'pages.dashboard.merchants.title',
     emptyKey: 'pages.dashboard.merchants.empty',
+    actionTo: '/app/merchants/new',
+    actionLabelKey: 'pages.dashboard.merchants.create',
   },
 ]
 
