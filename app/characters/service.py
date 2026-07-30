@@ -6,7 +6,9 @@ from app.characters import rules_5e
 from app.characters.errors import (
     AsiFeatConflictError,
     CharacterNotFoundError,
+    CustomItemNotSellableError,
     InsufficientFundsError,
+    InsufficientInventoryQuantityError,
     InvalidHpRollError,
     InvalidReferenceError,
     InventoryEntryNotFoundError,
@@ -373,6 +375,53 @@ class CharacterService:
 
         await self._db.flush()
         return entry
+
+    async def apply_sale(
+        self,
+        character_id: int,
+        user_id: int,
+        *,
+        entry_id: int,
+        quantity: int,
+    ) -> tuple[int, int, int, int | None]:
+        """Shop sell (BR §4.5): lock the character and the inventory entry,
+        require a catalog item_id (custom items are unsellable — BR §9
+        glossary), credit the wallet with 50% of the item's card price per
+        unit rounded down per currency (CLAUDE.md rule 4 — no auto-conversion),
+        and remove the sold quantity from inventory. Sold items never restock
+        the merchant (BR §6, out of MVP scope). The caller
+        (merchants.service.sell) controls the commit."""
+        character = await self.get_owned(character_id, user_id, for_update=True)
+        entry = await self._db.scalar(
+            select(InventoryEntry).where(InventoryEntry.id == entry_id).with_for_update()
+        )
+        if entry is None or entry.character_id != character.id:
+            raise InventoryEntryNotFoundError()
+        if entry.item_id is None:
+            raise CustomItemNotSellableError()
+        if entry.quantity < quantity:
+            raise InsufficientInventoryQuantityError()
+
+        item = await ContentQueryService(self._db).get_item_by_id(entry.item_id)
+        if item is None:
+            raise InvalidReferenceError()
+
+        refund_gold = (item.price_g // 2) * quantity
+        refund_silver = (item.price_s // 2) * quantity
+        refund_copper = (item.price_c // 2) * quantity
+
+        character.gold += refund_gold
+        character.silver += refund_silver
+        character.copper += refund_copper
+
+        entry.quantity -= quantity
+        remaining: int | None = entry.quantity
+        if entry.quantity == 0:
+            await self._db.delete(entry)
+            remaining = None
+
+        await self._db.flush()
+        return refund_gold, refund_silver, refund_copper, remaining
 
     async def update_inventory_item(
         self, character_id: int, entry_id: int, user_id: int, payload: InventoryEntryUpdate

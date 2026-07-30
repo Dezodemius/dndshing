@@ -28,6 +28,8 @@ from app.merchants.schemas import (
     ShopBuyResult,
     ShopItemRead,
     ShopRead,
+    ShopSellRequest,
+    ShopSellResult,
 )
 
 _SHARE_CODE_ATTEMPTS = 5
@@ -249,6 +251,43 @@ class MerchantService:
             character_silver=character.silver,
             character_copper=character.copper,
             merchant_item_remaining_quantity=merchant_item.quantity,
+        )
+
+    async def sell(self, share_code: str, user_id: int, payload: ShopSellRequest) -> ShopSellResult:
+        """One transaction (BR §4.5 / security-review): lock the character
+        and the inventory entry, credit 50% of the card price per currency
+        (rounded down, no auto-conversion), and remove the sold quantity from
+        inventory. Sold items never restock the merchant (BR §6, out of MVP
+        scope)."""
+        merchant = await self._get_by_share_code(share_code)
+        if not merchant.is_open:
+            raise ShopClosedError()
+
+        characters = CharacterService(self._db)
+        try:
+            character = await characters.get_owned(payload.character_id, user_id, for_update=True)
+        except AppError as exc:
+            raise NotYourCharacterError() from exc
+
+        refund_gold, refund_silver, refund_copper, remaining = await characters.apply_sale(
+            character.id,
+            user_id,
+            entry_id=payload.inventory_entry_id,
+            quantity=payload.quantity,
+        )
+
+        await self._db.commit()
+        await self._db.refresh(character)
+
+        return ShopSellResult(
+            quantity_sold=payload.quantity,
+            character_gold=character.gold,
+            character_silver=character.silver,
+            character_copper=character.copper,
+            refund_gold=refund_gold,
+            refund_silver=refund_silver,
+            refund_copper=refund_copper,
+            inventory_entry_remaining_quantity=remaining,
         )
 
     async def _get_by_share_code(self, share_code: str) -> Merchant:

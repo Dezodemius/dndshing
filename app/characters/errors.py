@@ -71,3 +71,15 @@ class InsufficientFundsError(AppError):
     code = "insufficient_funds"
     message = "Недостаточно средств"
     status_code = 400
+
+
+class CustomItemNotSellableError(AppError):
+    code = "custom_item_not_sellable"
+    message = "Предмет без ссылки на справочник нельзя продать торговцу"
+    status_code = 400
+
+
+class InsufficientInventoryQuantityError(AppError):
+    code = "insufficient_inventory_quantity"
+    message = "На складе персонажа недостаточно этого предмета"
+    status_code = 400

@@ -14,6 +14,8 @@ from app.merchants.schemas import (
     ShopBuyRequest,
     ShopBuyResult,
     ShopRead,
+    ShopSellRequest,
+    ShopSellResult,
 )
 from app.merchants.service import MerchantService
 
@@ -115,3 +117,13 @@ async def buy_from_shop(
     _user=Depends(get_verified_user),
 ) -> ShopBuyResult:
     return await MerchantService(db).buy(share_code, _user.id, payload)
+
+
+@router.post("/shop/{share_code}/sell", response_model=ShopSellResult)
+async def sell_to_shop(
+    share_code: str,
+    payload: ShopSellRequest,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> ShopSellResult:
+    return await MerchantService(db).sell(share_code, _user.id, payload)

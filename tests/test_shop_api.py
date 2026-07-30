@@ -423,6 +423,255 @@ async def test_buy_unknown_merchant_item_is_404(
     assert response.json()["error"]["code"] == "merchant_item_not_found"
 
 
+async def test_sell_refunds_half_card_price_rounded_down(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    owner = await _owner_setup(client, db_session, "owner13@example.com")
+    merchant = await _create_merchant(client, owner)
+    merchant_item = await _add_merchant_item(client, owner, merchant["id"], quantity=5)
+
+    player = await _player_setup(client, db_session, "player13@example.com", gold=100)
+    buy_response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/buy",
+        json={
+            "character_id": player["character_id"],
+            "merchant_item_id": merchant_item["id"],
+            "quantity": 1,
+        },
+        headers=player["headers"],
+    )
+    assert buy_response.status_code == 200, buy_response.text
+    entry_id = buy_response.json()["inventory_entry_id"]
+
+    response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/sell",
+        json={
+            "character_id": player["character_id"],
+            "inventory_entry_id": entry_id,
+            "quantity": 1,
+        },
+        headers=player["headers"],
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["refund_gold"] == 7  # floor(15 / 2)
+    assert body["character_gold"] == 92  # 100 - 15 + 7
+    assert body["inventory_entry_remaining_quantity"] is None
+
+    character = (
+        await client.get(f"{CHARACTERS_URL}/{player['character_id']}", headers=player["headers"])
+    ).json()
+    assert character["inventory"] == []
+
+
+async def test_sell_part_of_a_stack_keeps_the_remainder(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    owner = await _owner_setup(client, db_session, "owner14@example.com")
+    merchant = await _create_merchant(client, owner)
+    merchant_item = await _add_merchant_item(client, owner, merchant["id"], quantity=5)
+
+    player = await _player_setup(client, db_session, "player14@example.com", gold=100)
+    buy_response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/buy",
+        json={
+            "character_id": player["character_id"],
+            "merchant_item_id": merchant_item["id"],
+            "quantity": 2,
+        },
+        headers=player["headers"],
+    )
+    entry_id = buy_response.json()["inventory_entry_id"]
+
+    response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/sell",
+        json={
+            "character_id": player["character_id"],
+            "inventory_entry_id": entry_id,
+            "quantity": 1,
+        },
+        headers=player["headers"],
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["inventory_entry_remaining_quantity"] == 1
+
+    character = (
+        await client.get(f"{CHARACTERS_URL}/{player['character_id']}", headers=player["headers"])
+    ).json()
+    assert len(character["inventory"]) == 1
+    assert character["inventory"][0]["quantity"] == 1
+
+
+async def test_sell_custom_item_is_rejected(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    owner = await _owner_setup(client, db_session, "owner15@example.com")
+    merchant = await _create_merchant(client, owner)
+
+    player = await _player_setup(client, db_session, "player15@example.com", gold=0)
+    add_response = await client.post(
+        f"{CHARACTERS_URL}/{player['character_id']}/inventory",
+        json={"custom_name": "Загадочный амулет", "quantity": 1},
+        headers=player["headers"],
+    )
+    assert add_response.status_code == 201, add_response.text
+    entry_id = add_response.json()["id"]
+
+    response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/sell",
+        json={
+            "character_id": player["character_id"],
+            "inventory_entry_id": entry_id,
+            "quantity": 1,
+        },
+        headers=player["headers"],
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "custom_item_not_sellable"
+
+
+async def test_sell_more_than_owned_returns_error(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    owner = await _owner_setup(client, db_session, "owner16@example.com")
+    merchant = await _create_merchant(client, owner)
+    merchant_item = await _add_merchant_item(client, owner, merchant["id"], quantity=5)
+
+    player = await _player_setup(client, db_session, "player16@example.com", gold=100)
+    buy_response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/buy",
+        json={
+            "character_id": player["character_id"],
+            "merchant_item_id": merchant_item["id"],
+            "quantity": 1,
+        },
+        headers=player["headers"],
+    )
+    entry_id = buy_response.json()["inventory_entry_id"]
+
+    response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/sell",
+        json={
+            "character_id": player["character_id"],
+            "inventory_entry_id": entry_id,
+            "quantity": 2,
+        },
+        headers=player["headers"],
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "insufficient_inventory_quantity"
+
+
+async def test_sell_with_other_users_character_returns_not_your_character(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    owner = await _owner_setup(client, db_session, "owner17@example.com")
+    merchant = await _create_merchant(client, owner)
+    merchant_item = await _add_merchant_item(client, owner, merchant["id"], quantity=5)
+
+    player_a = await _player_setup(client, db_session, "playera17@example.com", gold=100)
+    buy_response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/buy",
+        json={
+            "character_id": player_a["character_id"],
+            "merchant_item_id": merchant_item["id"],
+            "quantity": 1,
+        },
+        headers=player_a["headers"],
+    )
+    entry_id = buy_response.json()["inventory_entry_id"]
+
+    token_b = await _register_and_login(client, db_session, "playerb17@example.com")
+
+    response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/sell",
+        json={
+            "character_id": player_a["character_id"],
+            "inventory_entry_id": entry_id,
+            "quantity": 1,
+        },
+        headers=_auth_headers(token_b),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_your_character"
+
+
+async def test_sell_in_closed_shop_returns_shop_closed(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    owner = await _owner_setup(client, db_session, "owner18@example.com")
+    merchant = await _create_merchant(client, owner)
+    merchant_item = await _add_merchant_item(client, owner, merchant["id"], quantity=5)
+
+    player = await _player_setup(client, db_session, "player18@example.com", gold=100)
+    buy_response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/buy",
+        json={
+            "character_id": player["character_id"],
+            "merchant_item_id": merchant_item["id"],
+            "quantity": 1,
+        },
+        headers=player["headers"],
+    )
+    entry_id = buy_response.json()["inventory_entry_id"]
+
+    await client.patch(
+        f"{MERCHANTS_URL}/{merchant['id']}", json={"is_open": False}, headers=owner["headers"]
+    )
+
+    response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/sell",
+        json={
+            "character_id": player["character_id"],
+            "inventory_entry_id": entry_id,
+            "quantity": 1,
+        },
+        headers=player["headers"],
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "shop_closed"
+
+
+async def test_sell_unknown_inventory_entry_is_404(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    owner = await _owner_setup(client, db_session, "owner19@example.com")
+    merchant = await _create_merchant(client, owner)
+
+    player = await _player_setup(client, db_session, "player19@example.com", gold=0)
+
+    response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/sell",
+        json={
+            "character_id": player["character_id"],
+            "inventory_entry_id": 999999,
+            "quantity": 1,
+        },
+        headers=player["headers"],
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "inventory_entry_not_found"
+
+
+async def test_sell_without_auth_is_401(client: AsyncClient, db_session: AsyncSession) -> None:
+    owner = await _owner_setup(client, db_session, "owner20@example.com")
+    merchant = await _create_merchant(client, owner)
+
+    response = await client.post(
+        f"/api/v1/shop/{merchant['share_code']}/sell",
+        json={"character_id": 1, "inventory_entry_id": 1, "quantity": 1},
+    )
+
+    assert response.status_code == 401
+
+
 async def test_concurrent_buy_of_last_unit_only_one_succeeds(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
