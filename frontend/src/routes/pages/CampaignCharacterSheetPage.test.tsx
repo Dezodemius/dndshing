@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import '../../i18n'
 import CampaignCharacterSheetPage from './CampaignCharacterSheetPage'
 import * as campaignsApi from '../../api/campaigns'
+import * as contentApi from '../../api/content'
 import type { CharacterDetail } from '../../api/characters'
 
 vi.mock('../../api/campaigns', async () => {
@@ -12,6 +13,16 @@ vi.mock('../../api/campaigns', async () => {
   return {
     ...actual,
     getCampaignCharacter: vi.fn(),
+  }
+})
+
+vi.mock('../../api/content', async () => {
+  const actual = await vi.importActual<typeof import('../../api/content')>('../../api/content')
+  return {
+    ...actual,
+    listItems: vi.fn(),
+    listClasses: vi.fn(),
+    listSpells: vi.fn(),
   }
 })
 
@@ -95,6 +106,9 @@ function renderPage() {
 describe('CampaignCharacterSheetPage', () => {
   beforeEach(() => {
     vi.mocked(campaignsApi.getCampaignCharacter).mockReset().mockResolvedValue(participantCharacter)
+    vi.mocked(contentApi.listItems).mockReset().mockResolvedValue([])
+    vi.mocked(contentApi.listClasses).mockReset().mockResolvedValue([])
+    vi.mocked(contentApi.listSpells).mockReset().mockResolvedValue([])
   })
 
   it('shows the full read-only sheet fetched via the DM-only endpoint', async () => {
