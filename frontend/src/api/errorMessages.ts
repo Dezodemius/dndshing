@@ -19,6 +19,12 @@ const ERROR_KEYS: Record<string, string> = {
   rollback_empty: 'errors.rollbackEmpty',
   merchant_not_found: 'errors.merchantNotFound',
   merchant_item_not_found: 'errors.merchantItemNotFound',
+  insufficient_funds: 'errors.insufficientFunds',
+  out_of_stock: 'errors.outOfStock',
+  not_your_character: 'errors.notYourCharacter',
+  shop_closed: 'errors.shopClosed',
+  custom_item_not_sellable: 'errors.customItemNotSellable',
+  insufficient_inventory_quantity: 'errors.insufficientInventoryQuantity',
 }
 
 export function translateApiError(t: TFunction, error: unknown): string {

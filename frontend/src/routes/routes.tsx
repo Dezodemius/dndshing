@@ -11,6 +11,7 @@ import CharacterSheetPage from './pages/CharacterSheetPage'
 import CharacterWizardPage from './pages/characterWizard/CharacterWizardPage'
 import LevelUpWizardPage from './pages/levelUpWizard/LevelUpWizardPage'
 import MerchantEditorPage from './pages/MerchantEditorPage'
+import ShopPage from './pages/ShopPage'
 import StubPage from './pages/StubPage'
 import NotFoundPage from './pages/NotFoundPage'
 
@@ -41,7 +42,7 @@ export const router = createBrowserRouter([
           { path: 'merchants/:merchantId', element: <MerchantEditorPage /> },
         ],
       },
-      { path: 'shop/:shareCode', element: <StubPage titleKey="pages.shop.title" /> },
+      { path: 'shop/:shareCode', element: <ShopPage /> },
       { path: 'admin/import', element: <StubPage titleKey="pages.adminImport.title" /> },
       { path: '*', element: <NotFoundPage /> },
     ],
