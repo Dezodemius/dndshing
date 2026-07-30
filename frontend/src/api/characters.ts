@@ -144,6 +144,19 @@ export interface LevelUpRecord {
   created_at: string
 }
 
+export interface CharacterSummary {
+  id: number
+  name: string
+  level: number
+  gold: number
+  silver: number
+  copper: number
+}
+
+export function listCharacters(): Promise<CharacterSummary[]> {
+  return apiClient.get<CharacterSummary[]>('/characters')
+}
+
 export function createCharacter(payload: CharacterCreate): Promise<CharacterDetail> {
   return apiClient.post<CharacterDetail>('/characters', payload)
 }
