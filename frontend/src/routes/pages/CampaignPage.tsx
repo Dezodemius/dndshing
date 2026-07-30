@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -117,9 +117,14 @@ function ParticipantRow({ campaignId, participant }: ParticipantRowProps) {
           })}
         </span>
       </div>
-      <button type="button" onClick={() => handleKick(character.name)} disabled={kickMutation.isPending}>
-        {t('pages.campaign.participants.kick')}
-      </button>
+      <div className="campaign-page__participant-actions">
+        <Link to={`/app/campaigns/${campaignId}/characters/${participant.character_id}`}>
+          {t('pages.campaign.participants.viewSheet')}
+        </Link>
+        <button type="button" onClick={() => handleKick(character.name)} disabled={kickMutation.isPending}>
+          {t('pages.campaign.participants.kick')}
+        </button>
+      </div>
       {kickMutation.isError && <p role="alert">{translateApiError(t, kickMutation.error)}</p>}
     </li>
   )

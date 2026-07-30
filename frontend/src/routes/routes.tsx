@@ -13,6 +13,7 @@ import LevelUpWizardPage from './pages/levelUpWizard/LevelUpWizardPage'
 import MerchantEditorPage from './pages/MerchantEditorPage'
 import ShopPage from './pages/ShopPage'
 import CampaignPage from './pages/CampaignPage'
+import CampaignCharacterSheetPage from './pages/CampaignCharacterSheetPage'
 import CampaignJoinPage from './pages/CampaignJoinPage'
 import StubPage from './pages/StubPage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -41,6 +42,10 @@ export const router = createBrowserRouter([
           { path: 'campaigns/new', element: <CampaignPage /> },
           { path: 'campaigns/join', element: <CampaignJoinPage /> },
           { path: 'campaigns/:campaignId', element: <CampaignPage /> },
+          {
+            path: 'campaigns/:campaignId/characters/:characterId',
+            element: <CampaignCharacterSheetPage />,
+          },
           { path: 'merchants/new', element: <MerchantEditorPage /> },
           { path: 'merchants/:merchantId', element: <MerchantEditorPage /> },
         ],
