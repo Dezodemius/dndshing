@@ -12,6 +12,8 @@ import CharacterWizardPage from './pages/characterWizard/CharacterWizardPage'
 import LevelUpWizardPage from './pages/levelUpWizard/LevelUpWizardPage'
 import MerchantEditorPage from './pages/MerchantEditorPage'
 import ShopPage from './pages/ShopPage'
+import CampaignPage from './pages/CampaignPage'
+import CampaignJoinPage from './pages/CampaignJoinPage'
 import StubPage from './pages/StubPage'
 import NotFoundPage from './pages/NotFoundPage'
 
@@ -36,8 +38,9 @@ export const router = createBrowserRouter([
             path: 'characters/:characterId/level-up',
             element: <LevelUpWizardPage />,
           },
-          { path: 'campaigns/join', element: <StubPage titleKey="pages.campaignJoin.title" /> },
-          { path: 'campaigns/:campaignId', element: <StubPage titleKey="pages.campaign.title" /> },
+          { path: 'campaigns/new', element: <CampaignPage /> },
+          { path: 'campaigns/join', element: <CampaignJoinPage /> },
+          { path: 'campaigns/:campaignId', element: <CampaignPage /> },
           { path: 'merchants/new', element: <MerchantEditorPage /> },
           { path: 'merchants/:merchantId', element: <MerchantEditorPage /> },
         ],

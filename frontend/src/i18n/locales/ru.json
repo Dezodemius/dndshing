@@ -175,7 +175,10 @@
       "campaigns": {
         "title": "Мои кампании",
         "empty": "У вас пока нет кампаний.",
-        "join": "Присоединиться по коду приглашения"
+        "create": "Создать кампанию",
+        "join": "Присоединиться по коду приглашения",
+        "asDm": "Я — мастер",
+        "asPlayer": "Я — игрок"
       },
       "merchants": {
         "title": "Мои торговцы",
@@ -480,10 +483,61 @@
       }
     },
     "campaign": {
-      "title": "Кампания"
+      "title": "Кампания",
+      "create": {
+        "heading": "Новая кампания",
+        "nameLabel": "Название",
+        "namePlaceholder": "Как называется кампания?",
+        "descriptionLabel": "Описание",
+        "descriptionPlaceholder": "Коротко о сюжете",
+        "nextSessionAtLabel": "Дата и время следующей игры",
+        "nextSessionPlaceLabel": "Место следующей игры",
+        "nextSessionPlacePlaceholder": "Например: у Антона / Discord",
+        "submit": "Создать кампанию",
+        "invalidName": "Введите название"
+      },
+      "card": {
+        "nameLabel": "Название",
+        "descriptionLabel": "Описание",
+        "nextSessionAtLabel": "Дата и время следующей игры",
+        "nextSessionPlaceLabel": "Место следующей игры",
+        "invalidName": "Введите название",
+        "save": "Сохранить",
+        "saved": "Сохранено"
+      },
+      "invite": {
+        "heading": "Инвайт-код",
+        "copy": "Скопировать код",
+        "copied": "Скопировано",
+        "regenerate": "Пересоздать код",
+        "regenerateConfirm": "Пересоздать инвайт-код? Старый код перестанет работать."
+      },
+      "participants": {
+        "heading": "Персонажи в кампании",
+        "empty": "Пока никто не присоединился — поделитесь инвайт-кодом с игроками.",
+        "joined": "Присоединился {{date}}",
+        "kick": "Исключить",
+        "kickConfirm": "Исключить «{{name}}» из кампании?",
+        "wallet": "{{gold}} зм {{silver}} см {{copper}} мм",
+        "level": "Уровень {{level}}",
+        "hp": "Хиты {{current}} / {{max}}",
+        "ac": "КД {{value}}"
+      },
+      "delete": {
+        "button": "Удалить кампанию",
+        "confirm": "Удалить кампанию «{{name}}»? Это действие необратимо."
+      }
     },
     "campaignJoin": {
-      "title": "Присоединиться к кампании"
+      "title": "Присоединиться к кампании",
+      "codeLabel": "Инвайт-код",
+      "codePlaceholder": "Код от мастера",
+      "characterLabel": "Персонаж",
+      "characterPlaceholder": "Выберите персонажа",
+      "noCharacters": "У вас нет персонажей — сначала создайте персонажа.",
+      "submit": "Присоединиться",
+      "success": "Персонаж «{{character}}» присоединился к кампании «{{campaign}}»!",
+      "backToDashboard": "К кабинету"
     },
     "merchantEditor": {
       "title": "Конструктор торговца",
@@ -644,6 +698,11 @@
     "shopClosed": "Лавка закрыта",
     "customItemNotSellable": "Предмет без ссылки на справочник нельзя продать торговцу",
     "insufficientInventoryQuantity": "На складе персонажа недостаточно этого предмета",
+    "campaignNotFound": "Кампания не найдена",
+    "inviteCodeInvalid": "Инвайт-код недействителен",
+    "alreadyJoined": "Этот персонаж уже состоит в этой кампании",
+    "campaignCharacterNotFound": "Персонаж не состоит в этой кампании",
+    "campaignDmAccessRequired": "Доступ только для мастера этой кампании",
     "unknown": "Что-то пошло не так, попробуйте позже"
   }
 }

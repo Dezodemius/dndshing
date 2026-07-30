@@ -25,6 +25,11 @@ const ERROR_KEYS: Record<string, string> = {
   shop_closed: 'errors.shopClosed',
   custom_item_not_sellable: 'errors.customItemNotSellable',
   insufficient_inventory_quantity: 'errors.insufficientInventoryQuantity',
+  campaign_not_found: 'errors.campaignNotFound',
+  invite_code_invalid: 'errors.inviteCodeInvalid',
+  already_joined: 'errors.alreadyJoined',
+  campaign_character_not_found: 'errors.campaignCharacterNotFound',
+  campaign_dm_access_required: 'errors.campaignDmAccessRequired',
 }
 
 export function translateApiError(t: TFunction, error: unknown): string {
