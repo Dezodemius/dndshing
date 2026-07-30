@@ -11,6 +11,9 @@ from app.merchants.schemas import (
     MerchantItemUpdate,
     MerchantRead,
     MerchantUpdate,
+    ShopBuyRequest,
+    ShopBuyResult,
+    ShopRead,
 )
 from app.merchants.service import MerchantService
 
@@ -97,3 +100,18 @@ async def delete_merchant_item(
     _user=Depends(get_verified_user),
 ) -> None:
     await MerchantService(db).delete_item(merchant_id, mi_id, _user.id)
+
+
+@router.get("/shop/{share_code}", response_model=ShopRead)
+async def get_shop(share_code: str, db: AsyncSession = Depends(get_db)) -> ShopRead:
+    return await MerchantService(db).get_shop(share_code)
+
+
+@router.post("/shop/{share_code}/buy", response_model=ShopBuyResult)
+async def buy_from_shop(
+    share_code: str,
+    payload: ShopBuyRequest,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> ShopBuyResult:
+    return await MerchantService(db).buy(share_code, _user.id, payload)

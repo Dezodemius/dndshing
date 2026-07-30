@@ -4,10 +4,16 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.characters.service import CharacterService
+from app.content.service import ContentQueryService
+from app.core.errors import AppError
 from app.merchants.errors import (
     MerchantInvalidReferenceError,
     MerchantItemNotFoundError,
     MerchantNotFoundError,
+    NotYourCharacterError,
+    OutOfStockError,
+    ShopClosedError,
 )
 from app.merchants.models import Merchant, MerchantItem
 from app.merchants.schemas import (
@@ -18,6 +24,10 @@ from app.merchants.schemas import (
     MerchantItemUpdate,
     MerchantRead,
     MerchantUpdate,
+    ShopBuyRequest,
+    ShopBuyResult,
+    ShopItemRead,
+    ShopRead,
 )
 
 _SHARE_CODE_ATTEMPTS = 5
@@ -142,3 +152,107 @@ class MerchantService:
             **MerchantRead.model_validate(merchant).model_dump(),
             items=[MerchantItemRead.model_validate(item) for item in items],
         )
+
+    async def get_shop(self, share_code: str) -> ShopRead:
+        """Public shop view (AR §4.5) — no ownership check, callable without
+        auth."""
+        merchant = await self._get_by_share_code(share_code)
+        rows = (
+            await self._db.scalars(
+                select(MerchantItem)
+                .where(MerchantItem.merchant_id == merchant.id)
+                .order_by(MerchantItem.id)
+            )
+        ).all()
+        content = ContentQueryService(self._db)
+        items = []
+        for row in rows:
+            item = await content.get_item_by_id(row.item_id)
+            if item is None:
+                continue
+            items.append(
+                ShopItemRead(
+                    id=row.id,
+                    item_id=item.id,
+                    name=item.name,
+                    price_g=row.price_g if row.price_g is not None else item.price_g,
+                    price_s=row.price_s if row.price_s is not None else item.price_s,
+                    price_c=row.price_c if row.price_c is not None else item.price_c,
+                    quantity=row.quantity,
+                )
+            )
+        return ShopRead(
+            name=merchant.name,
+            description=merchant.description,
+            is_open=merchant.is_open,
+            items=items,
+        )
+
+    async def buy(self, share_code: str, user_id: int, payload: ShopBuyRequest) -> ShopBuyResult:
+        """One transaction (BR §4.5 / security-review): `SELECT ... FOR
+        UPDATE` on the merchant item and on the character, checks in order
+        is_open -> stock -> ownership -> funds, then debits the wallet,
+        decrements stock and credits the inventory together."""
+        merchant = await self._get_by_share_code(share_code)
+        if not merchant.is_open:
+            raise ShopClosedError()
+
+        merchant_item = await self._db.scalar(
+            select(MerchantItem)
+            .where(
+                MerchantItem.id == payload.merchant_item_id,
+                MerchantItem.merchant_id == merchant.id,
+            )
+            .with_for_update()
+        )
+        if merchant_item is None:
+            raise MerchantItemNotFoundError()
+        if merchant_item.quantity is not None and merchant_item.quantity < payload.quantity:
+            raise OutOfStockError()
+
+        item = await ContentQueryService(self._db).get_item_by_id(merchant_item.item_id)
+        if item is None:
+            raise MerchantInvalidReferenceError()
+
+        characters = CharacterService(self._db)
+        try:
+            character = await characters.get_owned(payload.character_id, user_id, for_update=True)
+        except AppError as exc:
+            raise NotYourCharacterError() from exc
+
+        price_g = merchant_item.price_g if merchant_item.price_g is not None else item.price_g
+        price_s = merchant_item.price_s if merchant_item.price_s is not None else item.price_s
+        price_c = merchant_item.price_c if merchant_item.price_c is not None else item.price_c
+
+        entry = await characters.apply_purchase(
+            character.id,
+            user_id,
+            item_id=item.id,
+            quantity=payload.quantity,
+            gold=price_g * payload.quantity,
+            silver=price_s * payload.quantity,
+            copper=price_c * payload.quantity,
+        )
+
+        if merchant_item.quantity is not None:
+            merchant_item.quantity -= payload.quantity
+
+        await self._db.commit()
+        await self._db.refresh(character)
+        await self._db.refresh(entry)
+        await self._db.refresh(merchant_item)
+
+        return ShopBuyResult(
+            inventory_entry_id=entry.id,
+            quantity_bought=payload.quantity,
+            character_gold=character.gold,
+            character_silver=character.silver,
+            character_copper=character.copper,
+            merchant_item_remaining_quantity=merchant_item.quantity,
+        )
+
+    async def _get_by_share_code(self, share_code: str) -> Merchant:
+        merchant = await self._db.scalar(select(Merchant).where(Merchant.share_code == share_code))
+        if merchant is None:
+            raise MerchantNotFoundError()
+        return merchant

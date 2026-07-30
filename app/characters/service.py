@@ -6,6 +6,7 @@ from app.characters import rules_5e
 from app.characters.errors import (
     AsiFeatConflictError,
     CharacterNotFoundError,
+    InsufficientFundsError,
     InvalidHpRollError,
     InvalidReferenceError,
     InventoryEntryNotFoundError,
@@ -330,6 +331,47 @@ class CharacterService:
         entry = await self._db.get(InventoryEntry, entry_id)
         if entry is None or entry.character_id != character_id:
             raise InventoryEntryNotFoundError()
+        return entry
+
+    async def apply_purchase(
+        self,
+        character_id: int,
+        user_id: int,
+        *,
+        item_id: int,
+        quantity: int,
+        gold: int,
+        silver: int,
+        copper: int,
+    ) -> InventoryEntry:
+        """Shop buy (BR §4.5): lock the character, debit the wallet by exact
+        currency amounts with no auto-conversion (CLAUDE.md rule 4), and add
+        the purchased item to inventory — merging into an existing entry for
+        the same item_id when one exists ("создать/увеличить"). The caller
+        (merchants.service.buy) already holds a `SELECT ... FOR UPDATE` on the
+        merchant item and controls the commit, so this method only flushes —
+        the debit, the stock decrement and the inventory write land in one
+        transaction."""
+        character = await self.get_owned(character_id, user_id, for_update=True)
+        if character.gold < gold or character.silver < silver or character.copper < copper:
+            raise InsufficientFundsError()
+        character.gold -= gold
+        character.silver -= silver
+        character.copper -= copper
+
+        entry = await self._db.scalar(
+            select(InventoryEntry).where(
+                InventoryEntry.character_id == character.id,
+                InventoryEntry.item_id == item_id,
+            )
+        )
+        if entry is not None:
+            entry.quantity += quantity
+        else:
+            entry = InventoryEntry(character_id=character.id, item_id=item_id, quantity=quantity)
+            self._db.add(entry)
+
+        await self._db.flush()
         return entry
 
     async def update_inventory_item(
