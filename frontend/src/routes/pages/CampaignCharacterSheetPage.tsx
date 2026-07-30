@@ -97,7 +97,7 @@ export default function CampaignCharacterSheetPage() {
   const { campaignId, characterId } = useParams<{ campaignId: string; characterId: string }>()
 
   const query = useQuery({
-    queryKey: ['campaign-character', campaignId, characterId],
+    queryKey: ['campaign-character', campaignId, Number(characterId)],
     queryFn: () => getCampaignCharacter(campaignId as string, Number(characterId)),
     enabled: Boolean(campaignId) && Boolean(characterId),
   })
