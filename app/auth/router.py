@@ -27,8 +27,9 @@ from app.auth.schemas import (
 from app.auth.service import AuthService
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.core.rate_limit import rate_limit
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(tags=["auth"], dependencies=[rate_limit("auth", limit=60, window_seconds=60)])
 
 _REFRESH_COOKIE_NAME = "refresh_token"
 _REFRESH_COOKIE_PATH = "/api/v1/auth"
@@ -37,6 +38,10 @@ _OAUTH_STATE_COOKIE_PATH = "/api/v1/auth/oauth/yandex"
 _VK_OAUTH_PATH = "/api/v1/auth/oauth/vk"
 _VK_CODE_VERIFIER_COOKIE_NAME = "oauth_code_verifier"
 _MAILRU_OAUTH_STATE_COOKIE_PATH = "/api/v1/auth/oauth/mailru"
+
+# Login is the highest-value brute-force/credential-stuffing target on this
+# router, so it gets a stricter limit on top of the router-wide one above.
+_login_rate_limit = rate_limit("auth-login", limit=20, window_seconds=60)
 
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
@@ -57,13 +62,13 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)) ->
     return await AuthService(db).register(data)
 
 
-@router.post("/auth/login", response_model=TokenResponse)
+@router.post("/auth/login", response_model=TokenResponse, dependencies=[_login_rate_limit])
 async def login(
     data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
 ) -> TokenResponse:
     service = AuthService(db)
     user = await service.authenticate(data.email, data.password)
-    access_token, refresh_token = service.issue_tokens(user)
+    access_token, refresh_token = await service.issue_tokens(user)
     _set_refresh_cookie(response, refresh_token)
     return TokenResponse(access_token=access_token)
 
@@ -82,7 +87,12 @@ async def refresh(
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response) -> None:
+async def logout(
+    request: Request, response: Response, db: AsyncSession = Depends(get_db)
+) -> None:
+    refresh_token = request.cookies.get(_REFRESH_COOKIE_NAME)
+    if refresh_token:
+        await AuthService(db).revoke_refresh_token(refresh_token)
     response.delete_cookie(_REFRESH_COOKIE_NAME, path=_REFRESH_COOKIE_PATH)
 
 
@@ -154,7 +164,7 @@ async def yandex_callback(
 
     service = AuthService(db)
     user = await service.login_via_yandex_code(code, client_id, client_secret, redirect_uri)
-    jwt_access_token, refresh_token = service.issue_tokens(user)
+    jwt_access_token, refresh_token = await service.issue_tokens(user)
 
     settings = get_settings()
     callback_url = (
@@ -257,7 +267,7 @@ async def vk_callback(
 
     settings = get_settings()
     if outcome.user is not None:
-        jwt_access_token, refresh_token = service.issue_tokens(outcome.user)
+        jwt_access_token, refresh_token = await service.issue_tokens(outcome.user)
         callback_url = (
             f"{settings.frontend_base_url}/oauth/callback"
             f"#access_token={jwt_access_token}&token_type=bearer"
@@ -294,7 +304,7 @@ async def vk_confirm_email_link(
 ) -> TokenResponse:
     service = AuthService(db)
     user = await service.confirm_vk_email_link(data.token)
-    access_token, refresh_token = service.issue_tokens(user)
+    access_token, refresh_token = await service.issue_tokens(user)
     _set_refresh_cookie(response, refresh_token)
     return TokenResponse(access_token=access_token)
 
@@ -312,7 +322,7 @@ async def mailru_callback(
 
     service = AuthService(db)
     user = await service.login_via_mailru_code(code, client_id, client_secret, redirect_uri)
-    jwt_access_token, refresh_token = service.issue_tokens(user)
+    jwt_access_token, refresh_token = await service.issue_tokens(user)
 
     settings = get_settings()
     callback_url = (

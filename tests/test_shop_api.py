@@ -288,6 +288,35 @@ async def test_buy_with_insufficient_funds_returns_400_and_does_not_change_state
     assert character["gold"] == 1
     assert character["inventory"] == []
 
+
+async def test_buy_rate_limit_returns_429_after_threshold(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    owner = await _owner_setup(client, db_session, "owner-ratelimit@example.com")
+    merchant = await _create_merchant(client, owner)
+    merchant_item = await _add_merchant_item(client, owner, merchant["id"])
+
+    player = await _player_setup(client, db_session, "player-ratelimit@example.com", gold=0)
+    payload = {
+        "character_id": player["character_id"],
+        "merchant_item_id": merchant_item["id"],
+        "quantity": 1,
+    }
+
+    # gold=0 makes every attempt fail with insufficient_funds — the rate
+    # limiter dependency runs before the handler body regardless, so this
+    # isolates the 429 from any business-logic outcome.
+    responses = [
+        await client.post(
+            f"/api/v1/shop/{merchant['share_code']}/buy", json=payload, headers=player["headers"]
+        )
+        for _ in range(21)
+    ]
+
+    assert [r.status_code for r in responses[:20]] == [400] * 20
+    assert responses[20].status_code == 429
+    assert responses[20].json()["error"]["code"] == "rate_limited"
+
     shop = (await client.get(f"/api/v1/shop/{merchant['share_code']}")).json()
     assert shop["items"][0]["quantity"] == 5
 

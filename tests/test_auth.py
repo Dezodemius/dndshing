@@ -144,6 +144,44 @@ async def test_refresh_without_cookie_is_rejected(client: AsyncClient) -> None:
     assert response.json()["error"]["code"] == "invalid_refresh_token"
 
 
+async def test_reusing_a_rotated_refresh_token_is_rejected(client: AsyncClient) -> None:
+    await _register(client)
+    login_response = await _login(client)
+    original_refresh_cookie = login_response.cookies["refresh_token"]
+
+    rotate_response = await client.post(REFRESH_URL)
+    assert rotate_response.status_code == 200
+
+    # Simulate an attacker replaying the intercepted pre-rotation cookie: the
+    # JWT itself is still well-formed and unexpired, so only server-side
+    # session tracking (not signature/exp checks) can catch this.
+    client.cookies.set("refresh_token", original_refresh_cookie)
+    replay_response = await client.post(REFRESH_URL)
+
+    assert replay_response.status_code == 401
+    assert replay_response.json()["error"]["code"] == "invalid_refresh_token"
+
+
+async def test_logout_revokes_refresh_token_even_if_cookie_is_replayed(
+    client: AsyncClient,
+) -> None:
+    await _register(client)
+    login_response = await _login(client)
+    refresh_cookie = login_response.cookies["refresh_token"]
+
+    logout_response = await client.post(LOGOUT_URL)
+    assert logout_response.status_code == 204
+
+    # The client jar no longer has the cookie (server cleared it), so set it
+    # back manually to prove revocation happened server-side, not just that
+    # the cookie was deleted client-side.
+    client.cookies.set("refresh_token", refresh_cookie)
+    replay_response = await client.post(REFRESH_URL)
+
+    assert replay_response.status_code == 401
+    assert replay_response.json()["error"]["code"] == "invalid_refresh_token"
+
+
 async def test_me_with_valid_token_returns_current_user(client: AsyncClient) -> None:
     await _register(client)
     login_response = await _login(client)
@@ -166,6 +204,19 @@ async def test_me_with_garbage_token_is_rejected(client: AsyncClient) -> None:
     response = await client.get(ME_URL, headers={"Authorization": "Bearer not-a-real-token"})
 
     assert response.status_code == 401
+
+
+async def test_login_rate_limit_returns_429_after_threshold(client: AsyncClient) -> None:
+    await _register(client)
+
+    responses = [
+        await client.post(LOGIN_URL, json={"email": EMAIL, "password": "wrongpass"})
+        for _ in range(21)
+    ]
+
+    assert [r.status_code for r in responses[:20]] == [401] * 20
+    assert responses[20].status_code == 429
+    assert responses[20].json()["error"]["code"] == "rate_limited"
 
 
 async def test_logout_clears_refresh_cookie(client: AsyncClient) -> None:

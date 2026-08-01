@@ -75,3 +75,104 @@ that needed new tests. No fixes were required in this PR and no
 JWT lifetime/rotation, rate-limiting, security headers, and secret handling
 are covered by the follow-up tasks in this chain (DND-083, DND-084) and are
 not assessed here.
+
+## JWT и rate-limit (DND-083)
+
+**Scope:** access token lifetime, refresh token rotation, and rate-limiting
+on `/auth/*` and `/buy`.
+
+### JWT
+
+- **Access token lifetime:** 15 minutes (`Settings.jwt_access_expire_minutes`,
+  `app/core/config.py`), matching AR §9. No change needed.
+- **Refresh token lifetime:** 30 days (`Settings.jwt_refresh_expire_days`),
+  in an httpOnly, `samesite=lax` cookie scoped to `/api/v1/auth`
+  (`secure` in every non-local `APP_ENV`). No change needed.
+- **Refresh rotation — finding, fixed in this PR:** `AuthService.refresh_tokens`
+  minted a new access+refresh pair on every call but never invalidated the
+  token that was just exchanged, and `POST /auth/logout` didn't touch the
+  token at all — it only told the *browser* to drop the cookie
+  (`response.delete_cookie`). Since JWTs are self-contained and were tracked
+  nowhere server-side, both the just-rotated token and a "logged out" token
+  stayed fully valid, bearer-usable from anywhere, for up to their full
+  30-day lifetime. An intercepted refresh token (XSS, a synced/shared device,
+  a leaked backup) could not be revoked by rotating or logging out — the
+  legitimate user rotating their session did nothing to cut the attacker off.
+  This is the JWT-refresh equivalent of the IDOR principle from the DND-081
+  section: a credential must be checked against something the server
+  controls, not trusted purely on the strength of its own signature.
+
+  **Fix:** added a `refresh_sessions` table (migration `0007`,
+  `RefreshSession` in `app/auth/models.py`) — one row per currently-valid
+  refresh token, keyed by its JWT `jti`. `AuthService.issue_tokens` now
+  writes a new row for every token it mints (login, OAuth login, and
+  rotation) and opportunistically sweeps expired rows for that user;
+  `refresh_tokens` looks up the presented token's `jti` and rejects with
+  `invalid_refresh_token` if no matching session exists — which is now true
+  for a token that has already been rotated away or revoked — before
+  deleting that row and minting the replacement (`tests/test_auth.py::
+  test_reusing_a_rotated_refresh_token_is_rejected`). `POST /auth/logout`
+  now reads the refresh cookie and calls the new
+  `AuthService.revoke_refresh_token`, which deletes the matching session row
+  server-side (best-effort — a malformed/already-expired token is ignored),
+  so a replayed post-logout cookie is rejected the same way
+  (`test_logout_revokes_refresh_token_even_if_cookie_is_replayed`). Both
+  tests replay the *old* cookie value directly (bypassing the client's own
+  cookie jar) specifically to prove the rejection is server-side, not just
+  "the browser doesn't have the cookie anymore."
+
+  **Design trade-off, noted rather than silently decided:** a session row is
+  deleted the moment its token is rotated or the user logs out — there is one
+  active refresh token per user at a time. Logging in on a second device
+  invalidates the first device's refresh token (its access token keeps
+  working for up to 15 more minutes, then refreshing fails and it has to
+  re-login). ARCHITECTURE.md doesn't state a multi-device requirement either
+  way; a `refresh_sessions` row per *device* (rather than per *user*) would
+  support concurrent sessions cleanly if that turns out to be wanted, but
+  wasn't built speculatively (CLAUDE.md rule 1). Flagging here rather than in
+  a `security`-labeled issue because it's a product-scope question, not a
+  vulnerability.
+
+### Rate limiting
+
+**Finding, fixed in this PR:** neither `/auth/*` nor `/shop/{code}/buy` had
+any rate limiting — `/auth/login` was brute-forceable at network speed, and
+`/buy` could be hammered (network-speed spend attempts, or just load) with no
+backpressure beyond the DB transaction itself.
+
+**Fix:** `app/core/rate_limit.py` — an in-process fixed-window limiter (no
+Redis in the stack; AR §9 specifies a single uvicorn instance, so in-memory
+state is consistent across requests. A multi-worker/multi-instance deploy
+would need a shared store instead — noted as a follow-up if AR §9 changes).
+Exposed as a FastAPI dependency factory, `rate_limit(scope, limit,
+window_seconds)`, applied as:
+
+- **`/auth/*` (router-wide):** 60 requests/min per client IP
+  (`app/auth/router.py`).
+- **`/auth/login` (additional, stricter):** 20 requests/min per client IP —
+  layered on top of the router-wide limit because credential stuffing is the
+  highest-value target on this router specifically.
+- **`/shop/{share_code}/buy`:** 20 requests/min per client IP
+  (`app/merchants/router.py`) — matches the literal BACKLOG scope ("/buy");
+  `/sell` carries the identical money-affecting/locking design and would
+  benefit from the same limit, but wasn't added here to stay inside the
+  stated scope — worth a fast-follow, not filed as a `security` issue since
+  it's a hardening extension, not a gap being left open.
+
+Exceeding a limit raises `RateLimitExceededError` (`rate_limited`, HTTP 429).
+Covered by `tests/test_auth.py::test_login_rate_limit_returns_429_after_threshold`
+and `tests/test_shop_api.py::test_buy_rate_limit_returns_429_after_threshold`.
+
+**Caveat on client IP:** the limiter keys on `request.client.host`, which is
+only the real client IP if the ASGI server is run with the reverse proxy's
+`X-Forwarded-For`/`X-Real-IP` trusted and translated correctly (e.g. uvicorn
+`--proxy-headers` with a trusted host list) — a deployment/CD concern
+(DND-004), not addressed here. Blindly trusting an untranslated
+`X-Forwarded-For` from the request would let a client set its own rate-limit
+key and bypass the limit entirely, so the limiter deliberately does *not*
+read that header itself.
+
+### Out of scope for this task
+
+Security headers (CSP, HSTS, etc.) and secret handling are covered by
+DND-084 and are not assessed here.
