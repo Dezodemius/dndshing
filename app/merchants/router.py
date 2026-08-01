@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_verified_user
 from app.core.db import get_db
+from app.core.rate_limit import rate_limit
 from app.merchants.schemas import (
     MerchantCreate,
     MerchantDetailRead,
@@ -109,7 +110,11 @@ async def get_shop(share_code: str, db: AsyncSession = Depends(get_db)) -> ShopR
     return await MerchantService(db).get_shop(share_code)
 
 
-@router.post("/shop/{share_code}/buy", response_model=ShopBuyResult)
+@router.post(
+    "/shop/{share_code}/buy",
+    response_model=ShopBuyResult,
+    dependencies=[rate_limit("shop-buy", limit=20, window_seconds=60)],
+)
 async def buy_from_shop(
     share_code: str,
     payload: ShopBuyRequest,

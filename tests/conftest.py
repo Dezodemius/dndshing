@@ -12,6 +12,7 @@ from alembic import command
 from app.content.cache import content_cache
 from app.core.config import get_settings
 from app.core.db import Base, get_db
+from app.core.rate_limit import reset_rate_limits
 from app.main import app
 
 
@@ -69,6 +70,15 @@ def _reset_content_cache() -> None:
     # TRUNCATE and would otherwise leak stale entries between tests.
     yield
     content_cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> None:
+    # Same reasoning as _reset_content_cache: the limiter is a module-level
+    # singleton, so hit counts from one test would otherwise carry into the
+    # next and trip a 429 on unrelated requests.
+    yield
+    reset_rate_limits()
 
 
 @pytest_asyncio.fixture
