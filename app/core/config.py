@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     mailru_client_secret: str | None = None
     mailru_redirect_uri: str | None = None
 
+    # Standalone browser admin panel for content-pack import (app/content/admin_panel.py):
+    # one fixed login pair, decoupled from the User/is_admin/OAuth system so the owner
+    # doesn't need a registered account just to import content. Same all-or-nothing
+    # gating as the OAuth blocks above — unset means the panel routes respond 404.
+    admin_panel_username: str | None = None
+    admin_panel_password: str | None = None
+
     @property
     def cors_allow_origins(self) -> list[str]:
         origins = [self.frontend_base_url]
