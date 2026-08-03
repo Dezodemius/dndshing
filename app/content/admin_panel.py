@@ -155,13 +155,13 @@ async def import_panel_submit(
     raw = await file.read()
     try:
         data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        return HTMLResponse(_render_page(error=f"Невалидный JSON: {exc}"))
+    except json.JSONDecodeError:
+        return HTMLResponse(_render_page(error="Невалидный JSON. Проверьте формат файла."))
 
     try:
         pack = ContentPackImport.model_validate(data)
-    except ValidationError as exc:
-        return HTMLResponse(_render_page(error=f"Пак не соответствует схеме: {exc}"))
+    except ValidationError:
+        return HTMLResponse(_render_page(error="Пак не соответствует ожидаемой схеме."))
 
     report = await ContentImportService(db).import_pack(pack)
     return HTMLResponse(_render_page(report=report))
