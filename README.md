@@ -53,18 +53,26 @@ Backend — модульный монолит: `app/{core,auth,content,character
 cp .env.example .env                # локальный конфиг: заполнить пустые значения (см. ниже)
 pip install -r requirements-dev.txt # зависимости backend
 
-docker compose up -d --build        # postgres + api в контейнерах
+docker compose up -d --build        # всё приложение: postgres + api + фронт, http://localhost:8080
 alembic upgrade head                # миграции (локально, вне контейнера)
 pytest                              # тесты backend
 pytest --cov=app --cov-report=term-missing   # тесты backend + покрытие (htmlcov/ — отчёт в браузере)
 ruff check .                        # линт backend
 
 cd frontend && cp .env.example .env && npm install    # зависимости и конфиг фронта
-cd frontend && npm run dev                            # фронт локально, http://localhost:5173
+cd frontend && npm run dev                            # фронт с hot-reload, http://localhost:5173
 cd frontend && npm run build                          # tsc -b && vite build
 cd frontend && npm run test                            # тесты фронта (vitest)
 cd frontend && npm run test:coverage                   # тесты фронта + покрытие (coverage/ — отчёт в браузере)
 ```
+
+### Два режима фронта
+
+**`docker compose up`** поднимает приложение целиком — это то же, что крутится на проде. Образ фронта многостадийный: Node собирает бандл (`npm run build`), готовую статику раздаёт nginx, и он же проксирует `/api/v1` на контейнер `api`. Браузер живёт на одном origin `http://localhost:8080` — CORS не нужен, refresh-cookie остаётся first-party. Node в финальном образе нет.
+
+**`npm run dev`** — для разработки: Vite с hot-reload на `http://localhost:5173`, ходит на API по `VITE_API_BASE_URL` из `frontend/.env` (кросс-origin, поэтому backend отдаёт CORS-заголовки). Порты разные, так что dev-сервер и контейнер спокойно работают одновременно.
+
+Важно: `VITE_*` переменные Vite вшивает в бандл **на этапе сборки**, а не читает в рантайме. Поэтому в образ `VITE_API_BASE_URL` намеренно не передаётся, а `frontend/.env` исключён через `.dockerignore` — иначе в собранный бандл попал бы чей-то `localhost:8000`. Без переменной клиент падает на относительный `/api/v1` (`frontend/src/api/client.ts`), который и проксирует nginx.
 
 ### Секреты
 
@@ -74,7 +82,7 @@ cd frontend && npm run test:coverage                   # тесты фронта
 python -c "import secrets; print(secrets.token_urlsafe(24))"
 ```
 
-и подставить его в `.env` в три места: `POSTGRES_PASSWORD`, `DATABASE_URL`, `TEST_DATABASE_URL`. Пока `POSTGRES_PASSWORD` пуст, `docker compose up` не стартует, а приложение без `DATABASE_URL` падает на старте — оба варианта громкие и намеренные: тихого фолбэка на известные креды быть не должно. Порты `5432` и `8000` публикуются только на `127.0.0.1`.
+и подставить его в `.env` в три места: `POSTGRES_PASSWORD`, `DATABASE_URL`, `TEST_DATABASE_URL`. Пока `POSTGRES_PASSWORD` пуст, `docker compose up` не стартует, а приложение без `DATABASE_URL` падает на старте — оба варианта громкие и намеренные: тихого фолбэка на известные креды быть не должно. Порты `5432`, `8000` и `8080` публикуются только на `127.0.0.1`: наружу в проде смотрит Cloudflare и хостовый прокси, а не контейнеры.
 
 ### Ветки и задачи
 
