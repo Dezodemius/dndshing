@@ -26,11 +26,6 @@ class RequestBodyTooLargeError(AppError):
     status_code = 413
 
 
-class _BodyTooLarge(Exception):
-    def __init__(self, limit: int) -> None:
-        self.limit = limit
-
-
 class RequestBodySizeLimitMiddleware:
     """Pure ASGI (not BaseHTTPMiddleware — that gives no hook on `receive`,
     which the streaming/no-Content-Length enforcement path needs)."""
@@ -63,32 +58,38 @@ class RequestBodySizeLimitMiddleware:
             await self._reject(limit, scope, receive, send)
             return
 
-        # Slow path: chunked / absent Content-Length. Count as the body
-        # streams and cut off at the limit.
+        # Slow path: chunked / absent Content-Length. Buffer messages as
+        # they arrive, capped at `limit` bytes, and reject before calling
+        # into the app. Raising from a wrapped `receive` doesn't work here:
+        # FastAPI reads the body itself while resolving the Pydantic body
+        # param, wrapped in a blanket `except Exception` that turns any
+        # error into a generic 400 — our exception would never reach this
+        # middleware's `except` clause.
+        buffered: list[dict] = []
         received = 0
-        response_started = False
-
-        async def counting_receive() -> dict:
-            nonlocal received
+        while True:
             message = await receive()
-            if message["type"] == "http.request":
-                received += len(message.get("body", b""))
-                if received > limit:
-                    raise _BodyTooLarge(limit)
-            return message
+            buffered.append(message)
+            if message["type"] != "http.request":
+                break
+            received += len(message.get("body", b""))
+            if received > limit:
+                await self._reject(limit, scope, receive, send)
+                return
+            if not message.get("more_body", False):
+                break
 
-        async def watching_send(message: dict) -> None:
-            nonlocal response_started
-            if message["type"] == "http.response.start":
-                response_started = True
-            await send(message)
+        index = 0
 
-        try:
-            await self.app(scope, counting_receive, watching_send)
-        except _BodyTooLarge:
-            if response_started:
-                raise
-            await self._reject(limit, scope, receive, send)
+        async def replay_receive() -> dict:
+            nonlocal index
+            if index < len(buffered):
+                message = buffered[index]
+                index += 1
+                return message
+            return await receive()
+
+        await self.app(scope, replay_receive, send)
 
     async def _reject(self, limit: int, scope: Scope, receive: Receive, send: Send) -> None:
         # This middleware sits OUTSIDE Starlette's ExceptionMiddleware, so

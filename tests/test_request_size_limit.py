@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -122,6 +124,32 @@ async def test_import_rejects_body_over_limit_without_auth(
     )
 
     # 413 should come before 401 (size check runs before auth)
+    assert response.status_code == 413
+    body = response.json()
+    assert body["error"]["code"] == "request_too_large"
+
+
+async def test_import_rejects_streamed_body_over_limit_without_content_length(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Slow path: a body streamed without a Content-Length header (chunked
+    transfer) must be cut off once the streamed bytes exceed the limit."""
+    token = await _register_and_login(client, db_session, ADMIN_EMAIL, is_admin=True)
+
+    async def oversized_chunks() -> AsyncIterator[bytes]:
+        chunk = b"a" * (1024 * 1024)
+        for _ in range(11):
+            yield chunk
+
+    response = await client.post(
+        IMPORT_URL,
+        content=oversized_chunks(),
+        headers=_auth_headers(token),
+    )
+
+    # No Content-Length means the fast path can't have rejected this — confirms
+    # the streaming counter (the slow path) is what caught it.
+    assert "content-length" not in response.request.headers
     assert response.status_code == 413
     body = response.json()
     assert body["error"]["code"] == "request_too_large"
