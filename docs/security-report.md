@@ -176,3 +176,81 @@ read that header itself.
 
 Security headers (CSP, HSTS, etc.) and secret handling are covered by
 DND-084 and are not assessed here.
+
+## Заголовки и секреты (DND-084)
+
+**Scope:** response security headers (CSP, HSTS, etc.) and secrets-outside-the-repo
+(CLAUDE.md rule 12 — no fallback defaults to known credentials).
+
+### Security headers
+
+**Finding, fixed in this PR:** the API sent no security headers at all —
+no CSP, no HSTS, no `X-Content-Type-Options`, no `X-Frame-Options`, no
+`Referrer-Policy`. `docker-compose.yml`/`Dockerfile` don't run an nginx/caddy
+layer in front of `uvicorn` yet (AR §9 names it as the target deploy stack,
+but the code today is api + postgres only), so the API process itself is the
+only layer that can set these — adding a reverse proxy is out of this task's
+scope.
+
+**Fix:** `app/core/security_headers.py` — an `add_security_headers(app)`
+middleware (registered in `app/main.py`, same `register_x(app)` pattern as
+`register_exception_handlers`) that sets on every response:
+
+- `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'`
+  — the API only ever returns JSON to a separately-hosted SPA, so there's no
+  first-party script/style/image to allow; locking to `'none'` also removes
+  the bundled Swagger UI (`/docs`) as a script-injection surface. Accepted
+  trade-off: `/docs` no longer renders (its CDN-loaded JS is blocked) — not
+  fixed further since disabling/relocating the docs endpoint is outside the
+  "headers" scope of this task.
+- `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: strict-origin-when-cross-origin`,
+  `Permissions-Policy: geolocation=(), microphone=(), camera=()` — standard
+  defense-in-depth baseline; none of these features are used by the API.
+- `Strict-Transport-Security: max-age=63072000; includeSubDomains` — only
+  when `app_env != "local"`, the same gate already used for the refresh
+  cookie's `secure` flag in `app/auth/router.py` (DND-083), since HSTS is a
+  promise about HTTPS that only holds once deployed. `preload` was
+  deliberately left off: it requires submission to the browser preload list
+  and is effectively irreversible for a long time — a deploy/DNS decision for
+  a human, not something to bake in silently from an audit task.
+
+Covered by `tests/test_security_headers.py`: every header's presence/value
+on both a success and an error JSON response, and the HSTS on/off toggle
+across `app_env`.
+
+### Secrets outside the repo (rule 12)
+
+**Methodology:** re-read every place a credential or credential-shaped value
+could be defaulted — `app/core/config.py` (`Settings`), `docker-compose.yml`,
+`.env.example`, `alembic.ini`, and the `JWT_SECRET_KEY`/`POSTGRES_*` values
+set by `.github/workflows/ci.yml` and `cd.yml` — plus a repo-wide grep for
+common secret shapes (API-key prefixes, private-key PEM headers, inline
+`password=`/`secret=` literals).
+
+**Findings:** none. Every field in `Settings` that a boot-time or
+data-integrity failure would follow from being wrong (`database_url`,
+`jwt_secret_key`, `smtp_host`, `frontend_base_url`) has no default and raises
+a `pydantic` validation error at startup if unset, exactly per rule 12; the
+fields that *are* optional (`smtp_user/password`, all three OAuth provider
+triples) are all-or-nothing feature toggles, not guessable fallback
+credentials, and are documented as such in `config.py` already.
+`docker-compose.yml` uses `${VAR:?...}` (no `:-default`) for every
+`POSTGRES_*`/`JWT_SECRET_KEY`/`SMTP_HOST`/`FRONTEND_BASE_URL` value, so
+`docker compose up` refuses to start rather than booting with a guessable
+credential. `alembic.ini`'s `sqlalchemy.url = driver://user:pass@localhost/dbname`
+is the unmodified Alembic scaffold placeholder — `alembic/env.py` always
+overwrites it from `Settings.database_url` (or `ALEMBIC_DATABASE_URL` for
+tests) before running, so it's dead text, not a live fallback. CI's
+`JWT_SECRET_KEY=ci-test-secret-not-a-real-credential` and
+`POSTGRES_PASSWORD: ci` are job-scoped to the ephemeral CI Postgres
+container and already commented as such — not a secret, not reused anywhere
+a real deployment would read from.
+
+No fixes were required and no `security`-labeled follow-up issue was filed.
+
+### Out of scope for this task
+
+None — this is the last task in the DND-081 → DND-083 → DND-084 chain; the
+full security-review checklist (IDOR, JWT/rate-limit, headers/secrets) is
+now covered across the three sections above.
