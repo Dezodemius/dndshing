@@ -294,7 +294,7 @@ async def test_buy_rate_limit_returns_429_after_threshold(
 ) -> None:
     owner = await _owner_setup(client, db_session, "owner-ratelimit@example.com")
     merchant = await _create_merchant(client, owner)
-    merchant_item = await _add_merchant_item(client, owner, merchant["id"])
+    merchant_item = await _add_merchant_item(client, owner, merchant["id"], quantity=5)
 
     player = await _player_setup(client, db_session, "player-ratelimit@example.com", gold=0)
     payload = {
