@@ -8,10 +8,12 @@ from app.content.router import router as content_router
 from app.core.config import get_settings
 from app.core.errors import register_exception_handlers
 from app.core.router import router as core_router
+from app.core.security_headers import add_security_headers
 from app.merchants.router import router as merchants_router
 
 app = FastAPI(title="D&D Campaign Platform API")
 register_exception_handlers(app)
+add_security_headers(app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_allow_origins,
