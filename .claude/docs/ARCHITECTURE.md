@@ -202,6 +202,8 @@ GET /content/races | /classes | /classes/{slug} | /spells?class=&level= | /items
 POST /admin/content/import     (is_admin) — JSON-пак, upsert по slug
 ```
 
+Отдельно — `GET|POST /internal/admin/content-import` (вне `/api/v1`, HTTP Basic по паре `ADMIN_PANEL_USERNAME`/`ADMIN_PANEL_PASSWORD` из конфига, не привязан к `User`/`is_admin`): минимальная HTML-форма загрузки того же контент-пака файлом, вызывает тот же `ContentImportService`. Роуты выключены (404), пока обе переменные не заданы. См. `app/content/admin_panel.py`.
+
 ### Characters (владелец)
 ```
 GET    /characters                       свои

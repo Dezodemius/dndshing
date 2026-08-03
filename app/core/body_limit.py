@@ -4,10 +4,11 @@ memory and parsed by FastAPI's routing — too late for the DoS this guards
 against). Limit calibration: docs/examples/content-pack.example.json is
 ~7.7KB for a minimal 11-entity example pack; a full D&D 5e reference pack
 (hundreds of spells/items, full class level tables) is estimated at
-~1.4-4MB, so 10 MiB gives comfortable headroom on the one endpoint that
-legitimately accepts a large body. Every other endpoint gets a 1 MiB
-default, well above the largest legitimate body in this API (free-text
-character fields).
+~1.4-4MB, so 10 MiB gives comfortable headroom on the two endpoints that
+legitimately accept a large body — the JSON API import and its browser
+admin-panel twin (app/content/admin_panel.py), which posts the same pack as
+a multipart file upload. Every other endpoint gets a 1 MiB default, well
+above the largest legitimate body in this API (free-text character fields).
 """
 
 from starlette.datastructures import Headers
@@ -17,7 +18,11 @@ from app.core.errors import AppError, app_error_response
 
 DEFAULT_MAX_BODY_BYTES = 1 * 1024 * 1024  # 1 MiB
 IMPORT_PATH = "/api/v1/admin/content/import"
-MAX_BODY_BYTES_BY_PATH: dict[str, int] = {IMPORT_PATH: 10 * 1024 * 1024}  # 10 MiB
+ADMIN_PANEL_IMPORT_PATH = "/internal/admin/content-import"
+MAX_BODY_BYTES_BY_PATH: dict[str, int] = {
+    IMPORT_PATH: 10 * 1024 * 1024,  # 10 MiB
+    ADMIN_PANEL_IMPORT_PATH: 10 * 1024 * 1024,  # 10 MiB
+}
 
 
 class RequestBodyTooLargeError(AppError):
