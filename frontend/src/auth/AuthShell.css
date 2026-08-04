@@ -1,0 +1,256 @@
+.auth {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-5) var(--space-4);
+}
+
+.auth__panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  max-width: 960px;
+  /* Keeps the short login form as tall as the register one, so the portrait wall
+     is framed by whole rows instead of being cropped through the faces. */
+  min-height: 520px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* Decorative portrait wall. The scrim keeps the right edge readable where the
+   art meets the form column, the same technique the landing sections use. */
+.auth__art {
+  background-color: var(--color-bg);
+  background-image:
+    linear-gradient(
+      90deg,
+      rgb(var(--color-bg-rgb) / 0.15) 0%,
+      rgb(var(--color-bg-rgb) / 0.35) 65%,
+      rgb(var(--color-bg-rgb) / 0.8) 100%
+    ),
+    url('../assets/auth/auth-side.webp');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-right: 1px solid var(--color-border);
+}
+
+.auth__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-4);
+}
+
+.auth__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.auth__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.auth__subtitle {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+/* --- Form --- */
+
+.auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.auth__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.auth__label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.auth__input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 15px;
+  transition: border-color 0.15s ease;
+}
+
+.auth__input:hover {
+  border-color: var(--color-text-muted);
+}
+
+.auth__input:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 1px;
+  border-color: var(--color-accent);
+}
+
+.auth__error {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--color-danger);
+}
+
+/* Submit-level failure, spaced apart from the per-field messages above it. */
+.auth__error--form {
+  margin-top: var(--space-1);
+  font-size: 13.5px;
+}
+
+.auth__submit {
+  margin-top: var(--space-1);
+  padding: 12px var(--space-4);
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  color: var(--color-bg);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.auth__submit:hover:not(:disabled) {
+  background: var(--color-accent-strong);
+  border-color: var(--color-accent-strong);
+}
+
+.auth__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth__submit:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 2px;
+}
+
+/* --- Footer --- */
+
+.auth__footer {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--color-text-muted);
+}
+
+.auth__note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+/* --- OAuth --- */
+
+.oauth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.oauth-buttons__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.oauth-buttons__divider::before,
+.oauth-buttons__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.oauth-buttons__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.oauth-button {
+  flex: 1 1 auto;
+  padding: 10px var(--space-3);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: 14px;
+  text-align: center;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.oauth-button:hover {
+  border-color: var(--color-accent);
+  background: rgb(var(--color-accent-rgb) / 0.1);
+}
+
+.oauth-button:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 2px;
+}
+
+/* --- Mobile --- */
+
+@media (max-width: 720px) {
+  .auth {
+    padding: var(--space-3);
+  }
+
+  .auth__panel {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  /* A tall portrait wall would push the form off-screen on a phone, so the art
+     collapses into a banner above it. */
+  .auth__art {
+    height: 120px;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+    background-image:
+      linear-gradient(
+        180deg,
+        rgb(var(--color-bg-rgb) / 0.15) 0%,
+        rgb(var(--color-bg-rgb) / 0.8) 100%
+      ),
+      url('../assets/auth/auth-side.webp');
+    background-position: center top;
+  }
+
+  .auth__content {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .auth__title {
+    font-size: 22px;
+  }
+}

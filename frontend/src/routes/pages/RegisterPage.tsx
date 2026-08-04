@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { apiClient } from '../../api/client'
+import AuthShell from '../../auth/AuthShell'
 import OAuthButtons from '../../auth/OAuthButtons'
 import { translateApiError } from '../../api/errorMessages'
 
@@ -47,68 +48,109 @@ export default function RegisterPage() {
 
   if (registered) {
     return (
-      <section>
-        <h1>{t('pages.register.title')}</h1>
-        <p>{t('auth.registerSuccessBody')}</p>
-        <Link to="/login">{t('auth.goToLogin')}</Link>
-      </section>
+      <AuthShell title={t('pages.register.title')}>
+        <p className="auth__note">{t('auth.registerSuccessBody')}</p>
+        <p className="auth__footer">
+          <Link to="/login">{t('auth.goToLogin')}</Link>
+        </p>
+      </AuthShell>
     )
   }
 
   return (
-    <section>
-      <h1>{t('pages.register.title')}</h1>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <label htmlFor="register-email">{t('auth.email')}</label>
-        <input id="register-email" type="email" autoComplete="email" {...register('email')} />
-        {errors.email && <p role="alert">{t('auth.errors.emailInvalid')}</p>}
+    <AuthShell title={t('pages.register.title')} subtitle={t('pages.register.subtitle')}>
+      <form className="auth__form" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <div className="auth__field">
+          <label className="auth__label" htmlFor="register-email">
+            {t('auth.email')}
+          </label>
+          <input
+            className="auth__input"
+            id="register-email"
+            type="email"
+            autoComplete="email"
+            {...register('email')}
+          />
+          {errors.email && (
+            <p className="auth__error" role="alert">
+              {t('auth.errors.emailInvalid')}
+            </p>
+          )}
+        </div>
 
-        <label htmlFor="register-display-name">{t('auth.displayName')}</label>
-        <input id="register-display-name" type="text" {...register('displayName')} />
-        {errors.displayName && (
-          <p role="alert">
-            {errors.displayName.type === 'too_big'
-              ? t('auth.errors.displayNameMax')
-              : t('auth.errors.displayNameRequired')}
+        <div className="auth__field">
+          <label className="auth__label" htmlFor="register-display-name">
+            {t('auth.displayName')}
+          </label>
+          <input
+            className="auth__input"
+            id="register-display-name"
+            type="text"
+            {...register('displayName')}
+          />
+          {errors.displayName && (
+            <p className="auth__error" role="alert">
+              {errors.displayName.type === 'too_big'
+                ? t('auth.errors.displayNameMax')
+                : t('auth.errors.displayNameRequired')}
+            </p>
+          )}
+        </div>
+
+        <div className="auth__field">
+          <label className="auth__label" htmlFor="register-password">
+            {t('auth.password')}
+          </label>
+          <input
+            className="auth__input"
+            id="register-password"
+            type="password"
+            autoComplete="new-password"
+            {...register('password')}
+          />
+          {errors.password && (
+            <p className="auth__error" role="alert">
+              {errors.password.type === 'too_big'
+                ? t('auth.errors.passwordMax')
+                : t('auth.errors.passwordMin')}
+            </p>
+          )}
+        </div>
+
+        <div className="auth__field">
+          <label className="auth__label" htmlFor="register-confirm-password">
+            {t('auth.confirmPassword')}
+          </label>
+          <input
+            className="auth__input"
+            id="register-confirm-password"
+            type="password"
+            autoComplete="new-password"
+            {...register('confirmPassword')}
+          />
+          {errors.confirmPassword && (
+            <p className="auth__error" role="alert">
+              {t('auth.errors.passwordMismatch')}
+            </p>
+          )}
+        </div>
+
+        {submitError && (
+          <p className="auth__error auth__error--form" role="alert">
+            {submitError}
           </p>
         )}
 
-        <label htmlFor="register-password">{t('auth.password')}</label>
-        <input
-          id="register-password"
-          type="password"
-          autoComplete="new-password"
-          {...register('password')}
-        />
-        {errors.password && (
-          <p role="alert">
-            {errors.password.type === 'too_big'
-              ? t('auth.errors.passwordMax')
-              : t('auth.errors.passwordMin')}
-          </p>
-        )}
-
-        <label htmlFor="register-confirm-password">{t('auth.confirmPassword')}</label>
-        <input
-          id="register-confirm-password"
-          type="password"
-          autoComplete="new-password"
-          {...register('confirmPassword')}
-        />
-        {errors.confirmPassword && <p role="alert">{t('auth.errors.passwordMismatch')}</p>}
-
-        {submitError && <p role="alert">{submitError}</p>}
-
-        <button type="submit" disabled={isSubmitting}>
+        <button className="auth__submit" type="submit" disabled={isSubmitting}>
           {t('auth.registerSubmit')}
         </button>
       </form>
 
       <OAuthButtons />
 
-      <p>
+      <p className="auth__footer">
         <Link to="/login">{t('auth.goToLogin')}</Link>
       </p>
-    </section>
+    </AuthShell>
   )
 }

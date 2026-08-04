@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuth } from '../../auth/AuthContext'
+import AuthShell from '../../auth/AuthShell'
 import OAuthButtons from '../../auth/OAuthButtons'
 import { translateApiError } from '../../api/errorMessages'
 
@@ -37,34 +38,60 @@ export default function LoginPage() {
   }
 
   return (
-    <section>
-      <h1>{t('pages.login.title')}</h1>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <label htmlFor="login-email">{t('auth.email')}</label>
-        <input id="login-email" type="email" autoComplete="email" {...register('email')} />
-        {errors.email && <p role="alert">{t('auth.errors.emailInvalid')}</p>}
+    <AuthShell title={t('pages.login.title')} subtitle={t('pages.login.subtitle')}>
+      <form className="auth__form" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <div className="auth__field">
+          <label className="auth__label" htmlFor="login-email">
+            {t('auth.email')}
+          </label>
+          <input
+            className="auth__input"
+            id="login-email"
+            type="email"
+            autoComplete="email"
+            {...register('email')}
+          />
+          {errors.email && (
+            <p className="auth__error" role="alert">
+              {t('auth.errors.emailInvalid')}
+            </p>
+          )}
+        </div>
 
-        <label htmlFor="login-password">{t('auth.password')}</label>
-        <input
-          id="login-password"
-          type="password"
-          autoComplete="current-password"
-          {...register('password')}
-        />
-        {errors.password && <p role="alert">{t('auth.errors.passwordRequired')}</p>}
+        <div className="auth__field">
+          <label className="auth__label" htmlFor="login-password">
+            {t('auth.password')}
+          </label>
+          <input
+            className="auth__input"
+            id="login-password"
+            type="password"
+            autoComplete="current-password"
+            {...register('password')}
+          />
+          {errors.password && (
+            <p className="auth__error" role="alert">
+              {t('auth.errors.passwordRequired')}
+            </p>
+          )}
+        </div>
 
-        {submitError && <p role="alert">{submitError}</p>}
+        {submitError && (
+          <p className="auth__error auth__error--form" role="alert">
+            {submitError}
+          </p>
+        )}
 
-        <button type="submit" disabled={isSubmitting}>
+        <button className="auth__submit" type="submit" disabled={isSubmitting}>
           {t('auth.loginSubmit')}
         </button>
       </form>
 
       <OAuthButtons />
 
-      <p>
+      <p className="auth__footer">
         <Link to="/register">{t('auth.goToRegister')}</Link>
       </p>
-    </section>
+    </AuthShell>
   )
 }
