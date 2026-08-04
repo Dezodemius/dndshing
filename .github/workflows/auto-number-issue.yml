@@ -1,0 +1,33 @@
+name: Auto Number Issue
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  add-number:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Issue Title
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+            // Форматируем номер, чтобы он всегда был трехзначным (001, 002, и т.д.)
+            const formattedNumber = String(issueNumber).padStart(3, '0');
+            const prefix = `DND-${formattedNumber}`;
+            
+            // Получаем текущее название задачи
+            const currentTitle = context.payload.issue.title;
+            
+            // Проверяем, нет ли уже префикса, чтобы избежать дублирования
+            if (!currentTitle.startsWith('DND-')) {
+              const newTitle = `${prefix} ${currentTitle}`;
+              
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                title: newTitle
+              });
+            }
