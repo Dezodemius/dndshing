@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from 'vitest'
-import viteConfig, { DEV_API_PROXY_TARGET } from './vite.config'
+import viteConfig, { DEV_API_PROXY_TARGET, resolveDevApiProxyTarget } from './vite.config'
 
 // Runs in the node environment on purpose: importing the Vite config pulls in esbuild,
 // which refuses to load under the project-wide jsdom (its TextEncoder produces a
@@ -21,7 +21,13 @@ describe('vite dev server proxy', () => {
     })
   })
 
-  it('defaults to the local backend port, overridable for containerised dev servers', () => {
-    expect(DEV_API_PROXY_TARGET).toBe(process.env.VITE_DEV_API_PROXY ?? 'http://localhost:8000')
+  it('defaults to the local backend port when the override is missing or blank', () => {
+    expect(resolveDevApiProxyTarget(undefined)).toBe('http://localhost:8000')
+    expect(resolveDevApiProxyTarget('')).toBe('http://localhost:8000')
+    expect(resolveDevApiProxyTarget('   ')).toBe('http://localhost:8000')
+  })
+
+  it('uses a configured backend and trims accidental whitespace', () => {
+    expect(resolveDevApiProxyTarget('  http://api:8000  ')).toBe('http://api:8000')
   })
 })

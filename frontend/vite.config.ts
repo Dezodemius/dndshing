@@ -8,7 +8,11 @@ import react from '@vitejs/plugin-react'
 // The default suits `npm run dev` on the host. Running the dev server inside a
 // container needs VITE_DEV_API_PROXY, because there `localhost` is the container
 // itself, not the API (e.g. `http://api:8000` on a shared compose network).
-export const DEV_API_PROXY_TARGET = process.env.VITE_DEV_API_PROXY ?? 'http://localhost:8000'
+export function resolveDevApiProxyTarget(value: string | undefined): string {
+  return value?.trim() || 'http://localhost:8000'
+}
+
+export const DEV_API_PROXY_TARGET = resolveDevApiProxyTarget(process.env.VITE_DEV_API_PROXY)
 
 // Kept an object rather than a config callback: vitest.config.ts merges this export,
 // and mergeConfig() refuses callbacks.
