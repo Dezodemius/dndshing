@@ -53,6 +53,8 @@ services:
     # proxies /api/v1 to `api` so the browser talks to a single origin.
     build:
       context: ./frontend
+      args:
+        APP_COMMIT_SHA: ${APP_COMMIT_SHA:-dev}
     # Pinned instead of the generated dndshing-frontend-1. Fixing the name rules
     # out `--scale` for this service, which a static file server never needs.
     container_name: dndshing-frontend
