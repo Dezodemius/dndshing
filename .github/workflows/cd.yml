@@ -31,12 +31,26 @@ jobs:
   deploy:
     runs-on: self-hosted
     timeout-minutes: 20
+    environment:
+      name: Production
+      url: https://dndshing.ru
+    env:
+      APP_COMMIT_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           # clean: false — не затирать .env в рабочей директории раннера.
           # Дефолтный git clean -ffdx удалил бы его перед каждым чекаутом.
           clean: false
+
+      - name: Clean stale workspace files
+        # The runner is persistent, so keep only the server-owned environment
+        # and the static release currently served by the host nginx.
+        run: >-
+          git clean -ffdx
+          -e /.env
+          -e /frontend/dist/
+          -e /frontend/dist.previous/
 
       - name: Build images
         run: docker compose build
@@ -49,19 +63,80 @@ jobs:
       - name: Deploy
         run: docker compose up -d
 
-      - name: Healthz check
-        # Неудачный healthz валит деплой: retry с паузой на прогрев контейнера,
-        # затем жёсткий провал шага — весь workflow-run красный, сигнал виден
-        # владельцу без отдельного мониторинга.
+      - name: Check the deployed containers
         run: |
           set -euo pipefail
-          for i in $(seq 1 10); do
-            if curl -fsS http://localhost:8000/healthz; then
-              echo "healthz OK"
+          frontend_url="http://$(docker compose port frontend 80)"
+          for i in $(seq 1 20); do
+            version=$(curl -fsS "$frontend_url/version.json" 2>/dev/null || true)
+            root=$(curl -fsS "$frontend_url/" 2>/dev/null || true)
+            if curl -fsS "$frontend_url/healthz" >/dev/null \
+              && grep -Fq '<div id="root"></div>' <<< "$root" \
+              && grep -Fq "\"$GITHUB_SHA\"" <<< "$version"; then
+              echo "frontend, API proxy, and commit marker are healthy"
               exit 0
             fi
-            echo "healthz not ready yet ($i/10), retrying in 3s..."
+            echo "containers not ready yet ($i/20), retrying in 3s..."
             sleep 3
           done
-          echo "::error::healthz did not become healthy after deploy"
+          echo "::error::deployed containers did not become healthy"
           exit 1
+
+      - name: Publish static assets for the host nginx
+        id: static
+        run: |
+          set -euo pipefail
+          target="$GITHUB_WORKSPACE/frontend/dist"
+          staged="$target.next"
+          previous="$target.previous"
+          image=$(docker compose images -q frontend)
+          container=$(docker create "$image")
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+
+          rm -rf "$staged" "$previous"
+          mkdir -p "$staged"
+          docker cp "$container:/usr/share/nginx/html/." "$staged/"
+          grep -Fq "\"$GITHUB_SHA\"" "$staged/version.json"
+
+          if [ -d "$target" ]; then
+            mv "$target" "$previous"
+          fi
+          if ! mv "$staged" "$target"; then
+            [ ! -d "$previous" ] || mv "$previous" "$target"
+            exit 1
+          fi
+          echo "published=true" >> "$GITHUB_OUTPUT"
+
+      - name: Check the public site
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            version=$(curl -fsS -H 'Cache-Control: no-cache' \
+              "https://dndshing.ru/version.json?commit=$GITHUB_SHA" 2>/dev/null || true)
+            if grep -Fq "\"$GITHUB_SHA\"" <<< "$version" \
+              && curl -fsS https://dndshing.ru/api/v1/auth/oauth/providers >/dev/null; then
+              echo "dndshing.ru serves commit $GITHUB_SHA"
+              exit 0
+            fi
+            echo "public site has not switched yet ($i/20), retrying in 3s..."
+            sleep 3
+          done
+          echo "::error::dndshing.ru does not serve commit $GITHUB_SHA"
+          exit 1
+
+      - name: Remove the previous static release
+        run: rm -rf "$GITHUB_WORKSPACE/frontend/dist.previous"
+
+      - name: Restore static assets after a failed public check
+        if: failure() && steps.static.outputs.published == 'true'
+        run: |
+          set -euo pipefail
+          target="$GITHUB_WORKSPACE/frontend/dist"
+          previous="$target.previous"
+          if [ -d "$previous" ]; then
+            rm -rf "$target.failed"
+            [ ! -d "$target" ] || mv "$target" "$target.failed"
+            mv "$previous" "$target"
+            rm -rf "$target.failed"
+            echo "Restored the previous static release"
+          fi

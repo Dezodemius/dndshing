@@ -32,11 +32,17 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
+      - name: Skip AI review for Dependabot
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        run: echo "Dependency updates are validated by CI, CodeQL, and npm audit."
+
       - uses: actions/checkout@v4
+        if: github.event.pull_request.user.login != 'dependabot[bot]'
         with:
           fetch-depth: 0
 
       - name: Review PR
+        if: github.event.pull_request.user.login != 'dependabot[bot]'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
