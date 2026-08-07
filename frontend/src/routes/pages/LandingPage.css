@@ -29,10 +29,23 @@
   display: flex;
   align-items: center;
   gap: var(--space-5);
-  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 48px 40px;
+  /* Panorama behind the hero copy. The scrim is heaviest on the left, where the
+     title and CTA sit, and thins out towards the demo sheet on the right. */
+  background-color: var(--color-surface);
+  background-image:
+    linear-gradient(
+      90deg,
+      rgb(var(--color-bg-rgb) / 0.93) 0%,
+      rgb(var(--color-bg-rgb) / 0.78) 45%,
+      rgb(var(--color-bg-rgb) / 0.6) 100%
+    ),
+    url('../../assets/landing/landing-hero.webp');
+  background-size: cover;
+  background-position: 0 0, center;
+  background-repeat: no-repeat;
 }
 
 .landing__hero-d20 {
@@ -652,8 +665,22 @@
   gap: var(--space-4);
   border: 1px solid var(--color-accent);
   border-radius: var(--radius-md);
-  padding: var(--space-4) var(--space-5);
-  background: rgb(var(--color-accent-rgb) / 0.07);
+  padding: var(--space-5);
+  /* Tall enough for the party heading out to read as a picture rather than a
+     sliver — this band closes the page. */
+  min-height: 220px;
+  background-color: rgb(var(--color-accent-rgb) / 0.07);
+  background-image:
+    linear-gradient(
+      90deg,
+      rgb(var(--color-bg-rgb) / 0.92) 0%,
+      rgb(var(--color-bg-rgb) / 0.72) 45%,
+      rgb(var(--color-bg-rgb) / 0.45) 100%
+    ),
+    url('../../assets/landing/landing-outro.webp');
+  background-size: cover;
+  background-position: 0 0, center 62%;
+  background-repeat: no-repeat;
 }
 
 .landing__not-vtt-icon {
@@ -723,6 +750,16 @@
     flex-direction: column;
     align-items: stretch;
     padding: var(--space-5) var(--space-4);
+    /* Stacked hero is tall and narrow, so the panorama gets cropped hard and the
+       scrim has to run top-to-bottom instead of left-to-right. */
+    background-image:
+      linear-gradient(
+        180deg,
+        rgb(var(--color-bg-rgb) / 0.68) 0%,
+        rgb(var(--color-bg-rgb) / 0.9) 100%
+      ),
+      url('../../assets/landing/landing-hero.webp');
+    background-position: 0 0, center top;
   }
 
   .landing__hero-d20 {
@@ -833,5 +870,16 @@
     flex-direction: column;
     align-items: flex-start;
     padding: var(--space-4);
+    /* Shorter than on desktop, but still tall enough to show the party rather
+       than a dark strip. */
+    min-height: 190px;
+    background-image:
+      linear-gradient(
+        180deg,
+        rgb(var(--color-bg-rgb) / 0.6) 0%,
+        rgb(var(--color-bg-rgb) / 0.88) 100%
+      ),
+      url('../../assets/landing/landing-outro.webp');
+    background-position: 0 0, center;
   }
 }
