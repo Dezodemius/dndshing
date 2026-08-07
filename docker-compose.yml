@@ -48,5 +48,25 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
 
+  frontend:
+    # Multi-stage build: the SPA is compiled here and served by nginx, which also
+    # proxies /api/v1 to `api` so the browser talks to a single origin.
+    build:
+      context: ./frontend
+    # Pinned instead of the generated dndshing-frontend-1. Fixing the name rules
+    # out `--scale` for this service, which a static file server never needs.
+    container_name: dndshing-frontend
+    restart: unless-stopped
+    depends_on:
+      # nginx resolves the `api` hostname when it loads its config and exits if
+      # the name is missing, so the container has to exist before this one starts.
+      api:
+        condition: service_started
+    ports:
+      # Loopback only, like the rest: in production Cloudflare and the host proxy
+      # are what face the network. The host port stays off 5173 so a `npm run dev`
+      # can run alongside this container.
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-8080}:80"
+
 volumes:
   pg_data:
