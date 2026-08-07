@@ -17,12 +17,14 @@ export default function OAuthButtons() {
 
   return (
     <div className="oauth-buttons">
-      <p>{t('auth.oauthDivider')}</p>
-      {providers.map((provider) => (
-        <a key={provider} className="oauth-button" href={oauthAuthorizeUrl(provider)}>
-          {t(`auth.oauthProviders.${provider}`)}
-        </a>
-      ))}
+      <p className="oauth-buttons__divider">{t('auth.oauthDivider')}</p>
+      <div className="oauth-buttons__list">
+        {providers.map((provider) => (
+          <a key={provider} className="oauth-button" href={oauthAuthorizeUrl(provider)}>
+            {t(`auth.oauthProviders.${provider}`)}
+          </a>
+        ))}
+      </div>
     </div>
   )
 }
