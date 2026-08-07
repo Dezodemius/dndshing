@@ -43,6 +43,15 @@ jobs:
           # Дефолтный git clean -ffdx удалил бы его перед каждым чекаутом.
           clean: false
 
+      - name: Clean stale workspace files
+        # The runner is persistent, so keep only the server-owned environment
+        # and the static release currently served by the host nginx.
+        run: >-
+          git clean -ffdx
+          -e /.env
+          -e /frontend/dist/
+          -e /frontend/dist.previous/
+
       - name: Build images
         run: docker compose build
 
