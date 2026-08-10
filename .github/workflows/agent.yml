@@ -90,6 +90,8 @@ jobs:
             --description "PR открыт, ждёт ревью и мержа" || true
           gh label create agent-deferred --color FBCA04 \
             --description "Прогон сорвался (лимит/таймаут/ошибка) — вернуть в очередь следующей ночью" || true
+          gh label create manual --color D4C5F9 \
+            --description "Требует ручной проверки; агент не берёт и не закрывает задачу" || true
 
       - name: Pick next ready issue
         id: pick
@@ -101,6 +103,17 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${FORCED:-}" ]; then
+            state=$(gh issue view "$FORCED" --json state --jq .state)
+            manual=$(gh issue view "$FORCED" --json labels \
+                       --jq '[.labels[].name] | any(. == "manual")')
+            if [ "$state" != "OPEN" ]; then
+              echo "Ишью #$FORCED закрыта — прогон пропущен."
+              echo "issue=" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            if [ "$manual" = "true" ]; then
+              echo "Ишью #$FORCED помечена manual — кодовый агент её не выполняет."
+              echo "issue=" >> "$GITHUB_OUTPUT"; exit 0
+            fi
             echo "issue=$FORCED" >> "$GITHUB_OUTPUT"; exit 0
           fi
 
@@ -146,14 +159,15 @@ jobs:
           #
           # Из очереди выбывают: in-progress (кто-то делает), in-review (сделана,
           # PR ждёт человека — agent-ready с неё снимет только закрытие ишью)
-          # и agent-deferred (сорвалась этой ночью, повтор — завтра).
+          # agent-deferred (сорвалась этой ночью, повтор — завтра) и manual
+          # (приёмка человеком; кодовый агент не может подтвердить результат).
           # Фильтр по списку меток, а не через --search: поисковый индекс GitHub
           # отстаёт на секунды-минуты, и прогон, стартовавший сразу за прошлым,
           # увидел бы старые метки и взял ту же задачу второй раз.
           candidates=$(gh issue list --label agent-ready --state open --limit 100 \
                     --json number,title,labels \
                     --jq '[ .[] | select([.labels[].name]
-                              | any(. == "in-progress" or . == "in-review" or . == "agent-deferred")
+                              | any(. == "in-progress" or . == "in-review" or . == "agent-deferred" or . == "manual")
                               | not) ]')
 
           # Баги — вперёд очереди. Заголовки багов не следуют конвенции

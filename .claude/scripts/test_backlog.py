@@ -92,6 +92,10 @@ def test_real_backlog_parses_and_dependencies_resolve():
         assert not unknown, f"{t['id']} зависит от несуществующих задач: {unknown}"
 
 
+def test_release_acceptance_is_explicitly_manual():
+    assert "manual" in bl.load_tasks()["DND-082"]["labels"]
+
+
 # --- queue planner ---------------------------------------------------------
 
 def issue(number: int, state: str = "OPEN", labels=()) -> dict:
@@ -152,6 +156,17 @@ def test_closed_issue_loses_in_progress_too():
     assert c["remove"] == ["in-progress"]
 
 
+def test_manual_task_loses_all_queue_labels():
+    tasks = tasks_by_id()
+    tasks["DND-000"]["labels"].append("manual")
+    issues = {"DND-000": issue(
+        1, labels=["agent-ready", "blocked", "agent-deferred"]
+    )}
+    c = changes_by_id(tasks, issues)["DND-000"]
+    assert c["add"] == ["manual"]
+    assert c["remove"] == ["agent-deferred", "agent-ready", "blocked"]
+
+
 # --- merged tasks left open -------------------------------------------------
 
 def close_calls(tasks: dict, issues: dict, merged: set, monkeypatch) -> list[list[str]]:
@@ -193,6 +208,14 @@ def test_a_reopened_task_is_not_closed_again(monkeypatch):
     # rework does not carry it — re-closing it would fight the human.
     tasks = tasks_by_id()
     issues = {"DND-001": issue(2, labels=["agent-ready"])}
+    assert close_calls(tasks, issues, {"DND-001"}, monkeypatch) == []
+    assert issues["DND-001"]["state"] == "OPEN"
+
+
+def test_a_manual_task_is_never_closed_from_a_merged_branch(monkeypatch):
+    tasks = tasks_by_id()
+    tasks["DND-001"]["labels"].append("manual")
+    issues = {"DND-001": issue(2, labels=["in-progress"])}
     assert close_calls(tasks, issues, {"DND-001"}, monkeypatch) == []
     assert issues["DND-001"]["state"] == "OPEN"
 
@@ -270,6 +293,11 @@ def test_closed_issue_loses_the_night_loop_labels():
 def test_a_blocked_task_is_not_in_the_queue_even_if_labelled_ready():
     # Belt and braces: queue_after reads the labels the way agent.yml does.
     issues = {"DND-010": issue(3, labels=["blocked"])}
+    assert plan_tasks.queue_after(issues, []) == set()
+
+
+def test_a_manual_task_is_not_in_the_queue_even_if_labelled_ready():
+    issues = {"DND-010": issue(3, labels=["manual", "agent-ready"])}
     assert plan_tasks.queue_after(issues, []) == set()
 
 
