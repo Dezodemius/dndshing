@@ -76,9 +76,27 @@ jobs:
           gh issue edit "$issue" --remove-label in-review || true
 
           if [ "$MERGED" = "true" ]; then
-            gh issue close "$issue" --reason completed \
-              --comment "Готово: PR #$PR влит в develop."
+            manual=$(gh issue view "$issue" --json labels \
+                       --jq '[.labels[].name] | any(. == "manual")')
+            if [ "$manual" = "true" ]; then
+              # `Closes #N` may already have closed it before this workflow.
+              # A supporting code/docs PR is not proof that production
+              # acceptance passed, so restore the manual task to OPEN.
+              gh issue reopen "$issue" || true
+              gh issue comment "$issue" \
+                --body "PR #$PR влит, но задача помечена manual. Она остаётся открытой до ручной приёмки."
+            else
+              gh issue close "$issue" --reason completed \
+                --comment "Готово: PR #$PR влит в develop."
+            fi
           else
-            gh issue comment "$issue" \
-              --body "PR #$PR закрыт без мержа. Задача снова свободна — planner вернёт ей agent-ready."
+            manual=$(gh issue view "$issue" --json labels \
+                       --jq '[.labels[].name] | any(. == "manual")')
+            if [ "$manual" = "true" ]; then
+              gh issue comment "$issue" \
+                --body "PR #$PR закрыт без мержа. Ручная задача остаётся открытой вне очереди агента."
+            else
+              gh issue comment "$issue" \
+                --body "PR #$PR закрыт без мержа. Задача снова свободна — planner вернёт ей agent-ready."
+            fi
           fi

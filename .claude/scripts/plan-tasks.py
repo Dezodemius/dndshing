@@ -38,7 +38,7 @@ import sys
 import backlog as bl
 
 READY, BLOCKED, BUSY = "agent-ready", "blocked", "in-progress"
-REVIEW, DEFERRED = "in-review", "agent-deferred"
+REVIEW, DEFERRED, MANUAL = "in-review", "agent-deferred", "manual"
 # Labels the night loop owns on an open issue. The planner must not fight it for
 # them: yanking in-progress mid-run, or in-review off a task whose PR is still
 # open, would put the task back in the queue and hand it to the agent twice.
@@ -63,6 +63,8 @@ def close_finished(tasks: dict, issues: dict, merged: set[str], apply: bool) -> 
     """
     for task_id, issue in sorted(issues.items()):
         if task_id not in tasks or issue["state"] != "OPEN":
+            continue
+        if MANUAL in tasks[task_id]["labels"] or MANUAL in issue["labels"]:
             continue
         if BUSY not in issue["labels"] or task_id not in merged:
             continue
@@ -94,6 +96,13 @@ def plan_labels(
 
         if issue["state"] == "CLOSED":
             add, remove = set(), QUEUE_LABELS & issue["labels"]
+
+        elif MANUAL in task["labels"] or MANUAL in issue["labels"]:
+            # Manual acceptance/release tasks are deliberately outside the
+            # coding-agent queue, even when their dependencies are complete.
+            # BACKLOG is authoritative, so restore a removed manual label.
+            add = {MANUAL} - issue["labels"] if MANUAL in task["labels"] else set()
+            remove = QUEUE_LABELS & issue["labels"]
 
         elif issue["labels"] & HOLD:
             continue
@@ -144,7 +153,7 @@ def queue_after(issues: dict, changes: list[dict]) -> set[str]:
         edit = edits.get(task_id)
         if edit:
             labels = (labels | set(edit["add"])) - set(edit["remove"])
-        if READY in labels and not labels & (HOLD | {DEFERRED}):
+        if READY in labels and not labels & (HOLD | {DEFERRED, MANUAL}):
             queue.add(task_id)
     return queue
 
