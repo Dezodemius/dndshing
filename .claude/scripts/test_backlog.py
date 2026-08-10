@@ -220,6 +220,23 @@ def test_a_manual_task_is_never_closed_from_a_merged_branch(monkeypatch):
     assert issues["DND-001"]["state"] == "OPEN"
 
 
+def test_an_approved_manual_task_is_closed_after_its_branch_merged(monkeypatch):
+    tasks = tasks_by_id()
+    tasks["DND-001"]["labels"].append("manual")
+    issues = {"DND-001": issue(2, labels=["manual-approved"])}
+    calls = close_calls(tasks, issues, {"DND-001"}, monkeypatch)
+    assert calls[0][:3] == ["gh", "issue", "close"]
+    assert issues["DND-001"]["state"] == "CLOSED"
+
+
+def test_approval_alone_does_not_close_an_unmerged_manual_task(monkeypatch):
+    tasks = tasks_by_id()
+    tasks["DND-001"]["labels"].append("manual")
+    issues = {"DND-001": issue(2, labels=["manual-approved"])}
+    assert close_calls(tasks, issues, set(), monkeypatch) == []
+    assert issues["DND-001"]["state"] == "OPEN"
+
+
 def test_planner_is_idempotent():
     tasks = tasks_by_id()
     issues = {"DND-000": issue(1, "CLOSED"),

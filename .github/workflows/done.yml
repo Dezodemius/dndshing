@@ -75,26 +75,29 @@ jobs:
           gh issue edit "$issue" --remove-label in-progress || true
           gh issue edit "$issue" --remove-label in-review || true
 
+          labels=$(gh issue view "$issue" --json labels --jq '[.labels[].name]')
+          manual=$(jq -r 'any(. == "manual")' <<< "$labels")
+          approved=$(jq -r 'any(. == "manual-approved")' <<< "$labels")
+
           if [ "$MERGED" = "true" ]; then
-            manual=$(gh issue view "$issue" --json labels \
-                       --jq '[.labels[].name] | any(. == "manual")')
-            if [ "$manual" = "true" ]; then
+            if [ "$manual" = "true" ] && [ "$approved" != "true" ]; then
               # `Closes #N` may already have closed it before this workflow.
               # A supporting code/docs PR is not proof that production
               # acceptance passed, so restore the manual task to OPEN.
               gh issue reopen "$issue" || true
               gh issue comment "$issue" \
-                --body "PR #$PR влит, но задача помечена manual. Она остаётся открытой до ручной приёмки."
+                --body "PR #$PR влит, но ручная приёмка не подтверждена меткой manual-approved. Задача остаётся открытой."
             else
               gh issue close "$issue" --reason completed \
                 --comment "Готово: PR #$PR влит в develop."
             fi
           else
-            manual=$(gh issue view "$issue" --json labels \
-                       --jq '[.labels[].name] | any(. == "manual")')
             if [ "$manual" = "true" ]; then
+              # Approval относится к конкретному результату приёмки. Если PR с
+              # ним отклонён, следующий PR должен получить новое подтверждение.
+              gh issue edit "$issue" --remove-label manual-approved || true
               gh issue comment "$issue" \
-                --body "PR #$PR закрыт без мержа. Ручная задача остаётся открытой вне очереди агента."
+                --body "PR #$PR закрыт без мержа. Ручная задача остаётся открытой; подтверждение приёмки отозвано."
             else
               gh issue comment "$issue" \
                 --body "PR #$PR закрыт без мержа. Задача снова свободна — planner вернёт ей agent-ready."

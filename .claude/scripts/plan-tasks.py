@@ -38,7 +38,8 @@ import sys
 import backlog as bl
 
 READY, BLOCKED, BUSY = "agent-ready", "blocked", "in-progress"
-REVIEW, DEFERRED, MANUAL = "in-review", "agent-deferred", "manual"
+REVIEW, DEFERRED = "in-review", "agent-deferred"
+MANUAL, MANUAL_APPROVED = "manual", "manual-approved"
 # Labels the night loop owns on an open issue. The planner must not fight it for
 # them: yanking in-progress mid-run, or in-review off a task whose PR is still
 # open, would put the task back in the queue and hand it to the agent twice.
@@ -64,18 +65,26 @@ def close_finished(tasks: dict, issues: dict, merged: set[str], apply: bool) -> 
     for task_id, issue in sorted(issues.items()):
         if task_id not in tasks or issue["state"] != "OPEN":
             continue
-        if MANUAL in tasks[task_id]["labels"] or MANUAL in issue["labels"]:
-            continue
-        if BUSY not in issue["labels"] or task_id not in merged:
+        manual = MANUAL in tasks[task_id]["labels"] or MANUAL in issue["labels"]
+        if manual:
+            if MANUAL_APPROVED not in issue["labels"] or task_id not in merged:
+                continue
+        elif BUSY not in issue["labels"] or task_id not in merged:
             continue
         prefix = "" if apply else "[dry-run] "
-        print(f"{prefix}close {task_id} (#{issue['number']}): ветка влита в develop, "
-              f"а ишью открыта")
+        reason = "ручная приёмка подтверждена" if manual else "ветка влита в develop"
+        print(f"{prefix}close {task_id} (#{issue['number']}): {reason}, а ишью открыта")
         if apply:
+            comment = (
+                "Ручная приёмка подтверждена, а ветка задачи уже влита в develop — "
+                "закрываю (planner)."
+                if manual else
+                "Ветка задачи влита в develop, а ишью осталась открытой — "
+                "закрываю (planner)."
+            )
             bl.sh(["gh", "issue", "close", str(issue["number"]),
                    "--reason", "completed",
-                   "--comment", "Ветка задачи влита в develop, а ишью осталась "
-                                "открытой — закрываю (planner)."])
+                   "--comment", comment])
         # Labels and board are planned off this state below, in the same run.
         issue["state"] = "CLOSED"
 
