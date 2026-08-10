@@ -90,8 +90,6 @@ jobs:
             --description "PR открыт, ждёт ревью и мержа" || true
           gh label create agent-deferred --color FBCA04 \
             --description "Прогон сорвался (лимит/таймаут/ошибка) — вернуть в очередь следующей ночью" || true
-          gh label create manual --color D4C5F9 \
-            --description "Требует ручной проверки; агент не берёт и не закрывает задачу" || true
 
       - name: Pick next ready issue
         id: pick
