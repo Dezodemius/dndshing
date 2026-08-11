@@ -8,6 +8,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}
       POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      # Read by init-test-db.sh: production has no pytest run against it, so
+      # the init script skips creating the unused sibling *_test database.
+      APP_ENV: ${APP_ENV:-local}
     ports:
       # Loopback only: the dev database must not be reachable from the network.
       # The host port is configurable because 5432 is often taken by another postgres.
@@ -22,6 +25,11 @@ services:
       retries: 10
 
   api:
+    # `image:` alongside `build:` lets the same file serve two roles: local dev
+    # and cd-stand.yml build from source (`build:`), while cd.yml builds once on
+    # a hosted runner, pushes to GHCR, and the prod server only ever pulls the
+    # named tag — no repo source or build toolchain needed on that box.
+    image: ghcr.io/dezodemius/dndshing-api:${IMAGE_TAG:-local}
     build: .
     restart: unless-stopped
     environment:
@@ -46,18 +54,26 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8000:8000"
+      # Parameterized like the other services: a single host (see cd.yml/
+      # cd-stand.yml) can run both the stand and prod compose projects side by
+      # side, provided each .env picks a distinct *_HOST_PORT.
+      - "127.0.0.1:${API_HOST_PORT:-8000}:8000"
 
   frontend:
     # Multi-stage build: the SPA is compiled here and served by nginx, which also
     # proxies /api/v1 to `api` so the browser talks to a single origin.
+    image: ghcr.io/dezodemius/dndshing-frontend:${IMAGE_TAG:-local}
     build:
       context: ./frontend
       args:
         APP_COMMIT_SHA: ${APP_COMMIT_SHA:-dev}
-    # Pinned instead of the generated dndshing-frontend-1. Fixing the name rules
-    # out `--scale` for this service, which a static file server never needs.
-    container_name: dndshing-frontend
+    # No container_name: it's a Docker-daemon-global name, not scoped by
+    # compose project, so a pinned name would collide the moment two projects
+    # sharing this file (stand + prod, on the same app01 host) both start a
+    # frontend container. The default `<project>-frontend-1` is already
+    # namespaced by directory (dnd-stand vs dnd-prod) and every health check
+    # already addresses this service by its compose service name, not by
+    # container name, so nothing depends on the fixed one.
     restart: unless-stopped
     depends_on:
       # nginx resolves the `api` hostname when it loads its config and exits if
