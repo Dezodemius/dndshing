@@ -22,6 +22,11 @@ services:
       retries: 10
 
   api:
+    # `image:` alongside `build:` lets the same file serve two roles: local dev
+    # and cd-stand.yml build from source (`build:`), while cd.yml builds once on
+    # a hosted runner, pushes to GHCR, and the prod server only ever pulls the
+    # named tag — no repo source or build toolchain needed on that box.
+    image: ghcr.io/dezodemius/dndshing-api:${IMAGE_TAG:-local}
     build: .
     restart: unless-stopped
     environment:
@@ -46,11 +51,15 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8000:8000"
+      # Parameterized like the other services: a single host (see cd.yml/
+      # cd-stand.yml) can run both the stand and prod compose projects side by
+      # side, provided each .env picks a distinct *_HOST_PORT.
+      - "127.0.0.1:${API_HOST_PORT:-8000}:8000"
 
   frontend:
     # Multi-stage build: the SPA is compiled here and served by nginx, which also
     # proxies /api/v1 to `api` so the browser talks to a single origin.
+    image: ghcr.io/dezodemius/dndshing-frontend:${IMAGE_TAG:-local}
     build:
       context: ./frontend
       args:

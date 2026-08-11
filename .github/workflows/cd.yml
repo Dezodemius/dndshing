@@ -1,15 +1,30 @@
 # .github/workflows/cd.yml
 #
-# CD: деплой на прод-сервер по мержу в main. Работает на self-hosted
-# раннере, зарегистрированном владельцем на самом прод-сервере (регистрация —
-# инфраструктурный шаг вне репозитория), поэтому checkout на этот раннер и
-# есть "доставка" кода: отдельного шага копирования на сервер не нужно.
+# CD: деплой на прод-сервер по мержу в main. Собирает образы на обычном
+# hosted-раннере, пушит в GHCR (ghcr.io/dezodemius/dndshing-{api,frontend}),
+# затем по SSH разворачивает на прод-сервере (app01, timeweb.cloud,
+# dndshing.ru): pull образов, миграции, docker compose up -d, healthz-гейт.
+#
+# Раньше сборка шла локально на self-hosted раннере, зарегистрированном на
+# самом прод-сервере, — но раннер так и не был зарегистрирован, и деплой не
+# ездил. Эта версия использует ту же SSH-схему, что и cd-stand.yml (деплой
+# стенда), плюс сборку и push образов в GHCR: прод-сервер не собирает ничего
+# сам, только тянет готовые образы, у него не должно быть исходников. Ключ и
+# адрес переиспользуют переменные cd-stand.yml (secrets.STAND_SSH_KEY,
+# vars.STAND_HOST, vars.STAND_SSH_KNOWN_HOSTS) — это тот же физический
+# сервер, отдельная только рабочая директория (vars.PROD_PATH).
 #
 # Секретов прода в репозитории нет (правило 12 CLAUDE.md): .env с реальными
-# POSTGRES_* лежит на сервере в рабочей директории раннера, не в git.
-# docker-compose.yml уже требует эти переменные через ${VAR:?...} без
-# дефолтов, так что при отсутствии файла деплой упадёт сам, а не подставит
-# секрет по умолчанию.
+# POSTGRES_*, JWT_SECRET_KEY и т.д. лежит на сервере в PROD_PATH, а не в git.
+# docker-compose.yml требует эти переменные через ${VAR:?...} без дефолтов,
+# так что при отсутствии файла деплой упадёт сам, а не подставит секрет по
+# умолчанию.
+#
+# Публичный HTTPS (dndshing.ru) на сервере пока не настроен — nginx
+# установлен, но не сконфигурирован под этот домен, и это отдельный
+# инфраструктурный шаг (TLS/Cloudflare), не часть этого воркфлоу. Поэтому
+# здесь нет проверки публичного сайта, только проверка контейнеров изнутри
+# сервера — как в cd-stand.yml.
 
 name: cd
 
@@ -17,126 +32,173 @@ on:
   push:
     branches: [main]
 
-# Раннер персистентный (это и есть прод-сервер) — параллельный деплой поверх
-# ещё не завершившегося опасен для docker compose и БД, поэтому очередь, а не
-# отмена: второй пуш в main должен доехать, а не потерять деплой.
 concurrency:
   group: cd-prod
   cancel-in-progress: false
 
-permissions:
-  contents: read
+env:
+  IMAGE_TAG: ${{ github.sha }}
+  STAND_HOST: ${{ vars.STAND_HOST }}
+  STAND_USER: ${{ vars.STAND_USER || 'root' }}
+  STAND_SSH_PORT: ${{ vars.STAND_SSH_PORT || '22' }}
+  PROD_PATH: ${{ vars.PROD_PATH || '/opt/dnd-prod' }}
+  STAND_SSH_KNOWN_HOSTS: ${{ vars.STAND_SSH_KNOWN_HOSTS }}
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/dezodemius/dndshing-api:${{ github.sha }}
+            ghcr.io/dezodemius/dndshing-api:main
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          build-args: |
+            APP_COMMIT_SHA=${{ github.sha }}
+          tags: |
+            ghcr.io/dezodemius/dndshing-frontend:${{ github.sha }}
+            ghcr.io/dezodemius/dndshing-frontend:main
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
   deploy:
-    runs-on: self-hosted
+    needs: build
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
       name: Production
       url: https://dndshing.ru
-    env:
-      APP_COMMIT_SHA: ${{ github.sha }}
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
-        with:
-          # clean: false — не затирать .env в рабочей директории раннера.
-          # Дефолтный git clean -ffdx удалил бы его перед каждым чекаутом.
-          clean: false
 
-      - name: Clean stale workspace files
-        # The runner is persistent, so keep only the server-owned environment
-        # and the static release currently served by the host nginx.
-        run: >-
-          git clean -ffdx
-          -e /.env
-          -e /frontend/dist/
-          -e /frontend/dist.previous/
-
-      - name: Build images
-        run: docker compose build
-
-      - name: Run database migrations
-        # Тот же образ api, что пойдёт в прод; db поднимется по depends_on
-        # (condition: service_healthy) до старта команды.
-        run: docker compose run --rm api alembic upgrade head
-
-      - name: Deploy
-        run: docker compose up -d
-
-      - name: Check the deployed containers
+      - name: Check prod configuration
+        # Пустая переменная иначе доедет до ssh и упадёт невнятной ошибкой
+        # соединения — проверяем до того, как что-то произойдёт с сервером.
+        env:
+          STAND_SSH_KEY: ${{ secrets.STAND_SSH_KEY }}
         run: |
           set -euo pipefail
-          frontend_url="http://$(docker compose port frontend 80)"
+          missing=0
+          if [ -z "$STAND_HOST" ]; then
+            echo "::error::не задана переменная STAND_HOST: IP прод-сервера"
+            missing=1
+          fi
+          if [ -z "${STAND_SSH_KEY:-}" ]; then
+            echo "::error::не задан секрет STAND_SSH_KEY: приватный ключ для входа на сервер"
+            missing=1
+          fi
+          if [ -z "$STAND_SSH_KNOWN_HOSTS" ]; then
+            echo "::error::не задана переменная STAND_SSH_KNOWN_HOSTS"
+            missing=1
+          fi
+          exit "$missing"
+
+      - name: Configure SSH
+        env:
+          STAND_SSH_KEY: ${{ secrets.STAND_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$STAND_SSH_KEY" > ~/.ssh/prod_key
+          chmod 600 ~/.ssh/prod_key
+          printf '%s\n' "$STAND_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host prod
+            HostName ${STAND_HOST}
+            User ${STAND_USER}
+            Port ${STAND_SSH_PORT}
+            IdentityFile ~/.ssh/prod_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+            BatchMode yes
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Upload compose file
+        # Прод не собирает образы и не хранит исходники — только
+        # docker-compose.yml и файл, который он монтирует для db. .env на
+        # сервере этим шагом не трогается: он не входит в архив, а каталог не
+        # чистится (в отличие от cd-stand.yml, где чистка нужна из-за
+        # выгрузки полного дерева).
+        run: |
+          set -euo pipefail
+          tar -czf - docker-compose.yml docker/postgres/init-test-db.sh \
+            | ssh prod "mkdir -p '${PROD_PATH}' && tar -xzf - -C '${PROD_PATH}'"
+
+      - name: Pull images
+        # GITHUB_TOKEN — короткоживущий, уходит по стандартному вводу ssh, а
+        # не аргументом команды (не оседает в истории/списке процессов), и
+        # логаут сразу после pull не оставляет его в ~/.docker/config.json на
+        # сервере между деплоями.
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
+            | ssh prod "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+          ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${IMAGE_TAG}' docker compose pull"
+          ssh prod "docker logout ghcr.io"
+
+      - name: Run database migrations
+        run: ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${IMAGE_TAG}' docker compose run --rm api alembic upgrade head"
+
+      - name: Deploy
+        run: ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${IMAGE_TAG}' docker compose up -d"
+
+      - name: Check the deployed containers
+        # Проверка изнутри сервера: контейнеры публикуются только на
+        # 127.0.0.1. Публичный dndshing.ru здесь не проверяется — см.
+        # комментарий в шапке файла.
+        run: |
+          set -euo pipefail
+          ssh prod "sh -s '${PROD_PATH}' '${IMAGE_TAG}'" <<'REMOTE' || { echo "::error::deployed containers did not become healthy"; exit 1; }
+          set -eu
+          cd "$1"
+          url="http://$(docker compose port frontend 80)"
           for i in $(seq 1 20); do
-            version=$(curl -fsS "$frontend_url/version.json" 2>/dev/null || true)
-            root=$(curl -fsS "$frontend_url/" 2>/dev/null || true)
-            if curl -fsS "$frontend_url/healthz" >/dev/null \
-              && grep -Fq '<div id="root"></div>' <<< "$root" \
-              && grep -Fq "\"$GITHUB_SHA\"" <<< "$version"; then
-              echo "frontend, API proxy, and commit marker are healthy"
+            version=$(curl -fsS "$url/version.json" 2>/dev/null || true)
+            root=$(curl -fsS "$url/" 2>/dev/null || true)
+            if curl -fsS "$url/healthz" >/dev/null 2>&1 \
+              && printf '%s' "$root" | grep -Fq '<div id="root"></div>' \
+              && printf '%s' "$version" | grep -Fq "\"$2\""; then
+              echo "frontend, API proxy and commit marker are healthy"
               exit 0
             fi
             echo "containers not ready yet ($i/20), retrying in 3s..."
             sleep 3
           done
-          echo "::error::deployed containers did not become healthy"
           exit 1
+          REMOTE
 
-      - name: Publish static assets for the host nginx
-        id: static
-        run: |
-          set -euo pipefail
-          target="$GITHUB_WORKSPACE/frontend/dist"
-          staged="$target.next"
-          previous="$target.previous"
-          image=$(docker compose images -q frontend)
-          container=$(docker create "$image")
-          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
-
-          rm -rf "$staged" "$previous"
-          mkdir -p "$staged"
-          docker cp "$container:/usr/share/nginx/html/." "$staged/"
-          grep -Fq "\"$GITHUB_SHA\"" "$staged/version.json"
-
-          if [ -d "$target" ]; then
-            mv "$target" "$previous"
-          fi
-          if ! mv "$staged" "$target"; then
-            [ ! -d "$previous" ] || mv "$previous" "$target"
-            exit 1
-          fi
-          echo "published=true" >> "$GITHUB_OUTPUT"
-
-      - name: Check the public site
-        run: |
-          set -euo pipefail
-          for i in $(seq 1 20); do
-            version=$(curl -fsS -H 'Cache-Control: no-cache' \
-              "https://dndshing.ru/version.json?commit=$GITHUB_SHA" 2>/dev/null || true)
-            if grep -Fq "\"$GITHUB_SHA\"" <<< "$version" \
-              && curl -fsS https://dndshing.ru/api/v1/auth/oauth/providers >/dev/null; then
-              echo "dndshing.ru serves commit $GITHUB_SHA"
-              exit 0
-            fi
-            echo "public site has not switched yet ($i/20), retrying in 3s..."
-            sleep 3
-          done
-          echo "::error::dndshing.ru does not serve commit $GITHUB_SHA"
-          exit 1
-
-      - name: Remove the previous static release
-        run: rm -rf "$GITHUB_WORKSPACE/frontend/dist.previous"
-
-      - name: Restore static assets after a failed public check
-        if: failure() && steps.static.outputs.published == 'true'
-        run: |
-          set -euo pipefail
-          target="$GITHUB_WORKSPACE/frontend/dist"
-          previous="$target.previous"
-          if [ -d "$previous" ]; then
-            rm -rf "$target.failed"
-            [ ! -d "$target" ] || mv "$target" "$target.failed"
-            mv "$previous" "$target"
-            rm -rf "$target.failed"
-            echo "Restored the previous static release"
-          fi
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/prod_key ~/.ssh/config
