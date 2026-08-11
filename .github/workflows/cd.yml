@@ -25,6 +25,12 @@
 # инфраструктурный шаг (TLS/Cloudflare), не часть этого воркфлоу. Поэтому
 # здесь нет проверки публичного сайта, только проверка контейнеров изнутри
 # сервера — как в cd-stand.yml.
+#
+# Неудачный healthz-гейт откатывает ПРИЛОЖЕНИЕ (контейнеры) на последний
+# отметившийся здоровым тег из ${PROD_PATH}/.last_good_tag, но не миграции —
+# откат БД небезопасен и не предполагается (схема должна расти
+# совместимо вперёд). Первый деплой без .last_good_tag откатывать некуда:
+# просто падает, как раньше.
 
 name: cd
 
@@ -145,6 +151,15 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
+      - name: Read previous release
+        # Пусто на самом первом деплое (файла ещё нет) — откатывать в этом
+        # случае некуда, шаг отката ниже это учитывает.
+        id: previous
+        run: |
+          set -euo pipefail
+          tag=$(ssh prod "cat '${PROD_PATH}/.last_good_tag' 2>/dev/null || true")
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
       - name: Upload compose file
         # Прод не собирает образы и не хранит исходники — только
         # docker-compose.yml и файл, который он монтирует для db. .env на
@@ -178,6 +193,7 @@ jobs:
         # Проверка изнутри сервера: контейнеры публикуются только на
         # 127.0.0.1. Публичный dndshing.ru здесь не проверяется — см.
         # комментарий в шапке файла.
+        id: health
         run: |
           set -euo pipefail
           ssh prod "sh -s '${PROD_PATH}' '${IMAGE_TAG}'" <<'REMOTE' || { echo "::error::deployed containers did not become healthy"; exit 1; }
@@ -198,6 +214,26 @@ jobs:
           done
           exit 1
           REMOTE
+
+      - name: Record last-good release
+        # Не выполняется, если предыдущий шаг упал (дефолт GHA — шаг без
+        # своего if пропускается, если джоба уже провалилась).
+        run: ssh prod "printf '%s' '${IMAGE_TAG}' > '${PROD_PATH}/.last_good_tag'"
+
+      - name: Roll back to the previous release
+        # Откатывает контейнеры на последний здоровый тег — не миграции (см.
+        # комментарий в шапке файла). Джоба всё равно останется красной:
+        # неудачный healthz — сигнал, что нужно смотреть, что случилось,
+        # откат только не оставляет прод лежать до этого разбирательства.
+        if: failure() && steps.health.outcome == 'failure' && steps.previous.outputs.tag != ''
+        run: |
+          set -euo pipefail
+          prev="${{ steps.previous.outputs.tag }}"
+          echo "::warning::health check failed for ${IMAGE_TAG}, rolling back app containers to ${prev} (database migrations are not reverted)"
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
+            | ssh prod "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+          ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${prev}' docker compose pull && IMAGE_TAG='${prev}' docker compose up -d"
+          ssh prod "docker logout ghcr.io"
 
       - name: Remove SSH key
         if: always()
