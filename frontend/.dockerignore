@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+
+# Vite reads .env during the build and would inline a developer's localhost API
+# URL into the bundle. Kept out so the image resolves /api/v1 same-origin.
+.env
+.env.*
+
+Dockerfile
+.dockerignore

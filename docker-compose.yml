@@ -1,0 +1,74 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      # No `:-default` fallbacks: compose must refuse to start rather than boot a
+      # database whose credentials are guessable from this repository.
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    ports:
+      # Loopback only: the dev database must not be reachable from the network.
+      # The host port is configurable because 5432 is often taken by another postgres.
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-test-db.sh:/docker-entrypoint-initdb.d/init-test-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      # Built from POSTGRES_*, the single source of truth for the credentials, and
+      # not taken from DATABASE_URL in .env: that one points at localhost for the
+      # host-side alembic/pytest runs, while the container reaches postgres as `db`.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env}
+      SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST in .env, see .env.example}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?set FRONTEND_BASE_URL in .env, see .env.example}
+      # Optional: unset keeps the Yandex OAuth provider disabled (rule 12 does
+      # not apply here — this is not a required-to-boot secret).
+      YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:-}
+      YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:-}
+      YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:-}
+      # Optional: unset keeps the Mail.ru OAuth provider disabled, same as above.
+      MAILRU_CLIENT_ID: ${MAILRU_CLIENT_ID:-}
+      MAILRU_CLIENT_SECRET: ${MAILRU_CLIENT_SECRET:-}
+      MAILRU_REDIRECT_URI: ${MAILRU_REDIRECT_URI:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  frontend:
+    # Multi-stage build: the SPA is compiled here and served by nginx, which also
+    # proxies /api/v1 to `api` so the browser talks to a single origin.
+    build:
+      context: ./frontend
+      args:
+        APP_COMMIT_SHA: ${APP_COMMIT_SHA:-dev}
+    # Pinned instead of the generated dndshing-frontend-1. Fixing the name rules
+    # out `--scale` for this service, which a static file server never needs.
+    container_name: dndshing-frontend
+    restart: unless-stopped
+    depends_on:
+      # nginx resolves the `api` hostname when it loads its config and exits if
+      # the name is missing, so the container has to exist before this one starts.
+      api:
+        condition: service_started
+    ports:
+      # Loopback only, like the rest: in production Cloudflare and the host proxy
+      # are what face the network. The host port stays off 5173 so a `npm run dev`
+      # can run alongside this container.
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-8080}:80"
+
+volumes:
+  pg_data:

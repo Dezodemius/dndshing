@@ -1,0 +1,152 @@
+.spells-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.spells-tab__empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.spells-tab__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.spells-tab__section h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.spells-tab__slot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.spells-tab__slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.spells-tab__slot-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.spells-tab__slot-count {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.spells-tab__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spells-tab__list-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.spells-tab__prepared {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.9rem;
+}
+
+.spells-tab__add-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.spells-tab__level-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.spell-card {
+  color: var(--color-text);
+}
+
+.spell-card__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.spell-card__name {
+  font-weight: 700;
+}
+
+.spell-card__level {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.spell-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.spell-card__meta {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+
+.spell-card__meta dt {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.spell-card__meta dd {
+  margin: 0;
+}
+
+.spell-card__description {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 640px) {
+  .spells-tab__slot-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}

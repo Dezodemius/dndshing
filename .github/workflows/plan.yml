@@ -1,0 +1,89 @@
+# .github/workflows/plan.yml
+#
+# Планировщик очереди. Читает граф зависимостей из строк `depends:` в
+# .claude/docs/BACKLOG.md и приводит GitHub в соответствие с ним:
+#   - открытая задача, все зависимости которой закрыты -> agent-ready
+#   - остальные -> blocked
+#   - доска проекта: Эпик / Область / Status
+#
+# Без этого очередь агента пустеет навсегда: agent.yml метку agent-ready
+# только читает, а выставить её некому. Поэтому planner ходит перед ночным
+# окном агента (23:50 UTC против окна 00:00–05:59) и сразу после закрытия
+# любой ишью.
+#
+# На ночном прогоне (тик cron или звонок внешнего будильника
+# infra/night-alarm с nightly=true) он ещё и снимает agent-deferred — метку задач,
+# сорвавшихся прошлой ночью (упор в лимит модели, таймаут, падение). Это и есть
+# «завтра сделаем завтра»: ночь их пропускает, следующая — берёт заново.
+# На событийных прогонах метка не трогается: закрытие соседней ишью в 03:00 не
+# должно возвращать в очередь задачу, которая только что упёрлась в лимит.
+
+name: plan
+
+on:
+  issues:
+    # opened: свежая ишью из create-issues.py приходит без очередной метки —
+    # без этого она ждала бы метку до ближайшего cron (до суток).
+    # НЕ labeled/unlabeled: планировщик сам правит метки, это был бы цикл.
+    types: [opened, closed, reopened, deleted]
+  push:
+    branches: [develop]
+    paths:
+      - ".claude/docs/BACKLOG.md"
+      - ".claude/scripts/**"
+  schedule:
+    # За 10 минут до открытия ночного окна agent.yml. Тики GitHub роняет,
+    # поэтому в то же время звонит и будильник infra/night-alarm.
+    - cron: "50 23 * * *"
+  workflow_dispatch:
+    inputs:
+      nightly:
+        description: "Служебный: ночной звонок будильника — снимает agent-deferred (не ставить вручную)"
+        required: false
+        default: "false"
+
+concurrency:
+  group: plan
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop   # BACKLOG на develop — источник графа
+
+      - name: Ensure manual gate labels exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create manual --color D4C5F9 --force \
+            --description "Требует ручной проверки; агент не берёт и не закрывает задачу"
+          gh label create manual-approved --color 2DA44E --force \
+            --description "Владелец подтвердил ручную приёмку"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test the BACKLOG parser
+        # Планировщик читает граф только отсюда: сломанный парсер = сломанная
+        # очередь. Дешевле упасть здесь, чем разметить ишью мусором.
+        run: |
+          pip install pytest
+          python -m pytest .claude/scripts -q
+
+      - name: Reconcile labels and project board
+        env:
+          # PAT, не github.token: у GITHUB_TOKEN нет scope `project`,
+          # без него доска (Projects v2, user-owned) недоступна на запись.
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          PYTHONIOENCODING: utf-8
+          # Новая ночь — новая попытка для вчерашних сорвавшихся задач.
+          CLEAR_DEFERRED: ${{ (github.event_name == 'schedule' || inputs.nightly == 'true') && '--clear-deferred' || '' }}
+        run: python .claude/scripts/plan-tasks.py --apply $CLEAR_DEFERRED

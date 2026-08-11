@@ -1,0 +1,62 @@
+name: Баг
+description: Сообщить об ошибке. Заявка сразу уходит в очередь ночного агента (метки agent-ready + bug).
+title: "[BUG] "
+labels:
+  - bug
+  - agent-ready
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Баги с метками `bug` + `agent-ready` берутся ночным агентом впереди
+        обычной очереди (FIFO по номеру ишью). Чем точнее шаги воспроизведения —
+        тем меньше шанс, что агент упрётся в блокер и вернёт задачу без правки.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Что сломано
+      description: Коротко, в чём проблема.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Шаги воспроизведения
+      description: По пунктам — так, чтобы агент мог повторить баг без уточняющих вопросов.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемое поведение
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Фактическое поведение
+      description: Текст ошибки, стектрейс, скриншот — что есть.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Область
+      description: Необязательно — помогает агенту быстрее найти нужный модуль.
+      options:
+        - backend
+        - frontend
+        - infra
+        - docs
+        - не знаю
+    validations:
+      required: false

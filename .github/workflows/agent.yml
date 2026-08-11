@@ -1,23 +1,53 @@
-# .github/workflows/agent.yml  (v3)
+# .github/workflows/agent.yml  (v4)
 #
 # Автономный агент. Работает в облаке GitHub — локальная машина не нужна.
 # Ветки: feat/dnd-NNN от develop, PR в develop. Прод деплоится только
 # при merge develop -> main (отдельный CD-воркфлоу, секреты прода
 # агентскому воркфлоу недоступны).
 #
-# Подготовка: см. чеклист в docs/launch-checklist.md
+# НОЧНОЙ ЦИКЛ. Один прогон = одна задача. Прогон, доделав свою, сам будит
+# следующий (шаг «Chain the next run»), — так ночь едет «задача за задачей»,
+# пока не кончится окно, очередь или квота. Упор в лимит модели = падение шага:
+# задача помечается agent-deferred и выбывает до утра, следующий прогон берёт
+# другую (если лимит общий — тоже упадёт и выбудет, ночь просто закончится
+# раньше). Метку снимет ночной plan.yml — «сделаем завтра».
+#
+# Почему цепочка, а не только cron. Расписание GitHub — best-effort: тики
+# задерживаются и молча пропускаются под нагрузкой (пик — начало часа).
+# Статистика этого репозитория на 13.07.2026: из двух тиков, которые GitHub
+# был должен выдать, один пропущен молча (00:17 UTC 13.07 — ночь потеряна,
+# пять готовых задач не тронуты), второй опоздал на 3 ч 45 мин (00:17 → 04:02
+# UTC 12.07). Cron остаётся, но теперь он лишь будильник: достаточно, чтобы за
+# ночь долетел ОДИН тик — дальше прогоны тянут друг друга сами. Минуты сдвинуты
+# с :00/:20/:40 (самые нагруженные) на :07/:27/:47 — совет из доков GitHub.
+# Но и первый тик GitHub не доверен: внешний будильник (Cloudflare Worker,
+# infra/night-alarm) сам звонит в workflow_dispatch раз в час всю ночь —
+# он и открывает ночь, и поднимает её, если цепочка умерла посреди.
+#
+# Окно — 00:00–05:59 UTC (03:00–08:59 MSK). Меняешь — меняй В ДВУХ местах:
+# cron ниже и NIGHT_END_UTC.
+#
+# Подготовка: доки проекта — в .claude/docs/, конвенции — в .claude/skills/
 
 name: agent
 
 on:
   schedule:
-    - cron: "17 0 * * *"
+    - cron: "7,27,47 0-5 * * *"
   workflow_dispatch:
     inputs:
       issue:
         description: "Номер ишью (пусто = выбрать автоматически)"
         required: false
+      chained:
+        description: "Служебный: прогон разбужен предыдущим или будильником infra/night-alarm (не ставить вручную)"
+        required: false
+        default: "false"
 
+# Прогоны не отменяют друг друга, а ждут: пока агент пишет код, разбуженные
+# (цепочкой или cron'ом) прогоны стоят в очереди — GitHub держит один pending,
+# лишние гасит. Освободился — следующий стартует сразу. Отсюда «непрерывность»,
+# и отсюда же безопасность лишних тиков: два разом не поедут.
 concurrency:
   group: agent
   cancel-in-progress: false
@@ -26,6 +56,23 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  id-token: write   # claude-code-action@v1 обменивает OAuth-токен через OIDC
+
+env:
+  # Конец ночного окна (час UTC). Прогон, вытолкнутый очередью за эту границу,
+  # новую задачу не берёт: днём квота нужна человеку.
+  NIGHT_END_UTC: "6"
+  # Потолок открытых PR агента. Задачи ночи независимы (граф depends это
+  # гарантирует), но ветки режутся от develop и друг друга не видят — чем
+  # больше их висит, тем выше шанс конфликта миграций и общих файлов.
+  # Это же тормоз очереди: разгребли утром — ночью поедет дальше.
+  MAX_OPEN_PRS: "3"
+  # Стоп-кран ночи. Отличить «кончилась квота» от «задача сломана» по логу
+  # нельзя, но две сорванные задачи подряд — это почти наверняка лимит, а не
+  # совпадение: без тормоза агент до утра перебрал бы весь бэклог, роняя прогон
+  # за прогоном и засыпая ишью комментариями. Счётчик — сами метки
+  # agent-deferred; ночной plan.yml их снимает, так что он обнуляется сам.
+  MAX_DEFERRED: "2"
 
 jobs:
   pick:
@@ -34,50 +81,191 @@ jobs:
       issue: ${{ steps.pick.outputs.issue }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Ensure queue labels exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create in-review --color 1D76DB \
+            --description "PR открыт, ждёт ревью и мержа" || true
+          gh label create agent-deferred --color FBCA04 \
+            --description "Прогон сорвался (лимит/таймаут/ошибка) — вернуть в очередь следующей ночью" || true
+
       - name: Pick next ready issue
         id: pick
         env:
           GH_TOKEN: ${{ github.token }}
           FORCED: ${{ inputs.issue }}
+          # «Автоматический» = тик cron или прогон, разбуженный цепочкой.
+          AUTO: ${{ github.event_name == 'schedule' || inputs.chained == 'true' }}
         run: |
           set -euo pipefail
           if [ -n "${FORCED:-}" ]; then
+            state=$(gh issue view "$FORCED" --json state --jq .state)
+            manual=$(gh issue view "$FORCED" --json labels \
+                       --jq '[.labels[].name] | any(. == "manual")')
+            if [ "$state" != "OPEN" ]; then
+              echo "Ишью #$FORCED закрыта — прогон пропущен."
+              echo "issue=" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            if [ "$manual" = "true" ]; then
+              echo "Ишью #$FORCED помечена manual — кодовый агент её не выполняет."
+              echo "issue=" >> "$GITHUB_OUTPUT"; exit 0
+            fi
             echo "issue=$FORCED" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          busy=$(gh issue list --label in-progress --state open --json number --jq 'length')
-          if [ "$busy" != "0" ]; then
-            echo "In-progress issue exists, skipping run."
+
+          # Прогон мог простоять в concurrency-очереди за длинной задачей и
+          # доехать до утра. Новую задачу он уже не берёт.
+          # Окно сторожим у ВСЕХ автоматических прогонов: и у тика cron, и у
+          # разбуженного цепочкой (он приходит как workflow_dispatch, поэтому
+          # одной проверки event_name мало — иначе цепочка тянула бы задачи
+          # в рабочий день). Ручной запуск человека окном не ограничен: раз
+          # позвал — значит хочет сейчас.
+          # 10#: date отдаёт "08", а для арифметики bash это битая восьмеричка.
+          hour=$(( 10#$(date -u +%H) ))
+          if [ "$AUTO" = "true" ] && [ "$hour" -ge "$NIGHT_END_UTC" ]; then
+            echo "Ночное окно закрыто (сейчас ${hour}:xx UTC) — прогон пропущен."
             echo "issue=" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          picked=""
-          for num in $(gh issue list --label agent-ready --state open \
-                        --json number,title --jq 'sort_by(.title) | .[].number'); do
-            title=$(gh issue view "$num" --json title --jq .title)
-            body=$(gh issue view "$num" --json body --jq .body)
-            self=$(printf '%s' "$title" | grep -oE '^DND-[0-9]+' || true)
-            deps=$(printf '%s' "$body" | grep -oE 'DND-[0-9]+' | sort -u || true)
-            ok=1
-            for d in $deps; do
-              [ "$d" = "$self" ] && continue
-              open_dep=$(gh issue list --state open --search "$d in:title" \
-                          --json number --jq 'length')
-              if [ "$open_dep" != "0" ]; then ok=0; break; fi
-            done
-            if [ "$ok" = "1" ]; then picked="$num"; break; fi
-          done
+
+          # Живая метка in-progress при работающей concurrency-группе означает
+          # прогон, умерший без уборки. Лезть поверх него нельзя.
+          busy=$(gh issue list --label in-progress --state open --json number --jq 'length')
+          if [ "$busy" != "0" ]; then
+            echo "Есть in-progress — прошлый прогон не убрал за собой. Пропускаю."
+            echo "issue=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          deferred=$(gh issue list --label agent-deferred --state open --json number --jq 'length')
+          if [ "$deferred" -ge "$MAX_DEFERRED" ]; then
+            echo "Сорвалось задач за ночь: $deferred (потолок $MAX_DEFERRED) — похоже на лимит модели. Ночь окончена."
+            echo "issue=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          open_prs=$(gh pr list --base develop --state open --json headRefName \
+                      --jq '[.[] | select(.headRefName | startswith("feat/dnd-"))] | length')
+          if [ "$open_prs" -ge "$MAX_OPEN_PRS" ]; then
+            echo "Открытых PR агента: $open_prs (потолок $MAX_OPEN_PRS) — жду мержа."
+            echo "issue=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          # Зависимости здесь не проверяются: метку agent-ready ставит plan.yml
+          # по графу `depends:` из BACKLOG. Раньше на этом месте был grep DND-\d+
+          # по телу ишью — он принимал за зависимость любое упоминание задачи
+          # в прозе (напр. в разделе «Вне скоупа»).
+          #
+          # Из очереди выбывают: in-progress (кто-то делает), in-review (сделана,
+          # PR ждёт человека — agent-ready с неё снимет только закрытие ишью)
+          # agent-deferred (сорвалась этой ночью, повтор — завтра) и manual
+          # (приёмка человеком; кодовый агент не может подтвердить результат).
+          # Фильтр по списку меток, а не через --search: поисковый индекс GitHub
+          # отстаёт на секунды-минуты, и прогон, стартовавший сразу за прошлым,
+          # увидел бы старые метки и взял ту же задачу второй раз.
+          candidates=$(gh issue list --label agent-ready --state open --limit 100 \
+                    --json number,title,labels \
+                    --jq '[ .[] | select([.labels[].name]
+                              | any(. == "in-progress" or . == "in-review" or . == "agent-deferred" or . == "manual")
+                              | not) ]')
+
+          # Баги — вперёд очереди. Заголовки багов не следуют конвенции
+          # DND-NNN (sort_by(.title) на них не рассчитан), поэтому это
+          # отдельный проход: среди agent-ready с меткой `bug` берём самый
+          # старый (FIFO по номеру ишью — кто раньше заведён, тот и чинится
+          # первым). Только если багов нет — падаем на обычную очередь
+          # бэклога, как раньше.
+          picked=$(printf '%s' "$candidates" \
+                    | jq '[ .[] | select([.labels[].name] | any(. == "bug")) ]
+                          | sort_by(.number) | .[0].number // empty')
+          if [ -z "$picked" ]; then
+            picked=$(printf '%s' "$candidates" | jq 'sort_by(.title) | .[0].number // empty')
+          fi
+          if [ -z "$picked" ]; then
+            echo "Свободных agent-ready задач нет."
+          else
+            echo "Взял ишью #$picked."
+          fi
           echo "issue=$picked" >> "$GITHUB_OUTPUT"
 
   run:
     needs: pick
     if: needs.pick.outputs.issue != ''
     runs-on: ubuntu-latest
+    # Зависший агент держал бы concurrency-группу дефолтные 6 часов и съел бы
+    # всю ночь. Час — потолок здоровой задачи; дольше — это уже не задача.
+    timeout-minutes: 60
+
+    # Та же БД, что и в ci.yml. Без неё фаза 4 («запусти тесты, добейся
+    # зелёного») была невыполнима: агент физически не мог поднять postgres,
+    # поэтому тесты с БД у него не запускались, и он сдавал задачу вслепую.
+    # Так и уехал DND-010: агент отчитался, ревьюер (он читает дифф, а не гоняет
+    # тесты) поставил approve, а CI на PR покраснел весь — приложение ходило в
+    # одну базу, миграции накатывались в другую. Ловить такое должен агент, а не
+    # человек утром. Креды эфемерные, живут в рамках job-рана.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: dndshing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d dndshing"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     env:
       ISSUE: ${{ needs.pick.outputs.issue }}
+      DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/dndshing
+      TEST_DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/dndshing_test
+      # Ровно как в ci.yml: Settings.jwt_secret_key обязателен и без дефолта, а
+      # tests/conftest.py зовёт get_settings() на импорте — без этой переменной
+      # pytest у агента падает на сборе тестов там, где CI зелёный. Ключ
+      # эфемерный, живёт в рамках job-рана; в проде секрет приезжает из окружения.
+      JWT_SECRET_KEY: ci-test-secret-not-a-real-credential
     steps:
       - uses: actions/checkout@v4
         with:
           ref: develop
           fetch-depth: 0
+
+      - name: Create test database
+        # Сервис-контейнер поднимается до checkout, поэтому init-скрипт из
+        # docker/postgres сюда не примонтировать — заводим тестовую БД шагом.
+        # Один в один с ci.yml: агент должен видеть ровно то же, что потом
+        # увидит CI на его PR.
+        env:
+          PGPASSWORD: ci
+        run: psql -h localhost -U ci -d dndshing -c "CREATE DATABASE dndshing_test"
+
+      # Падаем до запуска агента, а не после: иначе прогон сжигает ~4 минуты
+      # и ~$1, чтобы упасть на git push в самом конце.
+      - name: Check GH_PAT can push workflow files
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          # Классический PAT отдаёт свои scope в заголовке x-oauth-scopes.
+          # Fine-grained PAT его не отдаёт — там проверить нечем, пропускаем.
+          scopes=$(curl -sS -o /dev/null -D - \
+                     -H "Authorization: Bearer $GH_PAT" \
+                     -H "X-GitHub-Api-Version: 2022-11-28" \
+                     https://api.github.com/user \
+                   | tr -d '\r ' | sed -n 's/^[Xx]-[Oo][Aa]uth-[Ss]copes://p')
+          if [ -z "$scopes" ]; then
+            echo "::notice::GH_PAT не классический — scope не видны, проверка пропущена."
+            exit 0
+          fi
+          case ",$scopes," in
+            *,workflow,*)
+              echo "GH_PAT has workflow scope ($scopes)." ;;
+            *)
+              echo "::error::У GH_PAT нет scope 'workflow' (есть: $scopes). Задачи, меняющие .github/workflows/, не запушатся. Перевыпусти PAT со scope repo+workflow и обнови секрет."
+              exit 1 ;;
+          esac
 
       - name: Mark in-progress
         env:
@@ -88,13 +276,22 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # PAT (нужен scope `workflow`), а не токен GitHub App: приложениям
+          # GitHub запрещает пушить изменения внутри .github/workflows/ без
+          # разрешения `workflows`, а выдать его через блок `permissions:`
+          # нельзя — такого ключа у GITHUB_TOKEN нет. Без этого любая задача,
+          # трогающая воркфлоу (напр. DND-002), падает на git push с
+          # «refusing to allow a GitHub App to create or update workflow».
+          # Действует именно здесь: action затирает креды actions/checkout
+          # своим токеном (configureGitAuth), поэтому token: у checkout не помог бы.
+          github_token: ${{ secrets.GH_PAT }}
           prompt: |
             Выполни задачу из GitHub issue #${{ env.ISSUE }} строго по фазам.
 
             ФАЗА 1 — РАЗВЕДКА. Прочитай: issue (gh issue view ${{ env.ISSUE }}),
-            CLAUDE.md, docs/business-requirements.md, docs/architecture.md,
-            секцию задачи в docs/backlog.md и АКТУАЛЬНЫЙ код модулей, которых
-            касается задача. Скиллы-конвенции (.claude/skills/) применяй по
+            .claude/docs/CLAUDE.md (правила и DoD), .claude/docs/REQUIREMENTS.md,
+            .claude/docs/ARCHITECTURE.md, секцию задачи в .claude/docs/BACKLOG.md
+            и АКТУАЛЬНЫЙ код модулей, которых касается задача. Скиллы-конвенции (.claude/skills/) применяй по
             их описаниям. Если задача противоречит текущему коду или docs —
             остановись: напиши блокер комментарием в issue, сними метку
             in-progress (gh issue edit --remove-label) и заверши работу.
@@ -106,39 +303,120 @@ jobs:
             ФАЗА 3 — РЕАЛИЗАЦИЯ. Ветка feat/dnd-NNN (номер из issue) от
             свежего develop. Только скоуп задачи: ничего из «Вне скоупа»
             и фазы 2 (BR §6). Коммиты атомарные, сообщения на английском.
+            У соседних задач той же ночи могут висеть НЕ вмёрженные PR — их
+            кода в develop нет, рассчитывать на него нельзя.
 
             ФАЗА 4 — САМОРЕВЬЮ. Прогони полный diff против: критериев
-            приёмки задачи; DoD из CLAUDE.md; скилла security-review;
+            приёмки задачи; DoD из .claude/docs/CLAUDE.md; скилла security-review;
             скилла code-style. Запусти тесты и линт, добейся зелёного.
             Найденное — исправь сейчас.
+            Postgres 16 поднят рядом, DATABASE_URL и TEST_DATABASE_URL уже в
+            окружении, база dndshing_test создана — то есть `pytest` и
+            `ruff check .` обязаны реально отработать здесь, в точности как
+            потом отработает CI на твоём PR. «Тесты не запустить, БД нет» —
+            больше не оправдание: не запустил и не позеленил — задача не сдана.
 
-            ФАЗА 5 — ОФОРМЛЕНИЕ. Запиши в файл .claude/pr-body.md (в ветке)
-            тело PR: Что сделано / Как проверял (тесты + ручные шаги) /
-            Решения и допущения / Что НЕ вошло и почему. Запушь ветку.
+            ФАЗА 5 — ОФОРМЛЕНИЕ. Запиши тело PR в файл .claude/pr-body.md:
+            Что сделано / Как проверял (тесты + ручные шаги) / Решения и
+            допущения / Что НЕ вошло и почему. Файл в .gitignore — он лишь
+            передаёт текст следующему шагу workflow, НЕ коммить его и не
+            добавляй через git add -f. Запушь ветку с кодом задачи.
             Сам PR НЕ создавай — его создаст workflow.
-          claude_args: "--max-turns 100"
+          # Модель прибита явно, а не оставлена на дефолт: разработку ведёт
+          # Sonnet (~$1 за прогон), Opus стоит только в ревью (review.yml) —
+          # там он ловит баги и окупается. Если дефолт action однажды
+          # переедет на модель подороже, без этого флага стоимость каждой
+          # задачи молча вырастет в разы.
+          claude_args: "--max-turns 100 --model claude-sonnet-5 --dangerously-skip-permissions"
 
       - name: Open PR into develop
         env:
-          GH_TOKEN: ${{ github.token }}
+          # PAT (not github.token): PR-события от github.token не триггерят
+          # pull_request-воркфлоу, поэтому review.yml иначе не запустится.
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           set -euo pipefail
           title=$(gh issue view "$ISSUE" --json title --jq .title)
           dnd=$(printf '%s' "$title" | grep -oE '^DND-[0-9]+' | tr 'A-Z' 'a-z')
           branch="feat/${dnd}"
-          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
-            git fetch origin "$branch"
-            body_file=$(mktemp)
-            if git show "origin/${branch}:.claude/pr-body.md" > "$body_file" 2>/dev/null; then
-              printf '\n\nCloses #%s' "$ISSUE" >> "$body_file"
-            else
-              printf 'Closes #%s. (Агент не оставил описание — смотреть diff.)' "$ISSUE" > "$body_file"
-            fi
-            gh pr create --base develop --head "$branch" --title "$title" \
-              --body-file "$body_file" || echo "PR already exists"
-          else
-            echo "Branch $branch not found — agent stopped or failed."
-            gh issue edit "$ISSUE" --remove-label in-progress || true
-            gh issue comment "$ISSUE" --body "Запуск без результата: ветка $branch не запушена. Смотри лог workflow и комментарии выше."
+          if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            # Агент упёрся в блокер или сломался. Метки и комментарий — в шаге
+            # уборки ниже, он ловит и этот случай.
+            echo "Ветка $branch не запушена — агент остановился."
             exit 1
           fi
+          # Тело PR агент оставляет в .claude/pr-body.md прямо в workspace
+          # (файл в .gitignore). Шаги идут в одном job — читаем его с диска,
+          # а не из ветки: в git такой файл коммитить незачем.
+          body_file=$(mktemp)
+          if [ -s .claude/pr-body.md ]; then
+            cat .claude/pr-body.md > "$body_file"
+            printf '\n\nCloses #%s' "$ISSUE" >> "$body_file"
+          else
+            printf 'Closes #%s. (Агент не оставил описание — смотреть diff.)' "$ISSUE" > "$body_file"
+          fi
+          gh pr create --base develop --head "$branch" --title "$title" \
+            --body-file "$body_file" || echo "PR already exists"
+          # Задача сдана, дальше ход человека. Не снять in-progress здесь =
+          # очередь стоит до утреннего мержа, и вся ночь уходит на одну задачу.
+          # Снятие и навешивание — разными вызовами и именно в таком порядке:
+          # gh падает целиком, если метки нет в репозитории, и одним вызовом
+          # отказ in-review утащил бы за собой снятие in-progress — то есть
+          # заклинил очередь. Порядок выбирает меньшее зло: если упадёт второй
+          # вызов, задачу в худшем случае возьмут заново (PR уже открыт, шаг
+          # идемпотентен), а не потеряют очередь до ручной правки.
+          gh issue edit "$ISSUE" --remove-label in-progress
+          gh issue edit "$ISSUE" --add-label in-review
+
+      - name: Release the issue if the run went wrong
+        # cancelled() ловит и срабатывание timeout-minutes.
+        if: failure() || cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Упор в лимит модели, таймаут, падение, блокер — всё сюда. in-progress
+          # обязана слететь: иначе pick следующего прогона решит, что агент ещё
+          # работает, и очередь встанет насовсем — не до утра, а до правки руками.
+          # Поэтому отдельным вызовом и первой (см. шаг «Open PR» о том, как gh
+          # роняет весь edit из-за одной незаведённой метки).
+          gh issue edit "$ISSUE" --remove-label in-progress || true
+          # agent-deferred выводит задачу из очереди на остаток ночи, чтобы
+          # следующие прогоны не долбились в ту же стену. Снимет её ночной
+          # plan.yml (--clear-deferred) — это и есть «сделаем завтра».
+          gh issue edit "$ISSUE" --add-label agent-deferred || true
+          gh issue comment "$ISSUE" --body "Прогон агента сорвался (лимит модели, таймаут или ошибка) — задача отложена до следующей ночи. Лог: $RUN_URL"
+
+      - name: Chain the next run
+        # Ночь тянется цепочкой, а не расписанием: прогон, закончив задачу,
+        # будит следующий. Полагаться на тики cron нельзя — GitHub роняет их
+        # молча (13.07.2026 тик 00:17 UTC не пришёл вовсе, и ночь пропала при
+        # пяти готовых задачах). Теперь достаточно, чтобы за ночь долетел ОДИН
+        # тик: дальше прогоны тянут друг друга сами.
+        #
+        # !cancelled(): упавшая задача цепочку не рвёт — она уже помечена
+        # agent-deferred, следующий прогон возьмёт другую. А вот отмену руками
+        # уважаем: значит, ночь решили прекратить.
+        #
+        # Бесконечности нет: все стоп-краны — в job `pick` (пустая очередь,
+        # MAX_DEFERRED, MAX_OPEN_PRS, закрытое окно). Ничего не выбрал — job
+        # `run` не стартует, а вместе с ним не выполнится и этот шаг: цепочка
+        # обрывается сама.
+        if: ${{ !cancelled() }}
+        env:
+          # PAT, а не github.token: события, порождённые github.token, НЕ
+          # запускают новых прогонов (защита GitHub от рекурсии) — цепочка
+          # молча не поехала бы.
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          # 10#: date отдаёт "08", а для арифметики bash это битая восьмеричка.
+          hour=$(( 10#$(date -u +%H) ))
+          if [ "$hour" -ge "$NIGHT_END_UTC" ]; then
+            echo "Ночь кончилась (${hour}:xx UTC) — следующий прогон не бужу."
+            exit 0
+          fi
+          # Следующий прогон сам выберет задачу (issue не передаём) и придёт
+          # как chained — то есть под тем же ночным окном, что и тик cron.
+          gh workflow run agent.yml --ref develop -f chained=true
+          echo "Разбудил следующий прогон."

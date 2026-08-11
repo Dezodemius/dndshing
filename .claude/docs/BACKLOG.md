@@ -2,21 +2,33 @@
 
 Единица работы: **одна задача = одна GitHub-ишью = один запуск агента = один PR**.
 
-Формат машиночитаемый — `scripts/create_issues.py` парсит его и создаёт ишью:
+Формат машиночитаемый — `.claude/scripts/create-issues.py` парсит его и создаёт ишью:
 - заголовок задачи: `### DND-NNN · Название`
 - строка `labels:` — метки через запятую
 - строка `depends:` — ID задач-зависимостей (или `—`)
 - остальное до следующего `###` — тело ишью.
 
-Каждая задача самодостаточна при условии, что агент прочитал `CLAUDE.md`, `docs/business-requirements.md` (BR) и `docs/architecture.md` (AR).
+**Статуса задач здесь нет и не будет.** Этот файл — спецификация (скоуп, зависимости, критерии приёмки); прогресс живёт в GitHub: метки ишью (`agent-ready` / `in-progress` / `blocked`) и поле Status на [доске проекта](https://github.com/users/Dezodemius/projects/11). Правь BACKLOG, только когда меняются скоуп, зависимости или метки задачи.
+
+Каждая задача самодостаточна при условии, что агент прочитал `.claude/docs/CLAUDE.md`, `.claude/docs/REQUIREMENTS.md` (BR) и `.claude/docs/ARCHITECTURE.md` (AR).
 
 ---
 
 ## EPIC E0 · Инфраструктура
 
-### DND-001 · Каркас backend и окружение
-labels: epic:e0, backend, agent-ready
+### DND-000 · Удаление легаси Next.js-прототипа
+labels: epic:e0, infra
 depends: —
+
+**Контекст:** в репозитории лежит старый прототип (Next.js-генератор персонажей LSS), который выводится из эксплуатации и занимает корневой `app/`, конфликтуя с новой backend-структурой. Закрывается до DND-001.
+**Скоуп:** удалить весь код старого прототипа (через `git rm`): каталоги `app/`, `features/`, `shared/`, `mockup/`, `tests/`, `test-results/`, `supabase/`; файлы `middleware.ts`, `next.config.mjs`, `next-env.d.ts`, `postcss.config.mjs`, `tailwind.config.ts`, `eslint.config.mjs`, `vitest.config.ts`, `playwright.config.ts`, `tsconfig.json`, `tsconfig.tsbuildinfo`, `package.json`, `package-lock.json`, `vercel.json`, `AGENTS.md`, `dndshing.code-workspace`, `.env.example`; старый CI `.github/workflows/ci.yml`. Почисти `.gitignore` от правил под старый стек (общие оставь).
+**ОБЯЗАТЕЛЬНО сохранить (не трогать):** `.github/workflows/agent.yml`, `.github/workflows/review.yml`; всю папку `.claude/`; корневой `CLAUDE.md`; `.git*`-файлы, `.editorconfig`.
+**Вне скоупа:** создание нового backend/frontend-каркаса (DND-001, DND-003) — только удаление.
+**Приёмка:** в репозитории не осталось файлов старого Next.js-прототипа; `agent.yml`, `review.yml` и `.claude/` целы; после коммита `git status` чистый; ветка `feat/dnd-000`, PR в develop. После мержа корень готов под новую структуру из DND-001.
+
+### DND-001 · Каркас backend и окружение
+labels: epic:e0, backend
+depends: DND-000
 
 **Скоуп:** структура `app/{core,auth,content,characters,campaigns,merchants}` по AR §3; FastAPI-приложение с конфигом из env (pydantic-settings); `GET /healthz`; Docker Compose (api + postgres 16); Alembic инициализирован (пустая базовая миграция); pytest настроен с тестовой БД; README с командами запуска.
 **Вне скоупа:** любые бизнес-модели и эндпоинты.
@@ -62,6 +74,7 @@ depends: DND-010
 
 **Скоуп:** выдача токена верификации, отправка письма через конфигурируемый SMTP, `GET /auth/verify-email?token=`; повторная отправка письма; без верификации доступ к API закрыт (кроме auth-эндпоинтов), с понятной ошибкой `email_not_verified`.
 **Приёмка:** тесты с мок-SMTP: happy path, просроченный/битый токен, повторная отправка.
+**Примечание:** гейтинг реализован как переиспользуемая зависимость `get_verified_user` (покрыта юнит-тестом), но пока не подключена ни к одному роуту — в кодовой базе ещё нет не-auth эндпоинтов. Реальное подключение — при появлении первого такого роута (DND-020+).
 
 ### DND-012 · OAuth: Яндекс
 labels: epic:us-1, backend
@@ -301,16 +314,31 @@ depends: DND-003
 **Скоуп:** публичная `/`: что это, для игрока / для мастера, CTA на регистрацию. Тёмная фэнтези-стилистика, без стоковой мишуры.
 **Приёмка:** lighthouse mobile ≥ 90 по perf/a11y; единственная публичная страница кроме витрины (BR §3).
 
-### DND-081 · Security-аудит
+### DND-081 · Security-аудит: IDOR
 labels: epic:e9, backend
 depends: DND-074, DND-062, DND-053
 
-**Скоуп:** проход по чеклисту: IDOR на всех ресурсах (персонаж/кампания/торговец/инвентарь/покупка), JWT (срок, ротация refresh), rate-limit на auth и /buy, заголовки безопасности, секреты вне репозитория.
-**Приёмка:** отчёт в `docs/security-report.md`; найденные проблемы исправлены в этом же PR или заведены ишью с меткой security.
+**Контекст:** была единой задачей на весь чеклист (IDOR + JWT + rate-limit + заголовки + секреты) — агент трижды подряд падал по `error_max_turns` (100), не успевая дойти даже до отчёта. Разбита на последовательную цепочку по областям чеклиста; каждая часть — свой прогон и свой PR, дополняющий один и тот же `docs/security-report.md` (отсюда `depends` цепочкой, а не веером — параллельные PR иначе конфликтовали бы на одном файле).
+**Скоуп:** IDOR на всех ресурсах (персонаж/кампания/торговец/инвентарь/покупка) — владение проверяется в каждом сервис-методе (правило 7 CLAUDE.md).
+**Приёмка:** создан `docs/security-report.md` с разделом IDOR; найденные проблемы исправлены в этом же PR или заведены ишью с меткой security.
+
+### DND-083 · Security-аудит: JWT и rate-limit
+labels: epic:e9, backend
+depends: DND-081
+
+**Скоуп:** JWT (срок жизни access, ротация refresh), rate-limit на `/auth/*` и `/buy`.
+**Приёмка:** раздел «JWT и rate-limit» дополнен в `docs/security-report.md`; найденные проблемы исправлены в этом же PR или заведены ишью с меткой security.
+
+### DND-084 · Security-аудит: заголовки и секреты
+labels: epic:e9, backend
+depends: DND-083
+
+**Скоуп:** заголовки безопасности (CSP, HSTS и т.п.), секреты вне репозитория (правило 12 CLAUDE.md — никаких дефолтов на известные креды).
+**Приёмка:** раздел «Заголовки и секреты» дополнен в `docs/security-report.md` — чеклист закрыт полностью; найденные проблемы исправлены в этом же PR или заведены ишью с меткой security.
 
 ### DND-082 · Приёмочный прогон и релиз
-labels: epic:e9, infra
-depends: DND-081, DND-004
+labels: epic:e9, infra, manual
+depends: DND-084, DND-004
 
 **Скоуп:** сценарный прогон всех критериев BR §7 на проде (можно тестовыми аккаунтами); фиксация результатов в `docs/acceptance-run.md`.
 **Приёмка:** все 6 пунктов BR §7 отмечены выполненными.
