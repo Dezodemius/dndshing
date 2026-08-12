@@ -3,18 +3,15 @@ from pathlib import Path
 from typing import Any
 
 from httpx import AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
+from app.auth.security import create_access_token
 from app.content.schemas import ContentPackImport
 
 IMPORT_URL = "/api/v1/admin/content/import"
-REGISTER_URL = "/api/v1/auth/register"
-LOGIN_URL = "/api/v1/auth/login"
 
 ADMIN_EMAIL = "content-admin@example.com"
-PASSWORD = "hunter22"
 
 DOCS_DIR = Path(__file__).resolve().parent.parent / "docs"
 SCHEMA_PATH = DOCS_DIR / "content-pack.schema.json"
@@ -36,20 +33,15 @@ def _strip_annotations(node: Any) -> Any:
 
 
 async def _register_admin(client: AsyncClient, db_session: AsyncSession) -> str:
-    response = await client.post(
-        REGISTER_URL,
-        json={"email": ADMIN_EMAIL, "password": PASSWORD, "display_name": "Контент-админ"},
+    # Mirrors what an OAuth login creates (AuthService._link_or_create_vk_user):
+    # a User row with no password, email already verified.
+    user = User(
+        email=ADMIN_EMAIL, display_name="Контент-админ", email_verified=True, is_admin=True
     )
-    assert response.status_code == 201, response.text
-
-    user = await db_session.scalar(select(User).where(User.email == ADMIN_EMAIL))
-    assert user is not None
-    user.is_admin = True
+    db_session.add(user)
     await db_session.commit()
-
-    response = await client.post(LOGIN_URL, json={"email": ADMIN_EMAIL, "password": PASSWORD})
-    assert response.status_code == 200, response.text
-    return response.json()["access_token"]
+    await db_session.refresh(user)
+    return create_access_token(user.id)
 
 
 def test_schema_file_matches_pydantic_validation() -> None:

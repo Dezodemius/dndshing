@@ -13,17 +13,7 @@ from app.auth.errors import (
 )
 from app.auth.models import User
 from app.auth.oauth import list_active_providers
-from app.auth.schemas import (
-    LoginRequest,
-    MessageResponse,
-    OAuthCompleteRequest,
-    OAuthConfirmRequest,
-    OAuthProvidersResponse,
-    RegisterRequest,
-    ResendVerificationRequest,
-    TokenResponse,
-    UserResponse,
-)
+from app.auth.schemas import OAuthProvidersResponse, TokenResponse, UserResponse
 from app.auth.service import AuthService
 from app.core.config import get_settings
 from app.core.db import get_db
@@ -39,10 +29,6 @@ _VK_OAUTH_PATH = "/api/v1/auth/oauth/vk"
 _VK_CODE_VERIFIER_COOKIE_NAME = "oauth_code_verifier"
 _MAILRU_OAUTH_STATE_COOKIE_PATH = "/api/v1/auth/oauth/mailru"
 
-# Login is the highest-value brute-force/credential-stuffing target on this
-# router, so it gets a stricter limit on top of the router-wide one above.
-_login_rate_limit = rate_limit("auth-login", limit=20, window_seconds=60)
-
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
     settings = get_settings()
@@ -55,22 +41,6 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         max_age=settings.jwt_refresh_expire_days * 24 * 60 * 60,
         path=_REFRESH_COOKIE_PATH,
     )
-
-
-@router.post("/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)) -> User:
-    return await AuthService(db).register(data)
-
-
-@router.post("/auth/login", response_model=TokenResponse, dependencies=[_login_rate_limit])
-async def login(
-    data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
-) -> TokenResponse:
-    service = AuthService(db)
-    user = await service.authenticate(data.email, data.password)
-    access_token, refresh_token = await service.issue_tokens(user)
-    _set_refresh_cookie(response, refresh_token)
-    return TokenResponse(access_token=access_token)
 
 
 @router.post("/auth/refresh", response_model=TokenResponse)
@@ -94,20 +64,6 @@ async def logout(
     if refresh_token:
         await AuthService(db).revoke_refresh_token(refresh_token)
     response.delete_cookie(_REFRESH_COOKIE_NAME, path=_REFRESH_COOKIE_PATH)
-
-
-@router.get("/auth/verify-email", response_model=MessageResponse)
-async def verify_email(token: str, db: AsyncSession = Depends(get_db)) -> MessageResponse:
-    await AuthService(db).verify_email(token)
-    return MessageResponse(message="Email подтверждён")
-
-
-@router.post("/auth/verify-email/resend", response_model=MessageResponse)
-async def resend_verification(
-    data: ResendVerificationRequest, db: AsyncSession = Depends(get_db)
-) -> MessageResponse:
-    await AuthService(db).resend_verification(data.email)
-    return MessageResponse(message="Если email зарегистрирован и не подтверждён, письмо отправлено")
 
 
 @router.get("/me", response_model=UserResponse)
@@ -261,13 +217,13 @@ async def vk_callback(
         raise OAuthStateMismatchError()
 
     service = AuthService(db)
-    outcome = await service.login_via_vk_code(
+    user = await service.login_via_vk_code(
         code, client_id, client_secret, redirect_uri, code_verifier
     )
 
     settings = get_settings()
-    if outcome.user is not None:
-        jwt_access_token, refresh_token = await service.issue_tokens(outcome.user)
+    if user is not None:
+        jwt_access_token, refresh_token = await service.issue_tokens(user)
         callback_url = (
             f"{settings.frontend_base_url}/oauth/callback"
             f"#access_token={jwt_access_token}&token_type=bearer"
@@ -275,38 +231,16 @@ async def vk_callback(
         redirect = RedirectResponse(callback_url, status_code=status.HTTP_302_FOUND)
         _set_refresh_cookie(redirect, refresh_token)
     else:
-        # VK didn't return an email: frontend must show a form to collect it
-        # and POST /auth/oauth/vk/complete with this token.
-        callback_url = (
-            f"{settings.frontend_base_url}/oauth/callback"
-            f"#oauth_pending_token={outcome.pending_token}&provider=vk"
+        # VK didn't return an email and there's no way to collect one — the
+        # frontend shows this as an unsupported-login case (no access_token
+        # in the fragment).
+        redirect = RedirectResponse(
+            f"{settings.frontend_base_url}/oauth/callback", status_code=status.HTTP_302_FOUND
         )
-        redirect = RedirectResponse(callback_url, status_code=status.HTTP_302_FOUND)
 
     redirect.delete_cookie(_OAUTH_STATE_COOKIE_NAME, path=_VK_OAUTH_PATH)
     redirect.delete_cookie(_VK_CODE_VERIFIER_COOKIE_NAME, path=_VK_OAUTH_PATH)
     return redirect
-
-
-@router.post("/auth/oauth/vk/complete", response_model=MessageResponse)
-async def vk_complete_registration(
-    data: OAuthCompleteRequest, db: AsyncSession = Depends(get_db)
-) -> MessageResponse:
-    # The email here is typed by hand and unverified — we don't create or link
-    # an account yet, only mail a confirmation link (see AuthService docstring).
-    await AuthService(db).request_vk_email_confirmation(data.pending_token, data.email)
-    return MessageResponse(message="Проверьте почту и перейдите по ссылке, чтобы завершить вход")
-
-
-@router.post("/auth/oauth/vk/confirm", response_model=TokenResponse)
-async def vk_confirm_email_link(
-    data: OAuthConfirmRequest, response: Response, db: AsyncSession = Depends(get_db)
-) -> TokenResponse:
-    service = AuthService(db)
-    user = await service.confirm_vk_email_link(data.token)
-    access_token, refresh_token = await service.issue_tokens(user)
-    _set_refresh_cookie(response, refresh_token)
-    return TokenResponse(access_token=access_token)
 
 
 @router.get("/auth/oauth/mailru/callback")

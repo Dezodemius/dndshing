@@ -53,7 +53,7 @@
 ```
 app/
   core/          # конфиг, безопасность, БД, i18n-заготовка
-  auth/          # email + OAuth-провайдеры
+  auth/          # OAuth-провайдеры (Яндекс, VK; код Mail.ru есть, но не подключён)
   content/       # расы, классы, заклинания, предметы + импорт
   characters/    # лист, прокачка, инвентарь, заклинания, кошелёк
   campaigns/     # кампании, инвайты, участники
@@ -78,7 +78,7 @@ app/
 
 ### 4.1 Пользователи и доступ
 
-- **User**: id, email, password_hash (nullable — если только OAuth), display_name, is_admin, email_verified, locale, created_at.
+- **User**: id, email, display_name, is_admin, email_verified, locale, created_at. Регистрации по паролю нет — пользователь создаётся первым OAuth-логином, `email_verified` выставляется провайдером сразу (Яндекс/VK подтвердили владение адресом).
 - **OAuthAccount**: user_id, provider (`yandex` | `vk` | `mailru`), provider_user_id. Уникальность по (provider, provider_user_id). Один User — несколько провайдеров.
 
 Роли не таблица: `is_admin` — флаг. «Мастер» и «игрок» — не роли аккаунта, а отношения: любой пользователь становится мастером, создав кампанию или торговца.
@@ -151,7 +151,7 @@ UX-барьер против читерства: страница `/shop/{code}`
 ## 5. Схема БД (сводно)
 
 ```
-users(id PK, email UQ, password_hash?, display_name, is_admin, email_verified, locale, created_at)
+users(id PK, email UQ, display_name, is_admin, email_verified, locale, created_at)
 oauth_accounts(id PK, user_id FK, provider, provider_user_id, UQ(provider, provider_user_id))
 
 races(id PK, slug, locale, name, data JSONB, UQ(slug, locale))
@@ -186,13 +186,11 @@ merchant_items(id PK, merchant_id FK, item_id FK, price_g?, price_s?, price_c?, 
 
 ### Auth
 ```
-POST /auth/register            {email, password, display_name}
-POST /auth/login               {email, password} → JWT (access 15m + refresh cookie httponly)
-POST /auth/refresh
+POST /auth/refresh                         → JWT (access 15m + refresh cookie httponly)
 POST /auth/logout
-GET  /auth/verify-email?token=
+GET  /auth/oauth/providers                 список настроенных провайдеров
 GET  /auth/oauth/{provider}/authorize      provider: yandex|vk|mailru
-GET  /auth/oauth/{provider}/callback
+GET  /auth/oauth/{provider}/callback       регистрация и вход — одно и то же действие
 GET  /me
 ```
 
@@ -259,7 +257,7 @@ React 18 + TypeScript + Vite. Состояние сервера — TanStack Que
 
 ```
 /                       Лендинг (единственная публичная страница кроме витрины)
-/login /register /verify
+/login                  Вход через OAuth (Яндекс/VK) — регистрация тем же действием; /register и /verify редиректят сюда
 /app                    Дашборд: мои персонажи, мои кампании, мои торговцы
 /app/characters/new     Мастер создания: раса → класс → характеристики (point buy /
                         standard array / броски / вручную) → фон → детали
@@ -294,7 +292,7 @@ i18n: все строки через словарь (i18next), в MVP один l
 
 ## 9. Нефункциональные требования и деплой
 
-- **Auth:** JWT access (15 мин) + refresh в httpOnly cookie; пароли — argon2; верификация email через SMTP (конфигурируемый); OAuth-провайдеры включаются наличием ключей в env.
+- **Auth:** JWT access (15 мин) + refresh в httpOnly cookie; регистрация и вход только через OAuth (Яндекс, VK) — паролей и SMTP в системе нет; провайдеры включаются наличием ключей в env.
 - **Авторизация доступа:** владение ресурсом проверяется в сервисах (характерные IDOR-точки: чужой персонаж в /buy, чужой лист по прямому id). Обязательный security-чеклист перед релизом.
 - **Производительность:** цель 1000 зарегистрированных / ~50 конкурентных — один инстанс FastAPI (uvicorn workers=2–4) + Postgres на том же сервере. Кэширование не требуется, кроме контентных справочников (in-process TTL-кэш).
 - **Деплой:** Docker Compose (api, postgres, frontend/nginx) на выделенном сервере timeweb.cloud (app01, dndshing.ru). GitHub Actions: hosted-раннер собирает образы api/frontend и пушит в GHCR (`ghcr.io/dezodemius/dndshing-{api,frontend}`, тег — sha коммита и `main`), затем по SSH разворачивает на сервере — pull, `alembic upgrade head`, `docker compose up -d`, healthz-гейт валит деплой при неудаче. Публичный HTTPS (nginx/caddy + Cloudflare перед сервером) настраивается на сервере отдельно от CD. Бэкап Postgres — pg_dump по крону + выгрузка (аналог backup-db скилла).
@@ -310,7 +308,7 @@ i18n: все строки через словарь (i18next), в MVP один l
 **Фаза 0 — Каркас.** Репозиторий, Docker Compose, FastAPI-скелет с модульной структурой, Alembic, CI/CD, healthz. Фронт-скелет с роутингом и авторизационным shell.
 
 **Фаза 1 — MVP (порядок = зависимости):**
-1. Auth: email+пароль, верификация, JWT; OAuth Яндекс → VK → Mail.ru.
+1. Auth: OAuth-логин (Яндекс, VK) + JWT.
 2. Контент: модели, импорт-эндпоинт, read-API. Параллельно заказчик готовит JSON-паки.
 3. Персонаж: модель, CRUD, rules_5e, computed-блок.
 4. Мастер создания персонажа (фронт).
