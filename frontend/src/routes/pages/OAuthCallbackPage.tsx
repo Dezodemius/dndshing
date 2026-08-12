@@ -14,8 +14,8 @@ export default function OAuthCallbackPage() {
     const accessToken = params.get('access_token')
 
     if (!accessToken) {
-      // The VK "enter your email" intermediate flow (#oauth_pending_token=...)
-      // is out of scope for this task (see DND-015 plan assumptions).
+      // No token in the redirect means the provider didn't return usable
+      // account info (e.g. VK without an email — see AuthService.login_via_vk_code).
       setError(t('auth.oauthPendingUnsupported'))
       return
     }

@@ -6,7 +6,6 @@ import './Layout.css'
 const NAV_ITEMS = [
   { to: '/', labelKey: 'nav.landing' },
   { to: '/login', labelKey: 'nav.login' },
-  { to: '/register', labelKey: 'nav.register' },
   { to: '/app', labelKey: 'nav.dashboard' },
   { to: '/admin/import', labelKey: 'nav.adminImport' },
 ]

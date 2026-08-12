@@ -3,6 +3,8 @@ from collections.abc import AsyncIterator
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.models import User
+from app.auth.security import create_access_token
 from app.core.body_limit import (
     DEFAULT_MAX_BODY_BYTES,
     IMPORT_PATH,
@@ -10,12 +12,9 @@ from app.core.body_limit import (
 )
 
 IMPORT_URL = "/api/v1/admin/content/import"
-REGISTER_URL = "/api/v1/auth/register"
-LOGIN_URL = "/api/v1/auth/login"
+REFRESH_URL = "/api/v1/auth/refresh"
 
 ADMIN_EMAIL = "admin@example.com"
-PLAYER_EMAIL = "player@example.com"
-PASSWORD = "hunter22"
 
 
 def _full_pack() -> dict:
@@ -45,26 +44,12 @@ async def _register_and_login(
     *,
     is_admin: bool = False,
 ) -> str:
-    """Register, optionally grant admin, and login to get access token."""
-    response = await client.post(
-        REGISTER_URL,
-        json={"email": email, "password": PASSWORD, "display_name": "Тест"},
-    )
-    assert response.status_code == 201, response.text
-
-    if is_admin:
-        from sqlalchemy import select
-
-        from app.auth.models import User
-
-        user = await db_session.scalar(select(User).where(User.email == email))
-        assert user is not None
-        user.is_admin = True
-        await db_session.commit()
-
-    response = await client.post(LOGIN_URL, json={"email": email, "password": PASSWORD})
-    assert response.status_code == 200, response.text
-    return response.json()["access_token"]
+    """Create a user directly (mirrors an OAuth login) and mint an access token."""
+    user = User(email=email, display_name="Тест", email_verified=True, is_admin=is_admin)
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return create_access_token(user.id)
 
 
 def _auth_headers(token: str) -> dict[str, str]:
@@ -162,8 +147,7 @@ async def test_other_endpoint_rejects_body_over_default_limit(
     default_limit = 1 * 1024 * 1024
 
     response = await client.post(
-        LOGIN_URL,
-        json={"email": "test@example.com", "password": "hunter22"},
+        REFRESH_URL,
         headers={"content-length": str(default_limit + 1)},
     )
 
@@ -173,19 +157,14 @@ async def test_other_endpoint_rejects_body_over_default_limit(
 
 
 async def test_normal_request_is_unaffected(client: AsyncClient) -> None:
-    """A normal request with a real small body and no spoofed headers
-    should work normally (regression guard)."""
-    response = await client.post(
-        REGISTER_URL,
-        json={
-            "email": "newuser@example.com",
-            "password": "hunter22",
-            "display_name": "Normal User",
-        },
-    )
+    """A normal request with a real small body and no spoofed headers should
+    reach the route handler instead of being blocked by the size-limit
+    middleware (regression guard)."""
+    response = await client.post(REFRESH_URL, json={})
 
-    # Should succeed (201 Created) with a normal small body
-    assert response.status_code == 201, response.text
+    # No refresh cookie: rejected by the route itself, not the size-limit
+    # middleware — proves a normal small body passes through untouched.
+    assert response.status_code == 401, response.text
 
 
 def test_limit_for_path_prefers_the_import_override() -> None:

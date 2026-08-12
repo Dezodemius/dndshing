@@ -20,7 +20,6 @@ interface TokenResponse {
 interface AuthContextValue {
   status: AuthStatus
   user: User | null
-  login: (email: string, password: string) => Promise<void>
   loginWithToken: (accessToken: string) => Promise<void>
   logout: () => Promise<void>
 }
@@ -56,15 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [loadUser])
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const tokens = await apiClient.post<TokenResponse>('/auth/login', { email, password })
-      setAccessToken(tokens.access_token)
-      await loadUser()
-    },
-    [loadUser],
-  )
-
   const loginWithToken = useCallback(
     async (accessToken: string) => {
       setAccessToken(accessToken)
@@ -81,8 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ status, user, login, loginWithToken, logout }),
-    [status, user, login, loginWithToken, logout],
+    () => ({ status, user, loginWithToken, logout }),
+    [status, user, loginWithToken, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

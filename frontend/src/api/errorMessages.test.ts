@@ -7,8 +7,8 @@ const t = vi.fn((key: string) => key) as unknown as TFunction
 
 describe('translateApiError', () => {
   it('maps a known API error code to its translation key', () => {
-    const error = new ApiError('invalid_credentials', 'Invalid credentials')
-    expect(translateApiError(t, error)).toBe('errors.invalidCredentials')
+    const error = new ApiError('oauth_provider_disabled', 'Provider disabled')
+    expect(translateApiError(t, error)).toBe('errors.oauthProviderDisabled')
   })
 
   it('falls back to errors.unknown for an unmapped API error code', () => {
