@@ -1,17 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
-
-
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
-    display_name: str = Field(min_length=1, max_length=100)
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class UserResponse(BaseModel):
@@ -29,23 +18,6 @@ class UserResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-
-
-class ResendVerificationRequest(BaseModel):
-    email: EmailStr
-
-
-class OAuthCompleteRequest(BaseModel):
-    pending_token: str
-    email: EmailStr
-
-
-class OAuthConfirmRequest(BaseModel):
-    token: str
-
-
-class MessageResponse(BaseModel):
-    message: str
 
 
 class OAuthProvidersResponse(BaseModel):

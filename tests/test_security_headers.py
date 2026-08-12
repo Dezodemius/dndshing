@@ -18,9 +18,9 @@ async def test_security_headers_present_on_json_response(client: AsyncClient) ->
 
 
 async def test_security_headers_present_on_error_response(client: AsyncClient) -> None:
-    response = await client.post("/api/v1/auth/login", json={})
+    response = await client.post("/api/v1/auth/refresh", json={})
 
-    assert response.status_code == 422
+    assert response.status_code == 401
     assert "content-security-policy" in response.headers
 
 

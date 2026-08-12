@@ -1,12 +1,10 @@
 from httpx import AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
+from app.auth.security import create_access_token
 
 IMPORT_URL = "/api/v1/admin/content/import"
-REGISTER_URL = "/api/v1/auth/register"
-LOGIN_URL = "/api/v1/auth/login"
 
 RACES_URL = "/api/v1/content/races"
 CLASSES_URL = "/api/v1/content/classes"
@@ -16,7 +14,6 @@ BACKGROUNDS_URL = "/api/v1/content/backgrounds"
 
 ADMIN_EMAIL = "admin@example.com"
 PLAYER_EMAIL = "player@example.com"
-PASSWORD = "hunter22"
 
 
 def _full_pack() -> dict:
@@ -95,24 +92,13 @@ async def _register_and_login(
     is_admin: bool = False,
     verified: bool = True,
 ) -> str:
-    response = await client.post(
-        REGISTER_URL,
-        json={"email": email, "password": PASSWORD, "display_name": "Тест"},
-    )
-    assert response.status_code == 201, response.text
-
-    if is_admin or verified:
-        user = await db_session.scalar(select(User).where(User.email == email))
-        assert user is not None
-        if is_admin:
-            user.is_admin = True
-        if verified:
-            user.email_verified = True
-        await db_session.commit()
-
-    response = await client.post(LOGIN_URL, json={"email": email, "password": PASSWORD})
-    assert response.status_code == 200, response.text
-    return response.json()["access_token"]
+    # Mirrors what an OAuth login creates (AuthService._link_or_create_vk_user):
+    # a User row with no password, is_admin/email_verified set directly.
+    user = User(email=email, display_name="Тест", email_verified=verified, is_admin=is_admin)
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return create_access_token(user.id)
 
 
 def _auth_headers(token: str) -> dict[str, str]:

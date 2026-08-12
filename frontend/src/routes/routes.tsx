@@ -1,10 +1,8 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { Navigate, createBrowserRouter } from 'react-router-dom'
 import Layout from './Layout'
 import RequireAuth from './RequireAuth'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
-import VerifyEmailPage from './pages/VerifyEmailPage'
 import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import DashboardPage from './pages/DashboardPage'
 import CharacterSheetPage from './pages/CharacterSheetPage'
@@ -25,8 +23,10 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <LandingPage /> },
       { path: 'login', element: <LoginPage /> },
-      { path: 'register', element: <RegisterPage /> },
-      { path: 'verify', element: <VerifyEmailPage /> },
+      // Registration is OAuth-only (see LoginPage): both old routes just
+      // point here so existing links/bookmarks still land somewhere useful.
+      { path: 'register', element: <Navigate to="/login" replace /> },
+      { path: 'verify', element: <Navigate to="/login" replace /> },
       { path: 'oauth/callback', element: <OAuthCallbackPage /> },
       {
         path: 'app',

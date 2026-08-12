@@ -5,7 +5,6 @@
   "nav": {
     "landing": "Главная",
     "login": "Вход",
-    "register": "Регистрация",
     "dashboard": "Кабинет",
     "adminImport": "Импорт контента",
     "logout": "Выйти"
@@ -158,14 +157,7 @@
     },
     "login": {
       "title": "Вход",
-      "subtitle": "Возвращайтесь к своим персонажам и кампаниям."
-    },
-    "register": {
-      "title": "Регистрация",
-      "subtitle": "Заведите аккаунт, чтобы собрать первого персонажа."
-    },
-    "verifyEmail": {
-      "title": "Подтверждение почты"
+      "subtitle": "Войдите через Яндекс или VK — новым игрокам это же действие заводит аккаунт."
     },
     "dashboard": {
       "title": "Кабинет",
@@ -650,40 +642,16 @@
     "loading": "Загрузка…"
   },
   "auth": {
-    "email": "Email",
-    "password": "Пароль",
-    "confirmPassword": "Повторите пароль",
-    "displayName": "Имя",
-    "loginSubmit": "Войти",
-    "registerSubmit": "Зарегистрироваться",
-    "goToRegister": "Ещё нет аккаунта? Зарегистрироваться",
-    "goToLogin": "Уже есть аккаунт? Войти",
-    "oauthDivider": "Или войдите через:",
+    "goToLogin": "Вернуться ко входу",
+    "oauthDivider": "Войти через:",
     "oauthProviders": {
       "yandex": "Яндекс",
       "vk": "VK",
       "mailru": "Mail.ru"
     },
-    "oauthPendingUnsupported": "Этот способ входа сейчас недоступен, попробуйте другой",
-    "registerSuccessBody": "Мы отправили письмо со ссылкой для подтверждения email. Перейдите по ней, чтобы завершить регистрацию.",
-    "verifySuccess": "Email подтверждён. Теперь вы можете войти.",
-    "resendTitle": "Мы отправили письмо со ссылкой для подтверждения email.",
-    "resendSubmit": "Отправить письмо ещё раз",
-    "resendSent": "Если email зарегистрирован и не подтверждён, письмо отправлено.",
-    "errors": {
-      "emailInvalid": "Введите корректный email",
-      "passwordRequired": "Введите пароль",
-      "passwordMin": "Пароль должен быть не короче 8 символов",
-      "passwordMax": "Пароль должен быть не длиннее 128 символов",
-      "displayNameRequired": "Введите имя",
-      "displayNameMax": "Имя должно быть не длиннее 100 символов",
-      "passwordMismatch": "Пароли не совпадают"
-    }
+    "oauthPendingUnsupported": "Этот способ входа сейчас недоступен, попробуйте другой"
   },
   "errors": {
-    "emailAlreadyRegistered": "Пользователь с таким email уже зарегистрирован",
-    "invalidCredentials": "Неверный email или пароль",
-    "invalidVerificationToken": "Ссылка для подтверждения email недействительна или устарела",
     "oauthProviderDisabled": "Этот способ входа сейчас недоступен",
     "oauthStateMismatch": "Сессия входа устарела или недействительна, попробуйте снова",
     "oauthProviderError": "Не удалось войти через выбранный сервис, попробуйте позже",

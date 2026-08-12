@@ -1,6 +1,7 @@
 import pytest
 from httpx import AsyncClient, Response
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import yandex_client
 from app.auth.models import OAuthAccount, User
@@ -112,7 +113,6 @@ async def test_callback_creates_new_verified_user(
     user = await db_session.scalar(select(User).where(User.email == _PROFILE.email))
     assert user is not None
     assert user.email_verified is True
-    assert user.password_hash is None
 
     account = await db_session.scalar(
         select(OAuthAccount).where(OAuthAccount.provider_user_id == _PROVIDER_USER_ID)
@@ -122,18 +122,23 @@ async def test_callback_creates_new_verified_user(
 
 
 async def test_callback_links_existing_account_by_email(
-    client: AsyncClient, mock_provider: yandex_client.YandexProfile, db_session
+    client: AsyncClient, mock_provider: yandex_client.YandexProfile, db_session: AsyncSession
 ) -> None:
-    register_response = await client.post(
-        "/api/v1/auth/register",
-        json={"email": _PROFILE.email, "password": "hunter22", "display_name": "Игрок"},
-    )
-    assert register_response.status_code == 201
-    existing_user_id = register_response.json()["id"]
+    # An account row that pre-dates this Yandex login — e.g. created via a
+    # different OAuth provider that returned the same email, unverified.
+    existing_user = User(email=_PROFILE.email, display_name="Игрок", email_verified=False)
+    db_session.add(existing_user)
+    await db_session.commit()
+    await db_session.refresh(existing_user)
+    existing_user_id = existing_user.id
 
     response = await _callback(client)
     assert response.status_code == 302
 
+    # The callback committed through the app's own session, not this one —
+    # without expiring, db_session's identity map would just hand back the
+    # existing_user object as it was before that commit (email_verified=False).
+    db_session.expire_all()
     users = (await db_session.scalars(select(User).where(User.email == _PROFILE.email))).all()
     assert len(users) == 1
     assert users[0].id == existing_user_id
