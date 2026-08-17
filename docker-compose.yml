@@ -61,6 +61,15 @@ services:
       # cd-stand.yml) can run both the stand and prod compose projects side by
       # side, provided each .env picks a distinct *_HOST_PORT.
       - "127.0.0.1:${API_HOST_PORT:-8000}:8000"
+    healthcheck:
+      # No curl/wget in the python:3.12-slim image, so this uses only the
+      # stdlib that's already there. urlopen raises (→ non-zero exit) on a
+      # non-2xx response, so a 500 from /healthz correctly fails the check.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   frontend:
     # Multi-stage build: the SPA is compiled here and served by nginx, which also
@@ -81,8 +90,12 @@ services:
     depends_on:
       # nginx resolves the `api` hostname when it loads its config and exits if
       # the name is missing, so the container has to exist before this one starts.
+      # service_healthy (not just service_started): nginx resolves `api` once at
+      # config load (see frontend/nginx.conf's resolver comment), so starting
+      # before the API is actually accepting connections would leave it proxying
+      # to a not-yet-listening upstream until the next reload.
       api:
-        condition: service_started
+        condition: service_healthy
     ports:
       # Loopback only, like the rest: in production Cloudflare and the host proxy
       # are what face the network. The host port stays off 5173 so a `npm run dev`
