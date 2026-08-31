@@ -47,7 +47,6 @@ services:
       YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:-}
       # Optional: unset keeps the VK ID OAuth provider disabled, same as above.
       VK_CLIENT_ID: ${VK_CLIENT_ID:-}
-      VK_CLIENT_SECRET: ${VK_CLIENT_SECRET:-}
       VK_REDIRECT_URI: ${VK_REDIRECT_URI:-}
       # Optional: unset keeps the Mail.ru OAuth provider disabled, same as above.
       MAILRU_CLIENT_ID: ${MAILRU_CLIENT_ID:-}

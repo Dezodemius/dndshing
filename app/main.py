@@ -13,7 +13,7 @@ from app.core.router import router as core_router
 from app.core.security_headers import add_security_headers
 from app.merchants.router import router as merchants_router
 
-app = FastAPI(title="D&D Campaign Platform API")
+app = FastAPI(title="ДнДэшинг")
 register_exception_handlers(app)
 # RequestBodySizeLimitMiddleware must sit inside CORS/security-headers so that a 413
 # response still gets those headers added on the way out (matters for browser-based admin tools).

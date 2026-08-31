@@ -147,16 +147,22 @@ class AuthService:
         return user
 
     async def login_via_vk_code(
-        self, code: str, client_id: str, client_secret: str, redirect_uri: str, code_verifier: str
+        self,
+        code: str,
+        client_id: str,
+        redirect_uri: str,
+        code_verifier: str,
+        device_id: str,
+        state: str,
     ) -> User | None:
         """Returns None when VK didn't return an email and no linked
         oauth_accounts row exists yet to resolve one from — the caller
         surfaces this to the user as an unsupported-login case."""
         try:
             access_token = await vk_client.exchange_code(
-                code, client_id, client_secret, redirect_uri, code_verifier
+                code, client_id, redirect_uri, code_verifier, device_id, state
             )
-            profile = await vk_client.fetch_profile(access_token)
+            profile = await vk_client.fetch_profile(access_token, client_id)
         except vk_client.VkOAuthError as exc:
             raise OAuthProviderError() from exc
 
