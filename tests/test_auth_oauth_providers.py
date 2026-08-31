@@ -35,9 +35,23 @@ async def test_provider_with_partial_config_is_not_listed(
 ) -> None:
     settings = get_settings()
     monkeypatch.setattr(settings, "vk_client_id", "vk-id")
-    monkeypatch.setattr(settings, "vk_client_secret", "vk-secret")
 
     response = await client.get(PROVIDERS_URL)
 
     assert response.status_code == 200
     assert response.json() == {"providers": []}
+
+
+async def test_vk_is_listed_without_a_client_secret(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # VK ID runs the PKCE flow and issues no secret usable here. Gating it on
+    # one kept the provider disabled on a fully configured deployment.
+    settings = get_settings()
+    monkeypatch.setattr(settings, "vk_client_id", "vk-id")
+    monkeypatch.setattr(settings, "vk_redirect_uri", "http://testserver/vk/callback")
+
+    response = await client.get(PROVIDERS_URL)
+
+    assert response.status_code == 200
+    assert response.json() == {"providers": ["vk"]}
