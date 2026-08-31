@@ -46,9 +46,21 @@ def build_authorize_url(
 
 
 async def exchange_code(
-    code: str, client_id: str, client_secret: str, redirect_uri: str, code_verifier: str
+    code: str,
+    client_id: str,
+    redirect_uri: str,
+    code_verifier: str,
+    device_id: str,
+    state: str,
 ) -> str:
-    """Exchange an authorization code for an access token. Returns the access token."""
+    """Exchange an authorization code for an access token. Returns the access token.
+
+    No client_secret: VK ID is OAuth 2.1 and this is the PKCE flow, where
+    `code_verifier` takes its place — the "Защищённый ключ" from the VK ID
+    cabinet does not participate here at all. `device_id` is not optional
+    either: VK returns it as a query parameter on the callback and rejects the
+    exchange without it.
+    """
     async with httpx.AsyncClient(timeout=10.0) as http_client:
         response = await http_client.post(
             _TOKEN_URL,
@@ -57,8 +69,9 @@ async def exchange_code(
                 "code": code,
                 "code_verifier": code_verifier,
                 "client_id": client_id,
-                "client_secret": client_secret,
+                "device_id": device_id,
                 "redirect_uri": redirect_uri,
+                "state": state,
             },
         )
     if response.status_code != httpx.codes.OK:
@@ -70,9 +83,11 @@ async def exchange_code(
     return access_token
 
 
-async def fetch_profile(access_token: str) -> VkProfile:
+async def fetch_profile(access_token: str, client_id: str) -> VkProfile:
     async with httpx.AsyncClient(timeout=10.0) as http_client:
-        response = await http_client.post(_INFO_URL, data={"access_token": access_token})
+        response = await http_client.post(
+            _INFO_URL, data={"access_token": access_token, "client_id": client_id}
+        )
     if response.status_code != httpx.codes.OK:
         raise VkOAuthError(f"profile request failed: {response.status_code}")
 

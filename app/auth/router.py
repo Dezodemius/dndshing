@@ -133,14 +133,15 @@ async def yandex_callback(
     return redirect
 
 
-def _require_vk_config() -> tuple[str, str, str]:
+def _require_vk_config() -> tuple[str, str]:
     settings = get_settings()
     client_id = settings.vk_client_id
-    client_secret = settings.vk_client_secret
     redirect_uri = settings.vk_redirect_uri
-    if not (client_id and client_secret and redirect_uri):
+    # No secret in this gate on purpose — see list_active_providers in oauth.py.
+    # The two must agree, or the button renders for a login that cannot work.
+    if not (client_id and redirect_uri):
         raise OAuthProviderDisabledError()
-    return client_id, client_secret, redirect_uri
+    return client_id, redirect_uri
 
 
 def _require_mailru_config() -> tuple[str, str, str]:
@@ -155,7 +156,7 @@ def _require_mailru_config() -> tuple[str, str, str]:
 
 @router.get("/auth/oauth/vk/authorize")
 async def vk_authorize() -> RedirectResponse:
-    client_id, _client_secret, redirect_uri = _require_vk_config()
+    client_id, redirect_uri = _require_vk_config()
 
     state = secrets.token_urlsafe(24)
     code_verifier, code_challenge = vk_client.generate_pkce_pair()
@@ -205,9 +206,16 @@ async def mailru_authorize() -> RedirectResponse:
 
 @router.get("/auth/oauth/vk/callback")
 async def vk_callback(
-    request: Request, code: str, state: str, db: AsyncSession = Depends(get_db)
+    request: Request,
+    code: str,
+    state: str,
+    device_id: str = "",
+    db: AsyncSession = Depends(get_db),
 ) -> RedirectResponse:
-    client_id, client_secret, redirect_uri = _require_vk_config()
+    # device_id arrives as a query parameter from VK and its token endpoint
+    # rejects the exchange without one. Declared explicitly because FastAPI
+    # drops query parameters the handler does not name.
+    client_id, redirect_uri = _require_vk_config()
 
     # Same CSRF protection as Yandex, plus the PKCE code_verifier minted at
     # /authorize — VK ID (OAuth 2.1) requires it for the token exchange.
@@ -218,7 +226,7 @@ async def vk_callback(
 
     service = AuthService(db)
     user = await service.login_via_vk_code(
-        code, client_id, client_secret, redirect_uri, code_verifier
+        code, client_id, redirect_uri, code_verifier, device_id, state
     )
 
     settings = get_settings()

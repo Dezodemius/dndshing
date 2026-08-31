@@ -9,7 +9,10 @@ def list_active_providers(settings: Settings) -> list[str]:
     providers = []
     if settings.yandex_client_id and settings.yandex_client_secret and settings.yandex_redirect_uri:
         providers.append("yandex")
-    if settings.vk_client_id and settings.vk_client_secret and settings.vk_redirect_uri:
+    # VK, unlike the other two, needs no secret: VK ID is OAuth 2.1 and the PKCE
+    # code_verifier stands in for it, so demanding one here would keep the
+    # provider switched off forever on a correctly configured deployment.
+    if settings.vk_client_id and settings.vk_redirect_uri:
         providers.append("vk")
     if settings.mailru_client_id and settings.mailru_client_secret and settings.mailru_redirect_uri:
         providers.append("mailru")

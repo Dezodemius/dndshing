@@ -40,9 +40,10 @@ class Settings(BaseSettings):
     yandex_client_secret: str | None = None
     yandex_redirect_uri: str | None = None
 
-    # OAuth: VK ID. Same all-or-nothing gating as Yandex above.
+    # OAuth: VK ID. Same all-or-nothing gating as Yandex above, minus the
+    # secret: VK ID runs the PKCE flow, where code_verifier replaces it, so
+    # there is no vk_client_secret to configure at all.
     vk_client_id: str | None = None
-    vk_client_secret: str | None = None
     vk_redirect_uri: str | None = None
 
     # OAuth: Mail.ru. Same all-or-nothing rule as Yandex above.

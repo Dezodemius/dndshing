@@ -18,27 +18,40 @@ _PROFILE_NO_EMAIL = vk_client.VkProfile(
     provider_user_id=_PROVIDER_USER_ID, email=None, display_name="Игрок VK"
 )
 
+# What the last faked token exchange was called with, so a test can assert on
+# the parameters the handler forwards rather than only on its redirect.
+_LAST_EXCHANGE: dict[str, str] = {}
+
 
 @pytest.fixture(autouse=True)
 def _vk_config(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = get_settings()
+    # No vk_client_secret: VK ID authenticates this flow with PKCE instead.
     monkeypatch.setattr(settings, "vk_client_id", "client-id")
-    monkeypatch.setattr(settings, "vk_client_secret", "client-secret")
     monkeypatch.setattr(
         settings, "vk_redirect_uri", "http://testserver/api/v1/auth/oauth/vk/callback"
     )
 
 
 def _mock_provider(monkeypatch: pytest.MonkeyPatch, profile: vk_client.VkProfile) -> None:
+    _LAST_EXCHANGE.clear()
+
     async def _fake_exchange_code(
-        code: str, client_id: str, client_secret: str, redirect_uri: str, code_verifier: str
+        code: str,
+        client_id: str,
+        redirect_uri: str,
+        code_verifier: str,
+        device_id: str,
+        state: str,
     ) -> str:
         assert code == "auth-code"
         assert code_verifier
+        _LAST_EXCHANGE.update(client_id=client_id, device_id=device_id, state=state)
         return "fake-access-token"
 
-    async def _fake_fetch_profile(access_token: str) -> vk_client.VkProfile:
+    async def _fake_fetch_profile(access_token: str, client_id: str) -> vk_client.VkProfile:
         assert access_token == "fake-access-token"
+        assert client_id == "client-id"
         return profile
 
     monkeypatch.setattr(vk_client, "exchange_code", _fake_exchange_code)
@@ -57,7 +70,7 @@ def mock_provider_no_email(monkeypatch: pytest.MonkeyPatch) -> vk_client.VkProfi
     return _PROFILE_NO_EMAIL
 
 
-async def _callback(client: AsyncClient) -> Response:
+async def _callback(client: AsyncClient, device_id: str = "vk-device-1") -> Response:
     # httpx.AsyncClient keeps its own cookie jar, so the state/code_verifier
     # cookies set by /authorize are sent back automatically on the next request.
     authorize_response = await client.get(AUTHORIZE_URL)
@@ -65,7 +78,9 @@ async def _callback(client: AsyncClient) -> Response:
 
     state = authorize_response.cookies["oauth_state"]
     return await client.get(
-        CALLBACK_URL, params={"code": "auth-code", "state": state}, follow_redirects=False
+        CALLBACK_URL,
+        params={"code": "auth-code", "state": state, "device_id": device_id},
+        follow_redirects=False,
     )
 
 
@@ -80,6 +95,20 @@ async def test_authorize_redirects_to_vk_and_sets_state_and_verifier_cookies(
     assert "code_challenge=" in response.headers["location"]
     assert "oauth_state" in response.cookies
     assert "oauth_code_verifier" in response.cookies
+
+
+async def test_callback_forwards_device_id_and_state_to_token_exchange(
+    client: AsyncClient, mock_provider_with_email: vk_client.VkProfile
+) -> None:
+    # VK returns device_id as a query parameter on the callback and its token
+    # endpoint rejects an exchange without it. The handler used to not declare
+    # the parameter at all, so FastAPI dropped it and every real login failed
+    # after the consent screen — a redirect alone would not have caught that.
+    response = await _callback(client, device_id="vk-device-42")
+
+    assert response.status_code == 302
+    assert _LAST_EXCHANGE["device_id"] == "vk-device-42"
+    assert _LAST_EXCHANGE["state"]
 
 
 async def test_authorize_is_disabled_without_config(
