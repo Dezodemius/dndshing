@@ -152,6 +152,13 @@ window_seconds)`, applied as:
 - **`/auth/login` (additional, stricter):** 20 requests/min per client IP —
   layered on top of the router-wide limit because credential stuffing is the
   highest-value target on this router specifically.
+
+  > **Stale as of the 2026-08-17 audit.** `/auth/login` no longer exists:
+  > password auth was dropped in migration `0008_drop_password_hash` and login
+  > is OAuth-only. The stricter 20/min layer went with it, so the OAuth
+  > callbacks are covered by the router-wide 60/min bucket alone. Note also
+  > that the per-IP keying described below does not hold in the deployed
+  > topology — see the open follow-up on trusting proxy headers.
 - **`/shop/{share_code}/buy`:** 20 requests/min per client IP
   (`app/merchants/router.py`) — matches the literal BACKLOG scope ("/buy");
   `/sell` carries the identical money-affecting/locking design and would
