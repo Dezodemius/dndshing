@@ -95,14 +95,17 @@ python .claude/scripts/create-issues.py           # dry run
 python .claude/scripts/create-issues.py --apply   # создать метки и ишью
 ```
 
-`BACKLOG.md` — спецификация, а не трекер: статуса задач в нём нет. Прогресс живёт в GitHub — метки ишью (`agent-ready` → `in-progress` → закрыта, плюс `blocked`) и поле Status на доске проекта.
+`BACKLOG.md` — спецификация, а не трекер: статуса задач в нём нет. Прогресс живёт в GitHub — метки ишью (`blocked` → `agent-ready` → закрыта) и поле Status на доске проекта.
 
 ### Автоматизация
 
-- `.github/workflows/agent.yml` — автономный агент: берёт ишью с меткой `agent-ready`, работает в облаке, открывает PR в `develop`. Запускается по расписанию или вручную (`workflow_dispatch` с номером ишью).
-- `.github/workflows/review.yml` — независимое ревью каждого PR в `develop`; комментарии в PR, арбитр — владелец.
+- `.github/workflows/plan.yml` — планировщик очереди: граф `depends:` из BACKLOG → метки `agent-ready` / `blocked` и доска проекта.
+- `.github/workflows/ci.yml` — линт и тесты backend, typecheck и сборка фронта на каждый PR.
+- `.github/workflows/fix.yml` + `fix-worker.yml` — комментарий владельца «исправить» к PR запускает агента-исправителя. Правки в `.github/**` он вносить не может.
 - `.github/workflows/cd.yml` — прод: мерж в `main` → деплой на self-hosted раннере, зарегистрированном на самом прод-сервере.
 - `.github/workflows/cd-stand.yml` — стенд: push в `develop` → деплой по SSH на сервер timeweb.cloud. Через `workflow_dispatch` на стенд выкладывается любая ветка, не мержа её.
+
+> Автономный ночной агент (`agent.yml`), агент-ревьюер (`review.yml`) и внешний будильник `infra/night-alarm` удалены — см. «Ночной агент выключен» в `.claude/docs/CLAUDE.md`. Очередь разбирает и PR ревьюит человек.
 
 ### Стенд (timeweb.cloud)
 
