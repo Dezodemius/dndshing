@@ -3,12 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.auth.security import create_access_token
+from tests.conftest import seed_content
 
-IMPORT_URL = "/api/v1/admin/content/import"
 ITEMS_URL = "/api/v1/content/items"
 MERCHANTS_URL = "/api/v1/merchants"
-
-ADMIN_EMAIL = "admin@example.com"
 
 
 def _content_pack() -> dict:
@@ -49,10 +47,11 @@ def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def _import_pack(client: AsyncClient, db_session: AsyncSession) -> None:
-    token = await _register_and_login(client, db_session, ADMIN_EMAIL, is_admin=True)
-    response = await client.post(IMPORT_URL, json=_content_pack(), headers=_auth_headers(token))
-    assert response.status_code == 200, response.text
+async def _import_pack() -> None:
+    # Контент кладётся в базу напрямую сервисом: HTTP-эндпоинта импорта нет,
+    # в приложении пак приезжает из файла на старте и через браузерную админку.
+    report = await seed_content(_content_pack())
+    assert report.errors == [], report.errors
 
 
 async def _item_id(client: AsyncClient, headers: dict[str, str]) -> int:
@@ -61,7 +60,7 @@ async def _item_id(client: AsyncClient, headers: dict[str, str]) -> int:
 
 
 async def _owner_setup(client: AsyncClient, db_session: AsyncSession, email: str) -> dict:
-    await _import_pack(client, db_session)
+    await _import_pack()
     token = await _register_and_login(client, db_session, email)
     headers = _auth_headers(token)
     item_id = await _item_id(client, headers)

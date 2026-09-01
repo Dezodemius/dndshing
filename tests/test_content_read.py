@@ -3,8 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.auth.security import create_access_token
-
-IMPORT_URL = "/api/v1/admin/content/import"
+from tests.conftest import seed_content
 
 RACES_URL = "/api/v1/content/races"
 CLASSES_URL = "/api/v1/content/classes"
@@ -106,9 +105,10 @@ def _auth_headers(token: str) -> dict[str, str]:
 
 
 async def _import_full_pack(client: AsyncClient, db_session: AsyncSession) -> None:
-    token = await _register_and_login(client, db_session, ADMIN_EMAIL, is_admin=True)
-    response = await client.post(IMPORT_URL, json=_full_pack(), headers=_auth_headers(token))
-    assert response.status_code == 200, response.text
+    # Контент кладётся в базу напрямую сервисом: HTTP-эндпоинта импорта нет,
+    # в приложении пак приезжает из файла на старте и через браузерную админку.
+    report = await seed_content(_full_pack())
+    assert report.errors == [], report.errors
 
 
 async def _player_headers(client: AsyncClient, db_session: AsyncSession) -> dict[str, str]:
@@ -282,14 +282,8 @@ async def test_cache_serves_stale_then_fresh_after_import(
     second = await client.get(RACES_URL, headers=headers)
     assert second.json() == first.json()
 
-    token = await _register_and_login(client, db_session, "admin2@example.com", is_admin=True)
-    pack = {"races": [{"slug": "gnome", "name": "Гном"}]}
-    import_response = await client.post(
-        IMPORT_URL,
-        json={"races": pack["races"], "classes": [], "spells": [], "items": [], "backgrounds": []},
-        headers=_auth_headers(token),
-    )
-    assert import_response.status_code == 200, import_response.text
+    report = await seed_content({"races": [{"slug": "gnome", "name": "Гном"}]})
+    assert report.errors == [], report.errors
 
     third = await client.get(RACES_URL, headers=headers)
     assert third.status_code == 200

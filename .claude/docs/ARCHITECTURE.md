@@ -87,7 +87,7 @@ app/
 
 Общий паттерн: индексируемые колонки для фильтров + `data JSONB` для всего остального. Это даёт расширяемость без миграций на каждое поле 5e.
 
-- **Race**: id, slug, name, data (скорость, тёмное зрение, черты, бонусы характеристик — как описания и структурные поля).
+- **Race**: id, slug, name, data (скорость и тёмное зрение — в футах, черты, бонусы характеристик — как описания и структурные поля).
 - **CharacterClass**: id, slug, name, hit_die, primary_ability, data.
 - **ClassLevel**: class_id, level (1–20), features JSONB (список фич уровня: name, description), spell_slots JSONB (nullable). Отдельная таблица, чтобы level-up мог показать «что нового на уровне N».
 - **Subclass**: class_id, slug, name, unlock_level, data (фичи по уровням внутри data).
@@ -95,7 +95,7 @@ app/
 - **Item**: id, slug, name, type (`weapon`|`armor`|`potion`|`scroll`|`magic`|`quest`|`gear`), rarity, price_gold/silver/copper, weight, description, data.
 - **Background**: id, slug, name, data.
 
-Импорт: `POST /api/admin/content/import` (только is_admin), принимает JSON-пак `{races:[], classes:[], spells:[], items:[], ...}`, режим upsert по slug. Валидация Pydantic-схемами, отчёт: создано/обновлено/ошибки. Slug — стабильный ключ между импортами.
+Импорт: источник правды — **файл контент-пака** (`CONTENT_PACK_PATH`, по умолчанию `content/content-pack.json`) с JSON-паком `{races:[], classes:[], spells:[], items:[], backgrounds:[]}`. Приложение читает его на старте (lifespan → `app/content/pack_loader.py`) и апсертит в БД по slug; БД — проекция файла. Валидация Pydantic-схемами, отчёт: создано/обновлено/ошибки; частично битый пак не применяется вовсе. Ошибка чтения пака не валит старт — API продолжает отдавать прошлое содержимое БД, причина уходит в лог. Загрузить новый пак можно только через браузерную админку (§ниже), которая применяет пак к БД и перезаписывает файл. HTTP-эндпоинта импорта в API нет: контент — не пользовательская функция.
 
 i18n-задел: у контентных таблиц поле locale (default `ru`); уникальность по (slug, locale). Сейчас всё в `ru`, потом рядом лягут переводы.
 
@@ -197,10 +197,11 @@ GET  /me
 ### Content (чтение — любой залогиненный)
 ```
 GET /content/races | /classes | /classes/{slug} | /spells?class=&level= | /items?type= | /backgrounds
-POST /admin/content/import     (is_admin) — JSON-пак, upsert по slug
 ```
 
-Отдельно — `GET|POST /internal/admin/content-import` (вне `/api/v1`, HTTP Basic по паре `ADMIN_PANEL_USERNAME`/`ADMIN_PANEL_PASSWORD` из конфига, не привязан к `User`/`is_admin`): минимальная HTML-форма загрузки того же контент-пака файлом, вызывает тот же `ContentImportService`. Роуты выключены (404), пока обе переменные не заданы. См. `app/content/admin_panel.py`.
+Контент в API только читается — эндпоинта импорта нет.
+
+Загрузка живёт отдельно: `GET|POST /internal/admin/content-import` (вне `/api/v1`, HTTP Basic по паре `ADMIN_PANEL_USERNAME`/`ADMIN_PANEL_PASSWORD` из конфига, не привязан к `User`/`is_admin`, скрыт из OpenAPI и не связан со SPA). Форма принимает файл пака, применяет его через `ContentImportService` и — только при успешном импорте — перезаписывает файл `CONTENT_PACK_PATH`, чтобы следующий старт поднял то же содержимое. Роуты выключены (404), пока обе переменные не заданы. См. `app/content/admin_panel.py` и `app/content/pack_loader.py`.
 
 ### Characters (владелец)
 ```

@@ -35,7 +35,7 @@ function buildPayload(selection: WizardSelection): CharacterCreate {
     alignment,
     ability_scores: abilityScores,
     hp_max: hpMax,
-    speed: race.data.speed ?? 9,
+    speed: race.data.speed ?? 30,
     proficiencies: saves.length > 0 ? { saves } : {},
     appearance: appearance.trim() || undefined,
     backstory: backstory.trim() || undefined,

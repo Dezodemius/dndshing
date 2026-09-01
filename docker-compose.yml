@@ -52,6 +52,16 @@ services:
       MAILRU_CLIENT_ID: ${MAILRU_CLIENT_ID:-}
       MAILRU_CLIENT_SECRET: ${MAILRU_CLIENT_SECRET:-}
       MAILRU_REDIRECT_URI: ${MAILRU_REDIRECT_URI:-}
+      # Файл контент-пака внутри тома content_data (см. volumes ниже).
+      CONTENT_PACK_PATH: /app/content/content-pack.json
+      # Optional: обе пустые = браузерная админка импорта выключена (404).
+      ADMIN_PANEL_USERNAME: ${ADMIN_PANEL_USERNAME:-}
+      ADMIN_PANEL_PASSWORD: ${ADMIN_PANEL_PASSWORD:-}
+    volumes:
+      # Именованный том, а не bind-mount: на первом старте Docker наполняет его
+      # паком из образа, а дальше файл переживает выкатки — иначе загруженный
+      # через админку пак затирался бы следующим `docker compose pull`.
+      - content_data:/app/content
     depends_on:
       db:
         condition: service_healthy
@@ -103,3 +113,4 @@ services:
 
 volumes:
   pg_data:
+  content_data:
