@@ -7,7 +7,6 @@ const NAV_ITEMS = [
   { to: '/', labelKey: 'nav.landing' },
   { to: '/login', labelKey: 'nav.login' },
   { to: '/app', labelKey: 'nav.dashboard' },
-  { to: '/admin/import', labelKey: 'nav.adminImport' },
 ]
 
 export default function Layout() {

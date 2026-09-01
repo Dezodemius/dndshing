@@ -1,20 +1,32 @@
+import json
 from collections.abc import AsyncIterator
 
+import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import User
-from app.auth.security import create_access_token
 from app.core.body_limit import (
+    ADMIN_PANEL_IMPORT_PATH,
     DEFAULT_MAX_BODY_BYTES,
-    IMPORT_PATH,
     RequestBodySizeLimitMiddleware,
 )
+from app.core.config import get_settings
 
-IMPORT_URL = "/api/v1/admin/content/import"
+# Единственный путь с поднятым лимитом — браузерная админка импорта: только через
+# неё контент-пак попадает в приложение по HTTP (API-эндпоинта импорта нет).
+IMPORT_URL = ADMIN_PANEL_IMPORT_PATH
 REFRESH_URL = "/api/v1/auth/refresh"
 
-ADMIN_EMAIL = "admin@example.com"
+IMPORT_LIMIT = 10 * 1024 * 1024
+
+USERNAME = "owner"
+PASSWORD = "hunter22"
+
+
+@pytest.fixture(autouse=True)
+def _panel_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "admin_panel_username", USERNAME)
+    monkeypatch.setattr(settings, "admin_panel_password", PASSWORD)
 
 
 def _full_pack() -> dict:
@@ -37,56 +49,27 @@ def _full_pack() -> dict:
     }
 
 
-async def _register_and_login(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    email: str,
-    *,
-    is_admin: bool = False,
-) -> str:
-    """Create a user directly (mirrors an OAuth login) and mint an access token."""
-    user = User(email=email, display_name="Тест", email_verified=True, is_admin=is_admin)
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return create_access_token(user.id)
+def _pack_file(pack: dict) -> dict:
+    return {"file": ("pack.json", json.dumps(pack).encode("utf-8"), "application/json")}
 
 
-def _auth_headers(token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {token}"}
-
-
-async def test_import_under_limit_is_accepted(
-    client: AsyncClient, db_session: AsyncSession
-) -> None:
+async def test_import_under_limit_is_accepted(client: AsyncClient) -> None:
     """A normal small valid content pack under the limit should be accepted."""
-    token = await _register_and_login(client, db_session, ADMIN_EMAIL, is_admin=True)
-
-    response = await client.post(IMPORT_URL, json=_full_pack(), headers=_auth_headers(token))
+    response = await client.post(
+        IMPORT_URL, auth=(USERNAME, PASSWORD), files=_pack_file(_full_pack())
+    )
 
     assert response.status_code == 200, response.text
-    body = response.json()
-    assert "created" in body
-    assert "updated" in body
-    assert "errors" in body
+    assert "Готово" in response.text
 
 
-async def test_import_rejects_body_over_limit_by_content_length(
-    client: AsyncClient, db_session: AsyncSession
-) -> None:
+async def test_import_rejects_body_over_limit_by_content_length(client: AsyncClient) -> None:
     """A spoofed content-length header exceeding the import limit should be rejected with 413."""
-    token = await _register_and_login(client, db_session, ADMIN_EMAIL, is_admin=True)
-    pack = _full_pack()
-
-    # Spoof a content-length header that exceeds the import limit (10 MiB)
-    import_limit = 10 * 1024 * 1024
     response = await client.post(
         IMPORT_URL,
-        json=pack,
-        headers={
-            **_auth_headers(token),
-            "content-length": str(import_limit + 1),
-        },
+        auth=(USERNAME, PASSWORD),
+        files=_pack_file(_full_pack()),
+        headers={"content-length": str(IMPORT_LIMIT + 1)},
     )
 
     assert response.status_code == 413
@@ -94,18 +77,13 @@ async def test_import_rejects_body_over_limit_by_content_length(
     assert body["error"]["code"] == "request_too_large"
 
 
-async def test_import_rejects_body_over_limit_without_auth(
-    client: AsyncClient,
-) -> None:
+async def test_import_rejects_body_over_limit_without_auth(client: AsyncClient) -> None:
     """Size check runs BEFORE auth, so a spoofed oversized body is rejected
-    with 413 even without authorization (not 401)."""
-    pack = _full_pack()
-    import_limit = 10 * 1024 * 1024
-
+    with 413 even without credentials (not 401)."""
     response = await client.post(
         IMPORT_URL,
-        json=pack,
-        headers={"content-length": str(import_limit + 1)},
+        files=_pack_file(_full_pack()),
+        headers={"content-length": str(IMPORT_LIMIT + 1)},
     )
 
     # 413 should come before 401 (size check runs before auth)
@@ -115,11 +93,10 @@ async def test_import_rejects_body_over_limit_without_auth(
 
 
 async def test_import_rejects_streamed_body_over_limit_without_content_length(
-    client: AsyncClient, db_session: AsyncSession
+    client: AsyncClient,
 ) -> None:
     """Slow path: a body streamed without a Content-Length header (chunked
     transfer) must be cut off once the streamed bytes exceed the limit."""
-    token = await _register_and_login(client, db_session, ADMIN_EMAIL, is_admin=True)
 
     async def oversized_chunks() -> AsyncIterator[bytes]:
         chunk = b"a" * (1024 * 1024)
@@ -128,8 +105,8 @@ async def test_import_rejects_streamed_body_over_limit_without_content_length(
 
     response = await client.post(
         IMPORT_URL,
+        auth=(USERNAME, PASSWORD),
         content=oversized_chunks(),
-        headers=_auth_headers(token),
     )
 
     # No Content-Length means the fast path can't have rejected this — confirms
@@ -174,8 +151,8 @@ def test_limit_for_path_prefers_the_import_override() -> None:
         app=None,  # type: ignore
     )
 
-    # Import path should get the 10 MiB override
-    assert middleware._limit_for(IMPORT_PATH) == 10 * 1024 * 1024
+    # The admin panel upload path should get the 10 MiB override
+    assert middleware._limit_for(ADMIN_PANEL_IMPORT_PATH) == IMPORT_LIMIT
 
     # Other paths should get the 1 MiB default
     assert middleware._limit_for("/api/v1/auth/login") == DEFAULT_MAX_BODY_BYTES

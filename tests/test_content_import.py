@@ -3,14 +3,13 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import User
-from app.auth.security import create_access_token
 from app.content.models import Background, Class, ClassLevel, Item, Race, Spell, Subclass
+from tests.conftest import seed_content
 
-IMPORT_URL = "/api/v1/admin/content/import"
-
-ADMIN_EMAIL = "admin@example.com"
-PLAYER_EMAIL = "player@example.com"
+# Импорта по HTTP в API нет: контент приезжает из файла пака на старте
+# (app/content/pack_loader.py) и через браузерную админку. Здесь проверяется
+# сам импорт как сервис — плюс то, что старый эндпоинт действительно убран.
+REMOVED_IMPORT_URL = "/api/v1/admin/content/import"
 
 
 def _full_pack() -> dict:
@@ -53,36 +52,10 @@ def _full_pack() -> dict:
     }
 
 
-async def _register_and_login(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    email: str,
-    *,
-    is_admin: bool = False,
-) -> str:
-    # Mirrors what an OAuth login creates (AuthService._link_or_create_vk_user):
-    # a User row with no password, email already verified.
-    user = User(email=email, display_name="Тест", email_verified=True, is_admin=is_admin)
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return create_access_token(user.id)
+async def test_import_full_pack_creates_entities(db_session: AsyncSession) -> None:
+    report = await seed_content(_full_pack())
 
-
-def _auth_headers(token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {token}"}
-
-
-async def test_import_full_pack_creates_entities(
-    client: AsyncClient, db_session: AsyncSession
-) -> None:
-    token = await _register_and_login(client, db_session, ADMIN_EMAIL, is_admin=True)
-
-    response = await client.post(IMPORT_URL, json=_full_pack(), headers=_auth_headers(token))
-
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body == {"created": 5, "updated": 0, "errors": []}
+    assert report.model_dump() == {"created": 5, "updated": 0, "errors": []}
 
     assert (await db_session.scalar(select(Race).where(Race.slug == "elf"))) is not None
     klass = await db_session.scalar(select(Class).where(Class.slug == "fighter"))
@@ -101,39 +74,31 @@ async def test_import_full_pack_creates_entities(
 
 
 async def test_import_same_pack_twice_reports_updated_and_no_duplicates(
-    client: AsyncClient, db_session: AsyncSession
+    db_session: AsyncSession,
 ) -> None:
-    token = await _register_and_login(client, db_session, ADMIN_EMAIL, is_admin=True)
     pack = _full_pack()
 
-    first = await client.post(IMPORT_URL, json=pack, headers=_auth_headers(token))
-    assert first.status_code == 200, first.text
-    assert first.json() == {"created": 5, "updated": 0, "errors": []}
+    first = await seed_content(pack)
+    assert first.model_dump() == {"created": 5, "updated": 0, "errors": []}
 
-    second = await client.post(IMPORT_URL, json=pack, headers=_auth_headers(token))
-    assert second.status_code == 200, second.text
-    assert second.json() == {"created": 0, "updated": 5, "errors": []}
+    second = await seed_content(pack)
+    assert second.model_dump() == {"created": 0, "updated": 5, "errors": []}
 
     races = (await db_session.execute(select(Race).where(Race.slug == "elf"))).scalars().all()
     assert len(races) == 1
 
 
-async def test_import_with_error_rolls_back_everything(
-    client: AsyncClient, db_session: AsyncSession
-) -> None:
-    token = await _register_and_login(client, db_session, ADMIN_EMAIL, is_admin=True)
+async def test_import_with_error_rolls_back_everything(db_session: AsyncSession) -> None:
     pack = _full_pack()
     pack["items"][0]["type"] = "not-a-real-type"
 
-    response = await client.post(IMPORT_URL, json=pack, headers=_auth_headers(token))
+    report = await seed_content(pack)
 
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["created"] == 0
-    assert body["updated"] == 0
-    assert len(body["errors"]) == 1
-    assert body["errors"][0]["entity"] == "item"
-    assert body["errors"][0]["slug"] == "longsword"
+    assert report.created == 0
+    assert report.updated == 0
+    assert len(report.errors) == 1
+    assert report.errors[0].entity == "item"
+    assert report.errors[0].slug == "longsword"
 
     assert (await db_session.scalar(select(Race).where(Race.slug == "elf"))) is None
     assert (await db_session.scalar(select(Class).where(Class.slug == "fighter"))) is None
@@ -141,27 +106,9 @@ async def test_import_with_error_rolls_back_everything(
     assert (await db_session.scalar(select(Background).where(Background.slug == "soldier"))) is None
 
 
-async def test_import_rejects_non_admin(client: AsyncClient, db_session: AsyncSession) -> None:
-    token = await _register_and_login(client, db_session, PLAYER_EMAIL, is_admin=False)
-
-    response = await client.post(IMPORT_URL, json=_full_pack(), headers=_auth_headers(token))
-
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "admin_required"
-
-
-async def test_import_requires_authentication(client: AsyncClient) -> None:
-    response = await client.post(IMPORT_URL, json=_full_pack())
-
-    assert response.status_code == 401
-
-
 @pytest.mark.parametrize("field", ["races", "classes"])
-async def test_import_rejects_duplicate_slug_within_pack(
-    client: AsyncClient, db_session: AsyncSession, field: str
-) -> None:
-    token = await _register_and_login(client, db_session, ADMIN_EMAIL, is_admin=True)
-    pack = {"races": [], "classes": [], "spells": [], "items": [], "backgrounds": []}
+async def test_import_rejects_duplicate_slug_within_pack(field: str) -> None:
+    pack: dict = {"races": [], "classes": [], "spells": [], "items": [], "backgrounds": []}
     if field == "races":
         pack["races"] = [
             {"slug": "elf", "name": "Эльф"},
@@ -173,12 +120,23 @@ async def test_import_rejects_duplicate_slug_within_pack(
             {"slug": "fighter", "name": "Воин-дубль", "hit_die": 10, "primary_ability": "strength"},
         ]
 
-    response = await client.post(IMPORT_URL, json=pack, headers=_auth_headers(token))
+    report = await seed_content(pack)
 
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["created"] == 0
-    assert body["updated"] == 0
+    assert report.created == 0
+    assert report.updated == 0
     expected_entity = "race" if field == "races" else "class"
-    assert len(body["errors"]) == 2
-    assert all(e["entity"] == expected_entity for e in body["errors"])
+    assert len(report.errors) == 2
+    assert all(error.entity == expected_entity for error in report.errors)
+
+
+async def test_http_import_endpoint_is_gone(client: AsyncClient) -> None:
+    # Ни один пользователь (даже админ) не должен видеть загрузку контента в API.
+    response = await client.post(REMOVED_IMPORT_URL, json=_full_pack())
+
+    assert response.status_code == 404
+
+
+async def test_openapi_exposes_no_content_import(client: AsyncClient) -> None:
+    schema = (await client.get("/openapi.json")).json()
+
+    assert not [path for path in schema["paths"] if "content/import" in path]

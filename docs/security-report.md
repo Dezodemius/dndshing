@@ -52,7 +52,7 @@ endpoints in `app/merchants/router.py`:
 | Shop sale | Same pattern as purchase, plus the inventory entry is re-checked against the (now confirmed-owned) character inside `CharacterService.apply_sale` | `MerchantService.sell` → `CharacterService.apply_sale` |
 | Shop browsing (`GET /shop/{code}`) | Intentionally unauthenticated by design (BR §4.5) — read-only, no user-scoped data | `MerchantService.get_shop` |
 | Content read endpoints (`/content/*`) | No per-user ownership — global reference data, correctly gated only by `get_verified_user` (any logged-in user) | `app/content/router.py` |
-| Content import (`/admin/content/import`) | Gated by `get_admin_user` (`is_admin`), not an ownership check but the correct control for a non-per-user resource | `app/content/router.py` |
+| Content import | No API endpoint at all — content enters only from the pack file at startup or through the Basic-auth admin panel (`/internal/admin/content-import`, out of OpenAPI, same-origin-checked, rate-limited) | `app/content/pack_loader.py`, `app/content/admin_panel.py` |
 
 ### Findings
 

@@ -1,35 +1,26 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_admin_user, get_verified_user
+from app.auth.dependencies import get_verified_user
 from app.content.errors import ClassNotFoundError
 from app.content.schemas import (
     BackgroundRead,
     ClassDetailRead,
-    ContentPackImport,
-    ImportReport,
     ItemRead,
     RaceRead,
     SpellRead,
 )
-from app.content.service import ContentImportService, ContentQueryService
+from app.content.service import ContentQueryService
 from app.core.db import get_db
 
+# Только чтение: загрузка контента живёт вне API — пак приезжает из файла на
+# старте и через браузерную админку (app/content/pack_loader.py). HTTP-эндпоинта
+# импорта нет намеренно, обычному пользователю он не должен быть виден вообще.
 router = APIRouter(tags=["content"])
 
 
-# _admin/_user stay untyped here: typing them as app.auth.models.User would
-# import a foreign module's model, which the module boundary (CLAUDE.md rule 2)
-# forbids.
-@router.post("/admin/content/import", response_model=ImportReport)
-async def import_content_pack(
-    pack: ContentPackImport,
-    db: AsyncSession = Depends(get_db),
-    _admin=Depends(get_admin_user),
-) -> ImportReport:
-    return await ContentImportService(db).import_pack(pack)
-
-
+# _user stays untyped here: typing it as app.auth.models.User would import a
+# foreign module's model, which the module boundary (CLAUDE.md rule 2) forbids.
 @router.get("/content/races", response_model=list[RaceRead])
 async def list_races(
     db: AsyncSession = Depends(get_db),
