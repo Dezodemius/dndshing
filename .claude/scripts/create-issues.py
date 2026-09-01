@@ -95,10 +95,10 @@ def main() -> None:
     if not created:
         print("Новых задач нет — все уже в GitHub.")
     elif args.apply:
-        # plan.yml also fires on `issues: opened`, so the queue label lands on
-        # its own within a minute. Running the planner here just makes it now.
-        print(f"\nСоздано: {created}. Очередную метку выдаст планировщик "
-              f"(plan.yml на issues: opened). Сразу, не дожидаясь:\n"
+        # Nothing labels the queue automatically any more: the planner
+        # workflow is gone, so this hand-off has to be spelled out.
+        print(f"\nСоздано: {created}. Очередную метку никто не выдаст "
+              f"автоматически — запусти планировщик:\n"
               f"  python .claude/scripts/plan-tasks.py --apply")
 
 
