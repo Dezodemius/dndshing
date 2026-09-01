@@ -1,28 +1,42 @@
 """Standalone browser admin panel for content-pack import (owner-only tool).
 
-Gated by a single fixed login pair from Settings (HTTP Basic), independent of
-the User/is_admin/OAuth system: the owner uses this to import D&D 5e reference
+The ONLY way content enters the system over HTTP: the public API is read-only
+(app/content/router.py), so nothing about content import is visible to a normal
+user. Gated by a single fixed login pair from Settings (HTTP Basic), independent
+of the User/is_admin/OAuth system: the owner uses this to import D&D 5e reference
 data without needing a registered account. Not linked from the SPA and kept
 out of the OpenAPI schema — reachable only by someone who already has the URL
 and the credentials.
+
+An upload updates two places: the database (so the API serves it immediately)
+and the pack file on disk (so the next boot loads the same content — the file is
+the source of truth, see app/content/pack_loader.py).
 """
 
 import html
-import json
+import logging
 import secrets
 
 from fastapi import APIRouter, Depends, Request, UploadFile
 from fastapi.exceptions import HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.content.schemas import ContentPackImport, ImportReport
-from app.content.service import ContentImportService
+from app.content.pack_loader import (
+    PackJSONError,
+    PackSchemaError,
+    apply_pack,
+    pack_path,
+    parse_pack,
+    write_pack_file,
+)
+from app.content.schemas import ImportReport
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.rate_limit import rate_limit
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     tags=["content-admin-panel"],
@@ -96,10 +110,13 @@ _PAGE_TEMPLATE = """<!doctype html>
   .report.ok {{ background: #e6f4ea; border-color: #34a853; }}
   .report.error {{ background: #fce8e6; border-color: #d93025; }}
   ul {{ margin: 8px 0; padding-left: 20px; }}
+  .hint {{ color: #555; font-size: 0.9rem; }}
 </style>
 </head>
 <body>
 <h1>Импорт контент-пака D&amp;D 5e</h1>
+<p class="hint">Файл пака — источник правды: загруженный JSON заменяет
+<code>{pack_path}</code> целиком и сразу применяется к базе.</p>
 {report}
 <form method="post" enctype="multipart/form-data">
   <input type="file" name="file" accept="application/json,.json" required>
@@ -108,6 +125,10 @@ _PAGE_TEMPLATE = """<!doctype html>
 </body>
 </html>
 """
+
+
+_INVALID_JSON_MESSAGE = "Невалидный JSON. Проверьте формат файла."
+_INVALID_SCHEMA_MESSAGE = "Пак не соответствует ожидаемой схеме."
 
 
 def _render_report(*, report: ImportReport | None, error: str | None) -> str:
@@ -130,12 +151,15 @@ def _render_report(*, report: ImportReport | None, error: str | None) -> str:
 
     return (
         '<div class="report ok">Готово: создано '
-        f"{report.created}, обновлено {report.updated}.</div>"
+        f"{report.created}, обновлено {report.updated}. Файл пака перезаписан.</div>"
     )
 
 
 def _render_page(*, report: ImportReport | None = None, error: str | None = None) -> str:
-    return _PAGE_TEMPLATE.format(report=_render_report(report=report, error=error))
+    return _PAGE_TEMPLATE.format(
+        pack_path=html.escape(str(pack_path())),
+        report=_render_report(report=report, error=error),
+    )
 
 
 @router.get("/internal/admin/content-import")
@@ -153,15 +177,38 @@ async def import_panel_submit(
     _require_same_origin(request)
 
     raw = await file.read()
+    # Причина различается по подклассу, а текст берётся из констант: детали
+    # разбора (позиция в JSON, поля Pydantic) остаются в логе и в ответ не
+    # попадают.
     try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return HTMLResponse(_render_page(error="Невалидный JSON. Проверьте формат файла."))
+        pack = parse_pack(raw)
+    except PackJSONError:
+        logger.exception("Загруженный контент-пак не разобран как JSON")
+        return HTMLResponse(_render_page(error=_INVALID_JSON_MESSAGE))
+    except PackSchemaError:
+        logger.exception("Загруженный контент-пак не соответствует схеме")
+        return HTMLResponse(_render_page(error=_INVALID_SCHEMA_MESSAGE))
 
+    report = await apply_pack(db, pack)
+    if report.errors:
+        return HTMLResponse(_render_page(report=report))
+
+    # Файл перезаписывается только после успешного импорта: иначе на диске
+    # остался бы пак, который приложение не сможет применить на следующем старте.
+    # Байты пишутся ровно те, что прислали, — файл остаётся читаемым исходником,
+    # а не результатом round-trip через Pydantic.
     try:
-        pack = ContentPackImport.model_validate(data)
-    except ValidationError:
-        return HTMLResponse(_render_page(error="Пак не соответствует ожидаемой схеме."))
+        write_pack_file(raw)
+    except OSError:
+        logger.exception("Не удалось записать контент-пак в %s", pack_path())
+        return HTMLResponse(
+            _render_page(
+                error=(
+                    "Пак применён к базе, но файл на диске перезаписать не удалось — "
+                    "после перезапуска изменения потеряются. Проверьте права на "
+                    f"{pack_path()}."
+                )
+            )
+        )
 
-    report = await ContentImportService(db).import_pack(pack)
     return HTMLResponse(_render_page(report=report))

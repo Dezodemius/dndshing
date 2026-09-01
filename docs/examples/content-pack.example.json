@@ -4,13 +4,13 @@
       "slug": "elf",
       "name": "Эльф",
       "data": {
-        "speed": 9,
-        "darkvision": 18,
+        "speed": 30,
+        "darkvision": 60,
         "ability_bonuses": { "dex": 2 },
         "traits": [
           {
             "name": "Тёмное зрение",
-            "description": "Видит в темноте на 18 метров, различая только оттенки серого."
+            "description": "Видит в темноте на 60 футов, различая только оттенки серого."
           },
           {
             "name": "Обострённые чувства",
@@ -102,8 +102,8 @@
       "level": 0,
       "school": "conjuration",
       "casting_time": "1 действие",
-      "range": "9 метров",
-      "components": "V, S",
+      "range": "30 футов",
+      "components": "В, С",
       "duration": "1 минута",
       "description": "Призрачная рука появляется в точке в пределах дистанции и может перемещать лёгкие предметы, открывать незапертые двери и контейнеры.",
       "classes": ["fighter"]
@@ -115,7 +115,7 @@
       "school": "abjuration",
       "casting_time": "1 реакция",
       "range": "На себя",
-      "components": "V, S",
+      "components": "В, С",
       "duration": "1 раунд",
       "description": "Невидимый барьер даёт +5 к КД до начала следующего хода заклинателя, включая защиту от вызвавшей реакцию атаки.",
       "classes": ["fighter"]
@@ -127,7 +127,7 @@
       "school": "evocation",
       "casting_time": "1 действие",
       "range": "Касание",
-      "components": "V, S",
+      "components": "В, С",
       "duration": "мгновенная",
       "description": "Существо, которого касается заклинатель, восстанавливает 1к8 + модификатор базовой характеристики хитов.",
       "classes": ["fighter"]

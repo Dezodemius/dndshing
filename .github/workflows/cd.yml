@@ -7,12 +7,16 @@
 #
 # Раньше сборка шла локально на self-hosted раннере, зарегистрированном на
 # самом прод-сервере, — но раннер так и не был зарегистрирован, и деплой не
-# ездил. Эта версия использует ту же SSH-схему, что и cd-stand.yml (деплой
-# стенда), плюс сборку и push образов в GHCR: прод-сервер не собирает ничего
-# сам, только тянет готовые образы, у него не должно быть исходников. Ключ и
-# адрес переиспользуют переменные cd-stand.yml (secrets.STAND_SSH_KEY,
-# vars.STAND_HOST, vars.STAND_SSH_KNOWN_HOSTS) — это тот же физический
-# сервер, отдельная только рабочая директория (vars.PROD_PATH).
+# ездил. Эта версия ходит на сервер по SSH с hosted-раннера, а образы едут
+# через GHCR: прод не собирает ничего сам, только тянет готовые, исходников
+# у него нет.
+#
+# Адрес сервера и его ключ хоста лежат в СЕКРЕТАХ (PROD_HOST,
+# PROD_SSH_KNOWN_HOSTS), а не в переменных, и подставляются пошагово, а не в
+# workflow-level env. Репозиторий публичный, а Actions печатает блок env
+# каждого шага в лог: переменная попала бы в него открытым текстом и выдала
+# бы origin за Cloudflare всякому, кто откроет прогон. Секрет маскируется.
+# По той же причине здесь нет ни echo с адресом, ни ssh -v.
 #
 # Секретов прода в репозитории нет (правило 12 CLAUDE.md): .env с реальными
 # POSTGRES_*, JWT_SECRET_KEY и т.д. лежит на сервере в PROD_PATH, а не в git.
@@ -24,7 +28,7 @@
 # установлен, но не сконфигурирован под этот домен, и это отдельный
 # инфраструктурный шаг (TLS/Cloudflare), не часть этого воркфлоу. Поэтому
 # здесь нет проверки публичного сайта, только проверка контейнеров изнутри
-# сервера — как в cd-stand.yml.
+# сервера.
 #
 # Неудачный healthz-гейт откатывает ПРИЛОЖЕНИЕ (контейнеры) на последний
 # отметившийся здоровым тег из ${PROD_PATH}/.last_good_tag, но не миграции —
@@ -44,11 +48,9 @@ concurrency:
 
 env:
   IMAGE_TAG: ${{ github.sha }}
-  STAND_HOST: ${{ vars.STAND_HOST }}
-  STAND_USER: ${{ vars.STAND_USER || 'root' }}
-  STAND_SSH_PORT: ${{ vars.STAND_SSH_PORT || '22' }}
+  PROD_USER: ${{ vars.PROD_USER || 'root' }}
+  PROD_SSH_PORT: ${{ vars.PROD_SSH_PORT || '22' }}
   PROD_PATH: ${{ vars.PROD_PATH || '/opt/dnd-prod' }}
-  STAND_SSH_KNOWN_HOSTS: ${{ vars.STAND_SSH_KNOWN_HOSTS }}
 
 jobs:
   build:
@@ -109,40 +111,44 @@ jobs:
         # Пустая переменная иначе доедет до ssh и упадёт невнятной ошибкой
         # соединения — проверяем до того, как что-то произойдёт с сервером.
         env:
-          STAND_SSH_KEY: ${{ secrets.STAND_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
         run: |
           set -euo pipefail
           missing=0
-          if [ -z "$STAND_HOST" ]; then
-            echo "::error::не задана переменная STAND_HOST: IP прод-сервера"
+          if [ -z "${PROD_HOST:-}" ]; then
+            echo "::error::не задан секрет PROD_HOST: адрес прод-сервера"
             missing=1
           fi
-          if [ -z "${STAND_SSH_KEY:-}" ]; then
-            echo "::error::не задан секрет STAND_SSH_KEY: приватный ключ для входа на сервер"
+          if [ -z "${PROD_SSH_KEY:-}" ]; then
+            echo "::error::не задан секрет PROD_SSH_KEY: приватный ключ для входа на сервер"
             missing=1
           fi
-          if [ -z "$STAND_SSH_KNOWN_HOSTS" ]; then
-            echo "::error::не задана переменная STAND_SSH_KNOWN_HOSTS"
+          if [ -z "${PROD_SSH_KNOWN_HOSTS:-}" ]; then
+            echo "::error::не задан секрет PROD_SSH_KNOWN_HOSTS: вывод ssh-keyscan -p 22 IP"
             missing=1
           fi
           exit "$missing"
 
       - name: Configure SSH
         env:
-          STAND_SSH_KEY: ${{ secrets.STAND_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "$STAND_SSH_KEY" > ~/.ssh/prod_key
+          printf '%s\n' "$PROD_SSH_KEY" > ~/.ssh/prod_key
           chmod 600 ~/.ssh/prod_key
-          printf '%s\n' "$STAND_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$PROD_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
           cat > ~/.ssh/config <<EOF
           Host prod
-            HostName ${STAND_HOST}
-            User ${STAND_USER}
-            Port ${STAND_SSH_PORT}
+            HostName ${PROD_HOST}
+            User ${PROD_USER}
+            Port ${PROD_SSH_PORT}
             IdentityFile ~/.ssh/prod_key
             IdentitiesOnly yes
             StrictHostKeyChecking yes
@@ -163,9 +169,8 @@ jobs:
       - name: Upload compose file
         # Прод не собирает образы и не хранит исходники — только
         # docker-compose.yml и файл, который он монтирует для db. .env на
-        # сервере этим шагом не трогается: он не входит в архив, а каталог не
-        # чистится (в отличие от cd-stand.yml, где чистка нужна из-за
-        # выгрузки полного дерева).
+        # сервере этим шагом не трогается: он не входит в архив, а каталог
+        # не чистится — на прод едут только два этих файла.
         run: |
           set -euo pipefail
           tar -czf - docker-compose.yml docker/postgres/init-test-db.sh \
@@ -176,11 +181,18 @@ jobs:
         # не аргументом команды (не оседает в истории/списке процессов), и
         # логаут сразу после pull не оставляет его в ~/.docker/config.json на
         # сервере между деплоями.
+        #
+        # Тянутся только api и frontend (образы из GHCR), а не весь стек:
+        # postgres:16 — единственный образ с Docker Hub, и анонимный pull
+        # оттуда упирается в лимит (429 Too Many Requests), роняя деплой на
+        # ровном месте. Тег постгреса зафиксирован и на сервере уже лежит;
+        # если его вдруг не окажется (новый хост), его дотянет следующий
+        # `docker compose up -d` — один раз, а не каждую выкатку.
         run: |
           set -euo pipefail
           printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
             | ssh prod "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
-          ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${IMAGE_TAG}' docker compose pull"
+          ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${IMAGE_TAG}' docker compose pull api frontend"
           ssh prod "docker logout ghcr.io"
 
       - name: Run database migrations
@@ -232,7 +244,7 @@ jobs:
           echo "::warning::health check failed for ${IMAGE_TAG}, rolling back app containers to ${prev} (database migrations are not reverted)"
           printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
             | ssh prod "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
-          ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${prev}' docker compose pull && IMAGE_TAG='${prev}' docker compose up -d"
+          ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${prev}' docker compose pull api frontend && IMAGE_TAG='${prev}' docker compose up -d"
           ssh prod "docker logout ghcr.io"
 
       - name: Remove SSH key

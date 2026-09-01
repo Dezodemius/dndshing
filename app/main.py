@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -5,6 +8,7 @@ from app.auth.router import router as auth_router
 from app.campaigns.router import router as campaigns_router
 from app.characters.router import router as characters_router
 from app.content.admin_panel import router as content_admin_panel_router
+from app.content.pack_loader import sync_pack_on_startup
 from app.content.router import router as content_router
 from app.core.body_limit import RequestBodySizeLimitMiddleware
 from app.core.config import get_settings
@@ -13,7 +17,17 @@ from app.core.router import router as core_router
 from app.core.security_headers import add_security_headers
 from app.merchants.router import router as merchants_router
 
-app = FastAPI(title="ДнДэшинг")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Файл контент-пака — источник правды для справочника, БД — его проекция:
+    # на каждом старте пак перечитывается и апсертится (app/content/pack_loader.py).
+    # Ошибки внутри не поднимаются наружу специально — см. докстринг модуля.
+    await sync_pack_on_startup()
+    yield
+
+
+app = FastAPI(title="ДнДэшинг", lifespan=lifespan)
 register_exception_handlers(app)
 # RequestBodySizeLimitMiddleware must sit inside CORS/security-headers so that a 413
 # response still gets those headers added on the way out (matters for browser-based admin tools).
