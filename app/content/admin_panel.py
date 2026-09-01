@@ -24,7 +24,8 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.content.pack_loader import (
-    PackFileError,
+    PackJSONError,
+    PackSchemaError,
     apply_pack,
     pack_path,
     parse_pack,
@@ -126,6 +127,10 @@ _PAGE_TEMPLATE = """<!doctype html>
 """
 
 
+_INVALID_JSON_MESSAGE = "Невалидный JSON. Проверьте формат файла."
+_INVALID_SCHEMA_MESSAGE = "Пак не соответствует ожидаемой схеме."
+
+
 def _render_report(*, report: ImportReport | None, error: str | None) -> str:
     if error is not None:
         return f'<div class="report error"><strong>Ошибка:</strong> {html.escape(error)}</div>'
@@ -172,15 +177,17 @@ async def import_panel_submit(
     _require_same_origin(request)
 
     raw = await file.read()
+    # Причина различается по подклассу, а текст берётся из констант: детали
+    # разбора (позиция в JSON, поля Pydantic) остаются в логе и в ответ не
+    # попадают.
     try:
         pack = parse_pack(raw)
-    except PackFileError:
-        logger.exception("Ошибка разбора загруженного контент-пака")
-        return HTMLResponse(
-            _render_page(
-                error="Не удалось разобрать файл пака. Проверьте формат и повторите попытку."
-            )
-        )
+    except PackJSONError:
+        logger.exception("Загруженный контент-пак не разобран как JSON")
+        return HTMLResponse(_render_page(error=_INVALID_JSON_MESSAGE))
+    except PackSchemaError:
+        logger.exception("Загруженный контент-пак не соответствует схеме")
+        return HTMLResponse(_render_page(error=_INVALID_SCHEMA_MESSAGE))
 
     report = await apply_pack(db, pack)
     if report.errors:

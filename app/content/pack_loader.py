@@ -31,9 +31,18 @@ logger = logging.getLogger(__name__)
 class PackFileError(Exception):
     """Пак не удалось прочитать: битый JSON или несоответствие схеме.
 
-    Сообщение — уже готовый для показа владельцу русский текст (админка рендерит
-    его как есть).
+    Сообщение уходит только в лог. Показывать владельцу текст исключения нельзя
+    (в него попадают детали разбора), поэтому админка различает причины по
+    подклассу и рендерит свою константу — см. app/content/admin_panel.py.
     """
+
+
+class PackJSONError(PackFileError):
+    """Байты пака вообще не разбираются как JSON."""
+
+
+class PackSchemaError(PackFileError):
+    """JSON валиден, но структура не совпадает с ContentPackImport."""
 
 
 def pack_path() -> Path:
@@ -44,12 +53,12 @@ def parse_pack(raw: bytes) -> ContentPackImport:
     try:
         data = json.loads(raw)
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise PackFileError("Невалидный JSON. Проверьте формат файла.") from exc
+        raise PackJSONError("Невалидный JSON. Проверьте формат файла.") from exc
 
     try:
         return ContentPackImport.model_validate(data)
     except ValidationError as exc:
-        raise PackFileError("Пак не соответствует ожидаемой схеме.") from exc
+        raise PackSchemaError("Пак не соответствует ожидаемой схеме.") from exc
 
 
 def read_pack_file(path: Path | None = None) -> ContentPackImport | None:
