@@ -230,8 +230,8 @@ def main() -> None:
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--no-board", action="store_true")
     ap.add_argument("--clear-deferred", action="store_true",
-                    help="снять agent-deferred: новая ночь — новая попытка "
-                         "(plan.yml передаёт этот флаг только на ночном cron)")
+                    help="снять agent-deferred: новая попытка по задачам, "
+                         "отложенным прошлым прогоном")
     args = ap.parse_args()
 
     tasks = bl.load_tasks()
@@ -262,8 +262,8 @@ def main() -> None:
     print(f"готовы к агенту: {', '.join(sorted(queue)) or 'нет'}")
 
     if not args.no_board:
-        # The board is a view, the labels are the queue: a broken board must not
-        # fail the run, or every plan.yml run goes red and the agent queue with it.
+        # The board is a view, the labels are the queue: a broken board must
+        # not fail the run and take the labelling down with it.
         try:
             sync_board(tasks, issues, args.apply)
         except subprocess.CalledProcessError as e:
