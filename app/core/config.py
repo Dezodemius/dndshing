@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     mailru_client_secret: str | None = None
     mailru_redirect_uri: str | None = None
 
+    # Единственный источник справочного контента (расы, классы, заклинания, предметы,
+    # предыстории): при старте приложение читает этот файл и апсертит его в БД, а
+    # админка импорта его же перезаписывает (app/content/pack_loader.py). Путь
+    # относительный — считается от рабочего каталога процесса (в контейнере /app).
+    content_pack_path: str = "content/content-pack.json"
+
     # Standalone browser admin panel for content-pack import (app/content/admin_panel.py):
     # one fixed login pair, decoupled from the User/is_admin/OAuth system so the owner
     # doesn't need a registered account just to import content. Same all-or-nothing

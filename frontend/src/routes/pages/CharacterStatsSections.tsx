@@ -121,7 +121,9 @@ export default function CharacterStatsSections({ character }: CharacterStatsSect
           </div>
           <div className="character-sheet__combat-stat">
             <span>{t('pages.characterSheet.combat.speed')}</span>
-            <span className="character-sheet__combat-value">{character.speed}</span>
+            <span className="character-sheet__combat-value">
+              {t('pages.characterSheet.combat.speedValue', { value: character.speed })}
+            </span>
           </div>
         </div>
       </section>

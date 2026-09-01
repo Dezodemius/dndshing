@@ -6,7 +6,6 @@
     "landing": "Главная",
     "login": "Вход",
     "dashboard": "Кабинет",
-    "adminImport": "Импорт контента",
     "logout": "Выйти"
   },
   "abilities": {
@@ -194,8 +193,8 @@
       "race": {
         "heading": "Выберите расу",
         "empty": "Расы ещё не загружены. Обратитесь к мастеру или администратору.",
-        "speed": "Скорость {{value}} м",
-        "darkvision": "Тёмное зрение {{value}} м"
+        "speed": "Скорость {{value}} фт",
+        "darkvision": "Тёмное зрение {{value}} фт"
       },
       "abilityBonus": "{{ability}} +{{value}}",
       "class": {
@@ -357,7 +356,8 @@
       "combat": {
         "ac": "КД",
         "initiative": "Инициатива",
-        "speed": "Скорость"
+        "speed": "Скорость",
+        "speedValue": "{{value}} фт"
       },
       "hp": {
         "current": "Текущие",
@@ -630,15 +630,11 @@
         "confirm": "Продать «{{name}}» за {{total}}?"
       }
     },
-    "adminImport": {
-      "title": "Импорт контента"
-    },
     "notFound": {
       "title": "Страница не найдена"
     }
   },
   "common": {
-    "comingSoon": "Экран в разработке.",
     "loading": "Загрузка…"
   },
   "auth": {
