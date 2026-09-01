@@ -1,5 +1,9 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+# Upper bound for a single buy/sell. Far above any real transaction at the table,
+# and far below what would overflow the int4 quantity columns.
+MAX_TRADE_QUANTITY = 10_000
+
 
 class MerchantCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -86,11 +90,16 @@ class ShopRead(BaseModel):
 
 
 class ShopBuyRequest(BaseModel):
+    """`quantity` is bounded on both ends. Without an upper bound a huge value
+    against a zero-priced, unlimited-stock position passes the funds check and
+    overflows the int4 `inventory_entries.quantity`, surfacing as an asyncpg
+    error rather than a domain error."""
+
     model_config = ConfigDict(extra="forbid")
 
     character_id: int
     merchant_item_id: int
-    quantity: int = Field(default=1, ge=1)
+    quantity: int = Field(default=1, ge=1, le=MAX_TRADE_QUANTITY)
 
 
 class ShopBuyResult(BaseModel):
@@ -107,7 +116,7 @@ class ShopSellRequest(BaseModel):
 
     character_id: int
     inventory_entry_id: int
-    quantity: int = Field(default=1, ge=1)
+    quantity: int = Field(default=1, ge=1, le=MAX_TRADE_QUANTITY)
 
 
 class ShopSellResult(BaseModel):

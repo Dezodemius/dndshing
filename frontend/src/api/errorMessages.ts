@@ -26,7 +26,6 @@ const ERROR_KEYS: Record<string, string> = {
   invite_code_invalid: 'errors.inviteCodeInvalid',
   already_joined: 'errors.alreadyJoined',
   campaign_character_not_found: 'errors.campaignCharacterNotFound',
-  campaign_dm_access_required: 'errors.campaignDmAccessRequired',
 }
 
 export function translateApiError(t: TFunction, error: unknown): string {

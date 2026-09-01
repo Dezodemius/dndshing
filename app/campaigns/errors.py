@@ -25,7 +25,6 @@ class CampaignCharacterNotFoundError(AppError):
     status_code = 404
 
 
-class CampaignDmAccessRequiredError(AppError):
-    code = "campaign_dm_access_required"
-    message = "Доступ только для мастера этой кампании"
-    status_code = 403
+# CampaignDmAccessRequiredError (403) удалён намеренно: «кампания есть, но она
+# не твоя» — это раскрытие существования id. Такой случай теперь отвечает
+# campaign_not_found, как и всякий чужой ресурс в этом проекте.
