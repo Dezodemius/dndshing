@@ -181,11 +181,18 @@ jobs:
         # не аргументом команды (не оседает в истории/списке процессов), и
         # логаут сразу после pull не оставляет его в ~/.docker/config.json на
         # сервере между деплоями.
+        #
+        # Тянутся только api и frontend (образы из GHCR), а не весь стек:
+        # postgres:16 — единственный образ с Docker Hub, и анонимный pull
+        # оттуда упирается в лимит (429 Too Many Requests), роняя деплой на
+        # ровном месте. Тег постгреса зафиксирован и на сервере уже лежит;
+        # если его вдруг не окажется (новый хост), его дотянет следующий
+        # `docker compose up -d` — один раз, а не каждую выкатку.
         run: |
           set -euo pipefail
           printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
             | ssh prod "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
-          ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${IMAGE_TAG}' docker compose pull"
+          ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${IMAGE_TAG}' docker compose pull api frontend"
           ssh prod "docker logout ghcr.io"
 
       - name: Run database migrations
@@ -237,7 +244,7 @@ jobs:
           echo "::warning::health check failed for ${IMAGE_TAG}, rolling back app containers to ${prev} (database migrations are not reverted)"
           printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
             | ssh prod "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
-          ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${prev}' docker compose pull && IMAGE_TAG='${prev}' docker compose up -d"
+          ssh prod "cd '${PROD_PATH}' && IMAGE_TAG='${prev}' docker compose pull api frontend && IMAGE_TAG='${prev}' docker compose up -d"
           ssh prod "docker logout ghcr.io"
 
       - name: Remove SSH key
