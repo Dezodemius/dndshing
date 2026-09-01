@@ -174,8 +174,13 @@ async def import_panel_submit(
     raw = await file.read()
     try:
         pack = parse_pack(raw)
-    except PackFileError as exc:
-        return HTMLResponse(_render_page(error=str(exc)))
+    except PackFileError:
+        logger.exception("Ошибка разбора загруженного контент-пака")
+        return HTMLResponse(
+            _render_page(
+                error="Не удалось разобрать файл пака. Проверьте формат и повторите попытку."
+            )
+        )
 
     report = await apply_pack(db, pack)
     if report.errors:
