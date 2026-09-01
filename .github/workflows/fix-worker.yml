@@ -100,7 +100,14 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$BEFORE"
           git add -N .
-          git diff --binary -- . ':(exclude).claude/fix-report.md' > "$RUNNER_TEMP/fix.patch"
+          # .github/** исключается жёстко: агент читает комментарии PR, а их на
+          # публичном репозитории пишет кто угодно. Патч применяется и пушится
+          # без чтения человеком, а воркфлоу, доехавший до ветки PR, исполнится
+          # на следующем `synchronize` уже с секретами — для same-repo PR GitHub
+          # берёт определение из head-ветки. Правки воркфлоу делает человек.
+          git diff --binary -- . \
+            ':(exclude).claude/fix-report.md' \
+            ':(exclude).github' > "$RUNNER_TEMP/fix.patch"
           if [ -s .claude/fix-report.md ]; then
             cp .claude/fix-report.md "$RUNNER_TEMP/fix-report.md"
           else
@@ -162,6 +169,12 @@ jobs:
         run: |
           set -euo pipefail
           git apply --check .fix-result/fix.patch
+          # Второй рубеж к исключению в `prepare`: артефакт едет между job'ами,
+          # и применять его вслепую нельзя. Путь под .github/ — отказ, не фильтр.
+          if git apply --numstat .fix-result/fix.patch | cut -f3 | grep -q '^\.github/'; then
+            echo "::error::patch touches .github/ — отклонён"
+            exit 1
+          fi
           git apply --index .fix-result/fix.patch
           git diff --cached --check
           git config user.name "github-actions[bot]"
