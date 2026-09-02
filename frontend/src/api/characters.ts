@@ -30,6 +30,8 @@ export interface ComputedBlock {
   initiative: number
   passive_perception: number
   xp_to_next: number | null
+  xp_level_floor: number
+  xp_next_threshold: number | null
   level_up_available: boolean
   spell_slots: Record<string, number>
 }
@@ -97,6 +99,7 @@ export interface CharacterCreate {
 }
 
 export interface CharacterPatch {
+  xp?: number
   hp_current?: number
   hp_temp?: number
   notes?: string

@@ -86,6 +86,8 @@ const baseCharacter: CharacterDetail = {
     initiative: 2,
     passive_perception: 14,
     xp_to_next: 300,
+    xp_level_floor: 0,
+    xp_next_threshold: 300,
     level_up_available: false,
     spell_slots: { '1': 2 },
   },
@@ -165,6 +167,56 @@ describe('CharacterSheetPage', () => {
     await waitFor(() => {
       expect(charactersApi.patchCharacter).toHaveBeenCalledWith('1', { hp_current: 7 })
     })
+  })
+
+  it('shows XP progress toward the next level', async () => {
+    renderPage({ ...baseCharacter, xp: 150 })
+
+    await screen.findByRole('heading', { name: 'Ари' })
+    expect(screen.getByLabelText('Опыт (XP)')).toHaveValue(150)
+    const progress = screen.getByRole('progressbar')
+    expect(progress).toHaveAttribute('value', '150')
+    expect(progress).toHaveAttribute('max', '300')
+    expect(screen.getByText('150 из 300 XP до 2 уровня')).toBeInTheDocument()
+  })
+
+  it('replaces the progress bar with a note at the maximum level', async () => {
+    renderPage({
+      ...baseCharacter,
+      level: 20,
+      xp: 355000,
+      computed: {
+        ...baseCharacter.computed,
+        xp_to_next: null,
+        xp_level_floor: 355000,
+        xp_next_threshold: null,
+      },
+    })
+
+    await screen.findByRole('heading', { name: 'Ари' })
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    expect(screen.getByText(/выше некуда/)).toBeInTheDocument()
+  })
+
+  it('saves the entered XP via PATCH and then offers the level-up', async () => {
+    const user = userEvent.setup()
+    vi.mocked(charactersApi.patchCharacter).mockResolvedValue({
+      ...baseCharacter,
+      xp: 300,
+      computed: { ...baseCharacter.computed, xp_to_next: 0, level_up_available: true },
+    })
+    renderPage(baseCharacter)
+
+    const xpInput = await screen.findByLabelText('Опыт (XP)')
+    await user.clear(xpInput)
+    await user.type(xpInput, '300')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() => {
+      expect(charactersApi.patchCharacter).toHaveBeenCalledWith('1', { xp: 300 })
+    })
+    const link = await screen.findByRole('link', { name: 'Прокачаться' })
+    expect(link).toHaveAttribute('href', '/app/characters/1/level-up')
   })
 
   it('switches to the inventory tab and shows its entries', async () => {
