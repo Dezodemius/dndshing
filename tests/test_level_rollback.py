@@ -214,6 +214,41 @@ async def test_rollback_restores_exact_pre_level_up_state(
     assert known_spells == []
 
 
+async def test_rollback_never_leaves_negative_hp(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """A character damaged after the level-up can hold fewer HP than the level
+    granted; the rollback must floor hp_current at 0 instead of going negative,
+    which would make the sheet unsavable (hp_current has ge=0)."""
+    setup = await _player_setup(client, db_session, "player-hp@example.com")
+    character_id = await _create_character(client, setup)
+    await _give_xp_for_level(client, setup, character_id, 2)
+
+    up_response = await client.post(
+        _level_up_url(character_id),
+        json={"hp_method": "average", "spells_learned": []},
+        headers=setup["headers"],
+    )
+    assert up_response.status_code == 200, up_response.text
+    hp_gained = up_response.json()["delta"]["hp_gained"]
+    assert hp_gained > 1
+
+    damaged = await client.patch(
+        f"{CHARACTERS_URL}/{character_id}",
+        json={"hp_current": 1},
+        headers=setup["headers"],
+    )
+    assert damaged.status_code == 200, damaged.text
+
+    rollback_response = await client.post(_rollback_url(character_id), headers=setup["headers"])
+
+    assert rollback_response.status_code == 200, rollback_response.text
+    body = rollback_response.json()
+    assert body["level"] == 1
+    assert body["hp_current"] == 0
+    assert body["hp_max"] == 8
+
+
 async def test_double_rollback_is_impossible(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:

@@ -278,7 +278,11 @@ class CharacterService:
 
         hp_gained = delta.get("hp_gained", 0)
         character.hp_max -= hp_gained
-        character.hp_current -= hp_gained
+        # Subtracting keeps the "up then rollback restores the exact prior state"
+        # invariant for damage taken *before* the level-up, but a character hurt
+        # *after* it can hold less than hp_gained — the floor keeps hp_current out
+        # of the negatives, which no other code path can produce.
+        character.hp_current = max(character.hp_current - hp_gained, 0)
         character.level = record.from_level
 
         await self._db.delete(record)
