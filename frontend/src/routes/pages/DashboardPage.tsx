@@ -12,6 +12,7 @@ interface ResourceSummary {
 
 interface ResourceSectionConfig {
   path: string
+  detailPath: string
   titleKey: string
   emptyKey: string
   actionTo?: string
@@ -20,6 +21,7 @@ interface ResourceSectionConfig {
 
 const CHARACTERS_SECTION: ResourceSectionConfig = {
   path: '/characters',
+  detailPath: '/app/characters',
   titleKey: 'pages.dashboard.characters.title',
   emptyKey: 'pages.dashboard.characters.empty',
   actionTo: '/app/characters/new',
@@ -28,6 +30,7 @@ const CHARACTERS_SECTION: ResourceSectionConfig = {
 
 const MERCHANTS_SECTION: ResourceSectionConfig = {
   path: '/merchants',
+  detailPath: '/app/merchants',
   titleKey: 'pages.dashboard.merchants.title',
   emptyKey: 'pages.dashboard.merchants.empty',
   actionTo: '/app/merchants/new',
@@ -88,7 +91,14 @@ function CampaignsSection() {
   )
 }
 
-function ResourceSection({ path, titleKey, emptyKey, actionTo, actionLabelKey }: ResourceSectionConfig) {
+function ResourceSection({
+  path,
+  detailPath,
+  titleKey,
+  emptyKey,
+  actionTo,
+  actionLabelKey,
+}: ResourceSectionConfig) {
   const { t } = useTranslation()
   const query = useQuery({
     queryKey: ['dashboard', path],
@@ -110,7 +120,9 @@ function ResourceSection({ path, titleKey, emptyKey, actionTo, actionLabelKey }:
       {query.isSuccess && query.data.length > 0 && (
         <ul>
           {query.data.map((item) => (
-            <li key={item.id}>{item.name}</li>
+            <li key={item.id}>
+              <Link to={`${detailPath}/${item.id}`}>{item.name}</Link>
+            </li>
           ))}
         </ul>
       )}
