@@ -30,7 +30,14 @@ def _content_pack() -> dict:
                     {"level": 1, "features": {}, "spell_slots": {"1": 2}},
                     {
                         "level": 2,
-                        "features": {"arcane-recovery": "Восстановление ячеек"},
+                        "features": {
+                            "items": [
+                                {
+                                    "name": "Восстановление сил",
+                                    "description": "Короткий отдых возвращает часть ячеек.",
+                                }
+                            ]
+                        },
                         "spell_slots": {"1": 3},
                     },
                     {"level": 3, "features": {}, "spell_slots": {"1": 4, "2": 2}},
@@ -286,7 +293,7 @@ async def test_level_up_applies_delta_and_is_reproducible(
         "asi": {"str": 1, "con": 1},
         "feat": None,
         "subclass_chosen": "evocation",
-        "features_unlocked": ["arcane-recovery"],
+        "features_unlocked": ["Восстановление сил"],
         "spells_learned": ["magic-missile"],
         "spells_forgotten": [],
     }

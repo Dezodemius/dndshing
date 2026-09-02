@@ -30,7 +30,14 @@ def _content_pack() -> dict:
                     {"level": 1, "features": {}, "spell_slots": {"1": 2}},
                     {
                         "level": 2,
-                        "features": {"arcane-recovery": "Восстановление ячеек"},
+                        "features": {
+                            "items": [
+                                {
+                                    "name": "Восстановление сил",
+                                    "description": "Короткий отдых возвращает часть ячеек.",
+                                }
+                            ]
+                        },
                         "spell_slots": {"1": 3},
                     },
                     {"level": 3, "features": {}, "spell_slots": {"1": 4, "2": 2}},

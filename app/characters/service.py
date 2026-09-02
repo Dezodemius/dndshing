@@ -179,9 +179,12 @@ class CharacterService:
             character.subclass_id = subclass.id
 
         class_level = await content.get_class_level(class_id=character.class_id, level=to_level)
-        features_unlocked = (
-            list((class_level.features or {}).keys()) if class_level is not None else []
-        )
+        # Content pack shape is {"items": [{"name": ..., "description": ...}]} — the
+        # delta stores feature names, so the level history stays readable on its own.
+        level_features = (class_level.features if class_level is not None else None) or {}
+        features_unlocked = [
+            feature["name"] for feature in level_features.get("items", []) if feature.get("name")
+        ]
 
         spells = await content.get_spells_by_ids(
             payload.spells_learned, class_id=character.class_id
