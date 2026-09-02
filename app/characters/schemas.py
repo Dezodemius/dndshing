@@ -115,6 +115,8 @@ class ComputedBlock(BaseModel):
     initiative: int
     passive_perception: int
     xp_to_next: int | None
+    xp_level_floor: int
+    xp_next_threshold: int | None
     level_up_available: bool
     spell_slots: dict[str, Any]
 

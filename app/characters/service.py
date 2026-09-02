@@ -521,9 +521,13 @@ class CharacterService:
             for skill, ability in rules_5e.SKILL_ABILITIES.items()
         }
         xp_to_next = rules_5e.xp_to_next_level(character.level, character.xp)
-        level_up_available = character.level < rules_5e.MAX_LEVEL and character.xp >= (
+        xp_level_floor = rules_5e.xp_threshold(character.level)
+        xp_next_threshold = (
             rules_5e.xp_threshold(character.level + 1)
+            if character.level < rules_5e.MAX_LEVEL
+            else None
         )
+        level_up_available = xp_next_threshold is not None and character.xp >= xp_next_threshold
         spell_slots = (
             await ContentQueryService(self._db).get_spell_slots(
                 class_id=character.class_id, level=character.level
@@ -540,6 +544,8 @@ class CharacterService:
             initiative=rules_5e.initiative(dex_score),
             passive_perception=passive_perception,
             xp_to_next=xp_to_next,
+            xp_level_floor=xp_level_floor,
+            xp_next_threshold=xp_next_threshold,
             level_up_available=level_up_available,
             spell_slots=spell_slots,
         )
