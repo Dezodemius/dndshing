@@ -164,6 +164,8 @@ async def test_computed_block_is_correct_for_reference_character(
     assert computed["initiative"] == 2  # dex mod
     assert computed["passive_perception"] == 14  # 10 + wis mod (2) + prof_bonus (2)
     assert computed["xp_to_next"] == 300  # XP threshold for level 2
+    assert computed["xp_level_floor"] == 0  # level 1 starts at 0 XP
+    assert computed["xp_next_threshold"] == 300  # XP threshold for level 2
     assert computed["level_up_available"] is False
     assert computed["spell_slots"] == {"1": 2}
 
@@ -203,6 +205,29 @@ async def test_level_up_available_when_xp_threshold_reached(
 
     response = await client.get(f"{CHARACTERS_URL}/{character_id}", headers=setup["headers"])
     assert response.json()["computed"]["level_up_available"] is True
+
+
+async def test_computed_xp_bounds_follow_entered_xp(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """The sheet draws XP progress from the computed bounds instead of carrying a
+    copy of the 5e threshold table on the frontend (code-style: no 5e rules in TS)."""
+    setup = await _player_setup(client, db_session, "player-xp@example.com")
+    create_response = await client.post(
+        CHARACTERS_URL, json=_character_payload(setup), headers=setup["headers"]
+    )
+    character_id = create_response.json()["id"]
+
+    patch_response = await client.patch(
+        f"{CHARACTERS_URL}/{character_id}", json={"xp": 150}, headers=setup["headers"]
+    )
+    assert patch_response.status_code == 200, patch_response.text
+
+    computed = patch_response.json()["computed"]
+    assert computed["xp_level_floor"] == 0
+    assert computed["xp_next_threshold"] == 300
+    assert computed["xp_to_next"] == 150
+    assert computed["level_up_available"] is False
 
 
 async def test_list_characters_returns_only_own(

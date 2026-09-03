@@ -179,9 +179,12 @@ class CharacterService:
             character.subclass_id = subclass.id
 
         class_level = await content.get_class_level(class_id=character.class_id, level=to_level)
-        features_unlocked = (
-            list((class_level.features or {}).keys()) if class_level is not None else []
-        )
+        # Content pack shape is {"items": [{"name": ..., "description": ...}]} — the
+        # delta stores feature names, so the level history stays readable on its own.
+        level_features = (class_level.features if class_level is not None else None) or {}
+        features_unlocked = [
+            feature["name"] for feature in level_features.get("items", []) if feature.get("name")
+        ]
 
         spells = await content.get_spells_by_ids(
             payload.spells_learned, class_id=character.class_id
@@ -275,7 +278,11 @@ class CharacterService:
 
         hp_gained = delta.get("hp_gained", 0)
         character.hp_max -= hp_gained
-        character.hp_current -= hp_gained
+        # Subtracting keeps the "up then rollback restores the exact prior state"
+        # invariant for damage taken *before* the level-up, but a character hurt
+        # *after* it can hold less than hp_gained — the floor keeps hp_current out
+        # of the negatives, which no other code path can produce.
+        character.hp_current = max(character.hp_current - hp_gained, 0)
         character.level = record.from_level
 
         await self._db.delete(record)
@@ -521,9 +528,13 @@ class CharacterService:
             for skill, ability in rules_5e.SKILL_ABILITIES.items()
         }
         xp_to_next = rules_5e.xp_to_next_level(character.level, character.xp)
-        level_up_available = character.level < rules_5e.MAX_LEVEL and character.xp >= (
+        xp_level_floor = rules_5e.xp_threshold(character.level)
+        xp_next_threshold = (
             rules_5e.xp_threshold(character.level + 1)
+            if character.level < rules_5e.MAX_LEVEL
+            else None
         )
+        level_up_available = xp_next_threshold is not None and character.xp >= xp_next_threshold
         spell_slots = (
             await ContentQueryService(self._db).get_spell_slots(
                 class_id=character.class_id, level=character.level
@@ -540,6 +551,8 @@ class CharacterService:
             initiative=rules_5e.initiative(dex_score),
             passive_perception=passive_perception,
             xp_to_next=xp_to_next,
+            xp_level_floor=xp_level_floor,
+            xp_next_threshold=xp_next_threshold,
             level_up_available=level_up_available,
             spell_slots=spell_slots,
         )

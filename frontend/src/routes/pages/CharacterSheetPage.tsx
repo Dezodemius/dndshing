@@ -5,7 +5,13 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { getCharacter, patchCharacter, type CharacterDetail, type CharacterPatch } from '../../api/characters'
+import {
+  getCharacter,
+  patchCharacter,
+  type CharacterDetail,
+  type CharacterPatch,
+  type ComputedBlock,
+} from '../../api/characters'
 import { translateApiError } from '../../api/errorMessages'
 import CharacterSpellsTab from './CharacterSpellsTab'
 import CharacterInventoryTab from './CharacterInventoryTab'
@@ -18,6 +24,7 @@ const TAB_ORDER = ['sheet', 'spells', 'inventory', 'wallet', 'history'] as const
 type SheetTab = (typeof TAB_ORDER)[number]
 
 const sheetSchema = z.object({
+  xp: z.coerce.number().int().min(0),
   hp_current: z.coerce.number().int().min(0),
   hp_temp: z.coerce.number().int().min(0),
   notes: z.string().max(2000),
@@ -25,8 +32,19 @@ const sheetSchema = z.object({
 
 type SheetFormValues = z.infer<typeof sheetSchema>
 
+/** Position inside the current level's XP band. Both bounds come from `computed`
+ * — the 5e threshold table lives on the backend (code-style: no 5e rules in TS).
+ * XP past the threshold (a level-up waiting to be spent) fills the bar, never
+ * overflows it. */
+function levelProgress(xp: number, computed: ComputedBlock): number {
+  if (computed.xp_next_threshold === null) return 0
+  const earned = Math.min(xp, computed.xp_next_threshold) - computed.xp_level_floor
+  return Math.max(0, earned)
+}
+
 function toFormValues(character: CharacterDetail): SheetFormValues {
   return {
+    xp: character.xp,
     hp_current: character.hp_current,
     hp_temp: character.hp_temp,
     notes: character.notes ?? '',
@@ -77,6 +95,7 @@ export default function CharacterSheetPage() {
 
   async function onSubmit(values: SheetFormValues) {
     const payload: CharacterPatch = {}
+    if (dirtyFields.xp) payload.xp = values.xp
     if (dirtyFields.hp_current) payload.hp_current = values.hp_current
     if (dirtyFields.hp_temp) payload.hp_temp = values.hp_temp
     if (dirtyFields.notes) payload.notes = values.notes
@@ -164,6 +183,48 @@ export default function CharacterSheetPage() {
           <CharacterStatsSections character={character} />
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <section className="character-sheet__section" aria-labelledby="sheet-xp-heading">
+              <h2 id="sheet-xp-heading">{t('pages.characterSheet.sections.xp')}</h2>
+              <div className="character-sheet__xp-row">
+                <div className="character-sheet__field">
+                  <label htmlFor="sheet-xp">{t('pages.characterSheet.xp.label')}</label>
+                  <input
+                    id="sheet-xp"
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    {...register('xp')}
+                  />
+                  {errors.xp && <p role="alert">{t('pages.characterSheet.xp.invalid')}</p>}
+                </div>
+                <div className="character-sheet__field">
+                  <span>{t('pages.characterSheet.xp.levelLabel')}</span>
+                  <output className="character-sheet__xp-level">{character.level}</output>
+                </div>
+              </div>
+              {computed.xp_next_threshold === null ? (
+                <p className="character-sheet__xp-caption">
+                  {t('pages.characterSheet.xp.maxLevel')}
+                </p>
+              ) : (
+                <>
+                  <progress
+                    className="character-sheet__xp-progress"
+                    aria-labelledby="sheet-xp-progress-caption"
+                    max={computed.xp_next_threshold - computed.xp_level_floor}
+                    value={levelProgress(character.xp, computed)}
+                  />
+                  <p className="character-sheet__xp-caption" id="sheet-xp-progress-caption">
+                    {t('pages.characterSheet.xp.progress', {
+                      current: character.xp,
+                      next: computed.xp_next_threshold,
+                      level: character.level + 1,
+                    })}
+                  </p>
+                </>
+              )}
+            </section>
+
             <section className="character-sheet__section" aria-labelledby="sheet-hp-heading">
               <h2 id="sheet-hp-heading">{t('pages.characterSheet.sections.hp')}</h2>
               <div className="character-sheet__hp-row">

@@ -223,7 +223,8 @@ DELETE /characters/{id}/inventory/{entry_id}
 
 ```json
 {"computed": {"prof_bonus": 3, "modifiers": {"str": 2}, "ac": 16,
-  "initiative": 1, "passive_perception": 13, "xp_to_next": 14000,
+  "initiative": 1, "passive_perception": 13, "xp_to_next": 5000,
+  "xp_level_floor": 6500, "xp_next_threshold": 14000,
   "level_up_available": false, "spell_slots": {"1": 4, "2": 3}}}
 ```
 

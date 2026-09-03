@@ -79,6 +79,8 @@ const baseCharacter: CharacterDetail = {
     initiative: 2,
     passive_perception: 14,
     xp_to_next: 300,
+    xp_level_floor: 0,
+    xp_next_threshold: 300,
     level_up_available: false,
     spell_slots: {},
   },

@@ -143,6 +143,8 @@ function makeCharacter(overrides: Partial<CharacterDetail> = {}): CharacterDetai
       initiative: 1,
       passive_perception: 10,
       xp_to_next: 0,
+      xp_level_floor: 0,
+      xp_next_threshold: 300,
       level_up_available: true,
       spell_slots: {},
     },

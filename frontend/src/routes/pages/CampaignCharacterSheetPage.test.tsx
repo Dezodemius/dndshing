@@ -80,6 +80,8 @@ const participantCharacter: CharacterDetail = {
     initiative: 2,
     passive_perception: 14,
     xp_to_next: null,
+    xp_level_floor: 0,
+    xp_next_threshold: null,
     level_up_available: false,
     spell_slots: {},
   },
