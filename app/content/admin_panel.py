@@ -71,8 +71,16 @@ def _require_panel_credentials(
 
     # Both comparisons always run (no short-circuit on username) so a wrong
     # username doesn't skip the password compare and leak timing information.
-    valid_username = secrets.compare_digest(credentials.username, username)
-    valid_password = secrets.compare_digest(credentials.password, password)
+    # Compared as bytes, not str: compare_digest on str raises TypeError for any
+    # non-ASCII character, so a Cyrillic login attempt — or a Cyrillic password
+    # in the deployment's own config — would surface as an unhandled 500 from an
+    # unauthenticated request instead of a clean 401.
+    valid_username = secrets.compare_digest(
+        credentials.username.encode("utf-8"), username.encode("utf-8")
+    )
+    valid_password = secrets.compare_digest(
+        credentials.password.encode("utf-8"), password.encode("utf-8")
+    )
     if not (valid_username and valid_password):
         raise unauthorized
 

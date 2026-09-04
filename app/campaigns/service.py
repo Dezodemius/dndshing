@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.campaigns.errors import (
     AlreadyJoinedError,
     CampaignCharacterNotFoundError,
-    CampaignDmAccessRequiredError,
     CampaignNotFoundError,
     InviteCodeInvalidError,
 )
@@ -170,6 +169,13 @@ class CampaignService:
             CampaignCharacter, {"campaign_id": campaign_id, "character_id": character_id}
         )
         if membership is None:
+            # For the DM this is a real "no such participant" answer. For anyone
+            # else it must stay indistinguishable from "no such campaign":
+            # otherwise passing a character you own against every campaign_id
+            # separates existing campaigns from missing ones by error code alone,
+            # which is the id-enumeration leak the 404-not-403 rule exists to close.
+            if not is_dm:
+                raise CampaignNotFoundError()
             raise CampaignCharacterNotFoundError()
 
         await self._db.delete(membership)
@@ -178,11 +184,12 @@ class CampaignService:
     async def get_character_for_dm(
         self, campaign_id: int, character_id: int, user_id: int
     ) -> CharacterDetailRead:
-        campaign = await self._db.get(Campaign, campaign_id)
-        if campaign is None:
-            raise CampaignNotFoundError()
-        if campaign.dm_user_id != user_id:
-            raise CampaignDmAccessRequiredError()
+        # get_owned, not a 403: a campaign run by someone else is reported as
+        # missing, like every other foreign resource in this codebase. The
+        # previous `campaign_dm_access_required` (403) told any logged-in user
+        # which campaign ids exist — the exact distinction the security-review
+        # rule "чужой ресурс -> 404 (не 403)" forbids.
+        await self.get_owned(campaign_id, user_id)
 
         membership = await self._db.get(
             CampaignCharacter, {"campaign_id": campaign_id, "character_id": character_id}

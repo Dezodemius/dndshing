@@ -13,6 +13,11 @@ export default function OAuthCallbackPage() {
     const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
     const accessToken = params.get('access_token')
 
+    // Drop the token from the address bar before anything can await: while it
+    // sits in location.hash it is readable by any script on the page and is
+    // carried into the session history entry.
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+
     if (!accessToken) {
       // No token in the redirect means the provider didn't return usable
       // account info (e.g. VK without an email — see AuthService.login_via_vk_code).
@@ -23,7 +28,6 @@ export default function OAuthCallbackPage() {
     loginWithToken(accessToken)
       .then(() => navigate('/app', { replace: true }))
       .catch(() => {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search)
         setError(t('errors.unknown'))
       })
   }, [loginWithToken, navigate, t])

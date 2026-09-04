@@ -408,9 +408,12 @@ async def test_dm_can_view_joined_character_full_sheet(
     assert "ac" in body["computed"]
 
 
-async def test_view_character_forbidden_for_non_dm(
+async def test_view_character_is_not_found_for_non_dm(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
+    """404, not 403: a 403 would confirm to any logged-in user that this
+    campaign id exists, which is the enumeration leak the "чужой ресурс -> 404"
+    rule closes."""
     dm = await _player_setup(client, db_session, "dm14@example.com")
     campaign = await _create_campaign(client, dm["headers"])
 
@@ -428,8 +431,8 @@ async def test_view_character_forbidden_for_non_dm(
         headers=stranger["headers"],
     )
 
-    assert response.status_code == 403, response.text
-    assert response.json()["error"]["code"] == "campaign_dm_access_required"
+    assert response.status_code == 404, response.text
+    assert response.json()["error"]["code"] == "campaign_not_found"
 
 
 async def test_view_character_outside_campaign_is_not_found(
@@ -481,3 +484,29 @@ async def test_kick_unknown_membership_returns_not_found(
 
     assert response.status_code == 404, response.text
     assert response.json()["error"]["code"] == "campaign_character_not_found"
+
+
+async def test_non_member_cannot_tell_an_existing_campaign_from_a_missing_one(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """A player owning the character gets the same answer for a real campaign
+    they are not in and for one that does not exist. Two different codes here
+    would turn this endpoint into an id-enumeration oracle."""
+    dm = await _player_setup(client, db_session, "dm17@example.com")
+    campaign = await _create_campaign(client, dm["headers"])
+
+    outsider = await _second_player_setup(client, db_session, "outsider17@example.com")
+    character_id = await _create_character(client, outsider)
+
+    existing = await client.delete(
+        f"{CAMPAIGNS_URL}/{campaign['id']}/characters/{character_id}",
+        headers=outsider["headers"],
+    )
+    missing = await client.delete(
+        f"{CAMPAIGNS_URL}/999999/characters/{character_id}",
+        headers=outsider["headers"],
+    )
+
+    assert existing.status_code == missing.status_code == 404, existing.text
+    assert existing.json() == missing.json()
+    assert existing.json()["error"]["code"] == "campaign_not_found"
