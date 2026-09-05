@@ -1,4 +1,6 @@
-from sqlalchemy import delete, select
+from collections.abc import Sequence
+
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,6 +9,8 @@ from app.characters.errors import (
     AsiFeatConflictError,
     CharacterNotFoundError,
     CustomItemNotSellableError,
+    EffectInvalidModifierError,
+    EffectNotFoundError,
     InsufficientFundsError,
     InsufficientInventoryQuantityError,
     InvalidHpRollError,
@@ -18,11 +22,22 @@ from app.characters.errors import (
     RollbackEmptyError,
     SpellNotInClassListError,
     SubclassWrongLevelError,
+    TooManyEffectsError,
 )
-from app.characters.models import Character, CharacterSpell, InventoryEntry, LevelUpRecord
+from app.characters.models import (
+    Character,
+    CharacterEffect,
+    CharacterSpell,
+    InventoryEntry,
+    LevelUpRecord,
+)
 from app.characters.schemas import (
+    MAX_EFFECTS_PER_CHARACTER,
     CharacterCreate,
     CharacterDetailRead,
+    CharacterEffectCreate,
+    CharacterEffectRead,
+    CharacterEffectUpdate,
     CharacterRead,
     CharacterSpellRead,
     CharacterUpdate,
@@ -32,6 +47,7 @@ from app.characters.schemas import (
     InventoryEntryUpdate,
     LevelUpRecordRead,
     LevelUpRequest,
+    ModifierIn,
     SpellsUpdate,
 )
 from app.content.service import ContentQueryService
@@ -475,6 +491,109 @@ class CharacterService:
             )
         ).all()
         return [CharacterSpellRead.model_validate(row) for row in rows]
+
+
+    # --- Effects (US-13) -------------------------------------------------
+    # Ownership is checked on every method (rule 7). A foreign character and a
+    # foreign effect both answer 404, never 403 — a 403 confirms the id exists.
+
+    def _validate_modifiers(self, modifiers: Sequence[ModifierIn]) -> list[dict]:
+        """Reject modifiers the engine could never apply, as a domain error.
+
+        The check lives here rather than in ModifierIn so it maps through
+        register_exception_handlers into {error:{code,message}}. Raised from a
+        Pydantic validator it would surface as FastAPI's default 422 and the
+        frontend, which translates by error code, would show "Неизвестная
+        ошибка" instead of naming the broken modifier.
+        """
+        cleaned: list[dict] = []
+        for modifier in modifiers:
+            probe = rules_5e.Modifier(
+                target=modifier.target,
+                op=modifier.op,
+                value=modifier.value,
+                dex_cap=modifier.dex_cap,
+                stack_group=modifier.stack_group,
+            )
+            reason = rules_5e.modifier_shape_error(probe)
+            if reason is not None:
+                raise EffectInvalidModifierError(
+                    f"Модификатор «{modifier.target}/{modifier.op}» отклонён: {reason}"
+                )
+            cleaned.append(modifier.model_dump(exclude_none=True))
+        return cleaned
+
+    async def list_effects(self, character_id: int, user_id: int) -> list[CharacterEffectRead]:
+        character = await self.get_owned(character_id, user_id)
+        rows = (
+            await self._db.scalars(
+                select(CharacterEffect)
+                .where(CharacterEffect.character_id == character.id)
+                .order_by(CharacterEffect.id)
+            )
+        ).all()
+        return [CharacterEffectRead.model_validate(row) for row in rows]
+
+    async def create_effect(
+        self, character_id: int, user_id: int, payload: CharacterEffectCreate
+    ) -> CharacterEffectRead:
+        character = await self.get_owned(character_id, user_id)
+        modifiers = self._validate_modifiers(payload.modifiers)
+
+        existing = await self._db.scalar(
+            select(func.count())
+            .select_from(CharacterEffect)
+            .where(CharacterEffect.character_id == character.id)
+        )
+        if (existing or 0) >= MAX_EFFECTS_PER_CHARACTER:
+            raise TooManyEffectsError()
+
+        effect = CharacterEffect(
+            character_id=character.id,
+            name=payload.name,
+            source=payload.source,
+            description=payload.description,
+            modifiers=modifiers,
+            is_active=payload.is_active,
+            duration_kind=payload.duration_kind,
+            duration_amount=payload.duration_amount,
+        )
+        self._db.add(effect)
+        await self._db.commit()
+        await self._db.refresh(effect)
+        return CharacterEffectRead.model_validate(effect)
+
+    async def _get_owned_effect(
+        self, character_id: int, effect_id: int, user_id: int
+    ) -> CharacterEffect:
+        # Two links: the character must belong to the caller, and the effect
+        # must belong to that character. Checking only the second would let a
+        # caller read any effect by guessing its id.
+        await self.get_owned(character_id, user_id)
+        effect = await self._db.get(CharacterEffect, effect_id)
+        if effect is None or effect.character_id != character_id:
+            raise EffectNotFoundError()
+        return effect
+
+    async def update_effect(
+        self, character_id: int, effect_id: int, user_id: int, payload: CharacterEffectUpdate
+    ) -> CharacterEffectRead:
+        effect = await self._get_owned_effect(character_id, effect_id, user_id)
+        updates = payload.model_dump(exclude_unset=True)
+        if "modifiers" in updates and updates["modifiers"] is not None:
+            updates["modifiers"] = self._validate_modifiers(payload.modifiers or [])
+
+        for field, value in updates.items():
+            setattr(effect, field, value)
+
+        await self._db.commit()
+        await self._db.refresh(effect)
+        return CharacterEffectRead.model_validate(effect)
+
+    async def delete_effect(self, character_id: int, effect_id: int, user_id: int) -> None:
+        effect = await self._get_owned_effect(character_id, effect_id, user_id)
+        await self._db.delete(effect)
+        await self._db.commit()
 
     async def _to_detail(self, character: Character) -> CharacterDetailRead:
         computed = await self._compute(character)

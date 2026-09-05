@@ -215,3 +215,81 @@ class LevelUpRecordRead(BaseModel):
     to_level: int
     delta: dict[str, Any]
     created_at: datetime
+
+
+# --- Effects (US-13) ---
+# Modifier shape is validated here; whether the target exists and whether the
+# operation accepts a value is checked in the service instead. app/main.py
+# registers no RequestValidationError handler, so a ValueError raised in a
+# Pydantic validator would leave as FastAPI's default 422 {"detail": [...]},
+# bypassing the {error:{code,message}} envelope the frontend translates by
+# code — the player would see "Неизвестная ошибка" instead of what is wrong.
+
+MAX_EFFECTS_PER_CHARACTER = 50
+MAX_MODIFIERS_PER_EFFECT = 20
+
+DurationKind = Literal[
+    "rounds", "minutes", "hours", "until_short_rest", "until_long_rest", "until_removed"
+]
+
+
+class ModifierIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target: str = Field(min_length=1, max_length=60)
+    op: Literal[
+        "set",
+        "bonus",
+        "armor_base",
+        "advantage",
+        "disadvantage",
+        "resistance",
+        "immunity",
+        "vulnerability",
+    ]
+    value: int | None = Field(default=None, ge=-999, le=999)
+    dex_cap: int | None = Field(default=None, ge=0, le=10)
+    stack_group: str | None = Field(default=None, max_length=60)
+    note: str | None = Field(default=None, max_length=200)
+
+
+class CharacterEffectCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    source: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    modifiers: list[ModifierIn] = Field(
+        default_factory=list, max_length=MAX_MODIFIERS_PER_EFFECT
+    )
+    is_active: bool = True
+    duration_kind: DurationKind = "until_removed"
+    duration_amount: int | None = Field(default=None, ge=1, le=9999)
+
+
+class CharacterEffectUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    source: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    modifiers: list[ModifierIn] | None = Field(default=None, max_length=MAX_MODIFIERS_PER_EFFECT)
+    is_active: bool | None = None
+    duration_kind: DurationKind | None = None
+    duration_amount: int | None = Field(default=None, ge=1, le=9999)
+
+
+class CharacterEffectRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    character_id: int
+    name: str
+    source: str | None
+    description: str | None
+    modifiers: list[dict[str, Any]]
+    is_active: bool
+    duration_kind: str
+    duration_amount: int | None
+    created_at: datetime
+    updated_at: datetime
