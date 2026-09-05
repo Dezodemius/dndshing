@@ -80,6 +80,22 @@ def base_armor_class(dexterity_score: int) -> int:
     return 10 + ability_modifier(dexterity_score)
 
 
+def armor_class(ac_override: int | None, dexterity_score: int) -> int:
+    """A hand-entered AC wins over the formula (BR §4.1: the player is the
+    source of truth for their own sheet). Both the detail view's `computed`
+    block and the dashboard list need this choice, so it lives here rather
+    than being spelled out at each call site."""
+    if ac_override is not None:
+        return ac_override
+    return base_armor_class(dexterity_score)
+
+
+def level_up_available(level: int, xp: int) -> bool:
+    if level >= MAX_LEVEL:
+        return False
+    return xp >= XP_THRESHOLDS[level + 1]
+
+
 def proficient_modifier(ability_modifier_value: int, proficient: bool, prof_bonus: int) -> int:
     return ability_modifier_value + (prof_bonus if proficient else 0)
 

@@ -541,6 +541,40 @@ class ContentQueryService:
         content_cache.set(key, result)
         return result
 
+    async def race_names(self) -> dict[int, str]:
+        """id -> name for every race, for callers that only need to label a
+        reference. Deliberately not `list_races()`: that ships each race's
+        whole JSONB `data` blob, and the character list needs two words per
+        row. Cached whole rather than per-id — the table holds tens of rows,
+        so one entry beats a key per lookup, and the import already clears it."""
+        key = ("race-names",)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+
+        rows = (await self._db.execute(
+            select(Race.id, Race.name).where(Race.locale == _LOCALE)
+        )).all()
+        result = {row.id: row.name for row in rows}
+        content_cache.set(key, result)
+        return result
+
+    async def class_names(self) -> dict[int, str]:
+        """id -> name for every class. Same reasoning as race_names, and the
+        saving is larger: `list_classes()` builds a full ClassDetailRead per
+        class, which is two extra queries each for levels and subclasses."""
+        key = ("class-names",)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+
+        rows = (await self._db.execute(
+            select(Class.id, Class.name).where(Class.locale == _LOCALE)
+        )).all()
+        result = {row.id: row.name for row in rows}
+        content_cache.set(key, result)
+        return result
+
     async def get_class_by_id(self, class_id: int) -> ClassRead | None:
         klass = await self._db.get(Class, class_id)
         return ClassRead.model_validate(klass) if klass is not None else None

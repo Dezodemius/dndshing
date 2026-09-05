@@ -5,7 +5,7 @@ from app.auth.dependencies import get_verified_user
 from app.characters.schemas import (
     CharacterCreate,
     CharacterDetailRead,
-    CharacterRead,
+    CharacterListRead,
     CharacterSpellRead,
     CharacterUpdate,
     InventoryEntryCreate,
@@ -23,11 +23,11 @@ router = APIRouter(tags=["characters"])
 
 # _user stays untyped: typing it as app.auth.models.User would import a foreign
 # module's model, which the module boundary (CLAUDE.md rule 2) forbids.
-@router.get("/characters", response_model=list[CharacterRead])
+@router.get("/characters", response_model=list[CharacterListRead])
 async def list_characters(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_verified_user),
-) -> list[CharacterRead]:
+) -> list[CharacterListRead]:
     return await CharacterService(db).list_for_user(_user.id)
 
 
