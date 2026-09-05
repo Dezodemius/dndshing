@@ -1,4 +1,6 @@
-from sqlalchemy import delete, select
+from collections.abc import Sequence
+
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,6 +9,8 @@ from app.characters.errors import (
     AsiFeatConflictError,
     CharacterNotFoundError,
     CustomItemNotSellableError,
+    EffectInvalidModifierError,
+    EffectNotFoundError,
     InsufficientFundsError,
     InsufficientInventoryQuantityError,
     InvalidHpRollError,
@@ -18,20 +22,35 @@ from app.characters.errors import (
     RollbackEmptyError,
     SpellNotInClassListError,
     SubclassWrongLevelError,
+    TooManyEffectsError,
 )
-from app.characters.models import Character, CharacterSpell, InventoryEntry, LevelUpRecord
+from app.characters.models import (
+    Character,
+    CharacterEffect,
+    CharacterSpell,
+    InventoryEntry,
+    LevelUpRecord,
+)
 from app.characters.schemas import (
+    MAX_EFFECTS_PER_CHARACTER,
+    ActiveEffectRead,
     CharacterCreate,
     CharacterDetailRead,
+    CharacterEffectCreate,
+    CharacterEffectRead,
+    CharacterEffectUpdate,
     CharacterRead,
     CharacterSpellRead,
     CharacterUpdate,
     ComputedBlock,
+    EffectSourceRead,
     InventoryEntryCreate,
     InventoryEntryRead,
     InventoryEntryUpdate,
     LevelUpRecordRead,
     LevelUpRequest,
+    ModifierIn,
+    ResolvedModifierRead,
     SpellsUpdate,
 )
 from app.content.service import ContentQueryService
@@ -476,8 +495,110 @@ class CharacterService:
         ).all()
         return [CharacterSpellRead.model_validate(row) for row in rows]
 
+
+    # --- Effects (US-13) -------------------------------------------------
+    # Ownership is checked on every method (rule 7). A foreign character and a
+    # foreign effect both answer 404, never 403 — a 403 confirms the id exists.
+
+    def _validate_modifiers(self, modifiers: Sequence[ModifierIn]) -> list[dict]:
+        """Reject modifiers the engine could never apply, as a domain error.
+
+        The check lives here rather than in ModifierIn so it maps through
+        register_exception_handlers into {error:{code,message}}. Raised from a
+        Pydantic validator it would surface as FastAPI's default 422 and the
+        frontend, which translates by error code, would show "Неизвестная
+        ошибка" instead of naming the broken modifier.
+        """
+        cleaned: list[dict] = []
+        for modifier in modifiers:
+            probe = rules_5e.Modifier(
+                target=modifier.target,
+                op=modifier.op,
+                value=modifier.value,
+                dex_cap=modifier.dex_cap,
+                stack_group=modifier.stack_group,
+            )
+            reason = rules_5e.modifier_shape_error(probe)
+            if reason is not None:
+                raise EffectInvalidModifierError(
+                    f"Модификатор «{modifier.target}/{modifier.op}» отклонён: {reason}"
+                )
+            cleaned.append(modifier.model_dump(exclude_none=True))
+        return cleaned
+
+    async def list_effects(self, character_id: int, user_id: int) -> list[CharacterEffectRead]:
+        character = await self.get_owned(character_id, user_id)
+        rows = (
+            await self._db.scalars(
+                select(CharacterEffect)
+                .where(CharacterEffect.character_id == character.id)
+                .order_by(CharacterEffect.id)
+            )
+        ).all()
+        return [CharacterEffectRead.model_validate(row) for row in rows]
+
+    async def create_effect(
+        self, character_id: int, user_id: int, payload: CharacterEffectCreate
+    ) -> CharacterEffectRead:
+        character = await self.get_owned(character_id, user_id)
+        modifiers = self._validate_modifiers(payload.modifiers)
+
+        existing = await self._db.scalar(
+            select(func.count())
+            .select_from(CharacterEffect)
+            .where(CharacterEffect.character_id == character.id)
+        )
+        if (existing or 0) >= MAX_EFFECTS_PER_CHARACTER:
+            raise TooManyEffectsError()
+
+        effect = CharacterEffect(
+            character_id=character.id,
+            name=payload.name,
+            source=payload.source,
+            description=payload.description,
+            modifiers=modifiers,
+            is_active=payload.is_active,
+            duration_kind=payload.duration_kind,
+            duration_amount=payload.duration_amount,
+        )
+        self._db.add(effect)
+        await self._db.commit()
+        await self._db.refresh(effect)
+        return CharacterEffectRead.model_validate(effect)
+
+    async def _get_owned_effect(
+        self, character_id: int, effect_id: int, user_id: int
+    ) -> CharacterEffect:
+        # Two links: the character must belong to the caller, and the effect
+        # must belong to that character. Checking only the second would let a
+        # caller read any effect by guessing its id.
+        await self.get_owned(character_id, user_id)
+        effect = await self._db.get(CharacterEffect, effect_id)
+        if effect is None or effect.character_id != character_id:
+            raise EffectNotFoundError()
+        return effect
+
+    async def update_effect(
+        self, character_id: int, effect_id: int, user_id: int, payload: CharacterEffectUpdate
+    ) -> CharacterEffectRead:
+        effect = await self._get_owned_effect(character_id, effect_id, user_id)
+        updates = payload.model_dump(exclude_unset=True)
+        if "modifiers" in updates and updates["modifiers"] is not None:
+            updates["modifiers"] = self._validate_modifiers(payload.modifiers or [])
+
+        for field, value in updates.items():
+            setattr(effect, field, value)
+
+        await self._db.commit()
+        await self._db.refresh(effect)
+        return CharacterEffectRead.model_validate(effect)
+
+    async def delete_effect(self, character_id: int, effect_id: int, user_id: int) -> None:
+        effect = await self._get_owned_effect(character_id, effect_id, user_id)
+        await self._db.delete(effect)
+        await self._db.commit()
+
     async def _to_detail(self, character: Character) -> CharacterDetailRead:
-        computed = await self._compute(character)
         inventory = (
             await self._db.scalars(
                 select(InventoryEntry)
@@ -485,6 +606,9 @@ class CharacterService:
                 .order_by(InventoryEntry.id)
             )
         ).all()
+        # Read once and hand it over: _compute needs the same rows to find
+        # equipped items, and querying them twice per sheet read is waste.
+        computed = await self._compute(character, inventory)
         spells = (
             await self._db.scalars(
                 select(CharacterSpell)
@@ -499,34 +623,176 @@ class CharacterService:
             spells=[CharacterSpellRead.model_validate(spell) for spell in spells],
         )
 
-    async def _compute(self, character: Character) -> ComputedBlock:
-        scores = character.ability_scores or {}
-        modifiers = {ability: rules_5e.ability_modifier(score) for ability, score in scores.items()}
+    async def _collect_modifiers(
+        self, character: Character, inventory: Sequence[InventoryEntry]
+    ) -> list[rules_5e.Modifier]:
+        """Modifiers in play right now: equipped catalogue items plus active
+        temporary effects.
+
+        An item contributes once per inventory row — `quantity` does not
+        multiply it. Two rings of protection stacked into one row of quantity 2
+        is one ring on each hand at most, and 5e never adds an item's bonus
+        twice for carrying spares. Custom rows (no item_id) carry no effects:
+        they are free text a DM handed over verbally.
+        """
+        modifiers: list[rules_5e.Modifier] = []
+
+        equipped = [
+            entry for entry in inventory if entry.equipped and entry.item_id is not None
+        ]
+        if equipped:
+            effects_by_item = await ContentQueryService(self._db).item_effects_by_ids(
+                [entry.item_id for entry in equipped if entry.item_id is not None]
+            )
+            for entry in equipped:
+                item = effects_by_item.get(entry.item_id or 0)
+                if item is None:
+                    continue
+                for order, raw in enumerate(item.effects):
+                    modifier = self._modifier_from_raw(
+                        raw,
+                        source_kind="item",
+                        source_id=entry.id,
+                        source_name=item.name,
+                        order=order,
+                    )
+                    if modifier is not None:
+                        modifiers.append(modifier)
+
+        active_effects = (
+            await self._db.scalars(
+                select(CharacterEffect)
+                .where(
+                    CharacterEffect.character_id == character.id,
+                    CharacterEffect.is_active.is_(True),
+                )
+                .order_by(CharacterEffect.id)
+            )
+        ).all()
+        for effect in active_effects:
+            for order, raw in enumerate(effect.modifiers or []):
+                modifier = self._modifier_from_raw(
+                    raw,
+                    source_kind="effect",
+                    source_id=effect.id,
+                    source_name=effect.name,
+                    order=order,
+                )
+                if modifier is not None:
+                    modifiers.append(modifier)
+
+        return modifiers
+
+    @staticmethod
+    def _modifier_from_raw(
+        raw: object, *, source_kind: str, source_id: int, source_name: str, order: int
+    ) -> rules_5e.Modifier | None:
+        """Build a Modifier from stored JSON, tolerating junk.
+
+        `items.data.effects` predates this feature and holds whatever a pack
+        author wrote, so a row that is not even a dict is skipped rather than
+        raising: one malformed item must not make a character's sheet
+        unopenable. Modifiers that are well-typed but meaningless still get
+        built — the engine reports those in its trace with a reason, which is
+        how the sheet explains a bonus that did not land.
+        """
+        if not isinstance(raw, dict):
+            return None
+        target = raw.get("target")
+        op = raw.get("op")
+        if not isinstance(target, str) or not isinstance(op, str):
+            return None
+        value = raw.get("value")
+        dex_cap = raw.get("dex_cap")
+        stack_group = raw.get("stack_group")
+        return rules_5e.Modifier(
+            target=target,
+            op=op,
+            value=value if isinstance(value, int) else None,
+            dex_cap=dex_cap if isinstance(dex_cap, int) else None,
+            stack_group=stack_group if isinstance(stack_group, str) else None,
+            source_kind=source_kind,
+            source_id=source_id,
+            source_name=source_name,
+            order=order,
+        )
+
+    @staticmethod
+    def _effect_views(
+        trace: Sequence[rules_5e.AppliedModifier],
+    ) -> tuple[list[ActiveEffectRead], dict[str, list[EffectSourceRead]]]:
+        """Turn the engine's flat trace into the two shapes the sheet needs:
+        grouped by source (what did this ring do?) and grouped by target (where
+        did this number come from?)."""
+        by_source: dict[tuple[str, int], ActiveEffectRead] = {}
+        by_target: dict[str, list[EffectSourceRead]] = {}
+
+        for entry in trace:
+            modifier = entry.modifier
+            key = (modifier.source_kind, modifier.source_id)
+            resolved = ResolvedModifierRead(
+                target=modifier.target,
+                op=modifier.op,
+                value=modifier.value,
+                applied=entry.applied,
+                ignored_reason=entry.ignored_reason,
+            )
+            existing = by_source.get(key)
+            if existing is None:
+                by_source[key] = ActiveEffectRead(
+                    source_kind=modifier.source_kind,  # type: ignore[arg-type]
+                    source_id=modifier.source_id,
+                    name=modifier.source_name,
+                    modifiers=[resolved],
+                )
+            else:
+                existing.modifiers.append(resolved)
+
+            by_target.setdefault(modifier.target, []).append(
+                EffectSourceRead(
+                    source_kind=modifier.source_kind,  # type: ignore[arg-type]
+                    source_id=modifier.source_id,
+                    name=modifier.source_name,
+                    op=modifier.op,
+                    value=modifier.value,
+                    applied=entry.applied,
+                    ignored_reason=entry.ignored_reason,
+                )
+            )
+
+        return list(by_source.values()), by_target
+
+    async def _compute(
+        self, character: Character, inventory: Sequence[InventoryEntry]
+    ) -> ComputedBlock:
+        """Derived numbers, with equipped items and active effects applied.
+
+        The arithmetic all lives in rules_5e.resolve_effects (rule 3); this
+        method only gathers inputs and files the answer into the schema.
+
+        Nothing here writes back to the character. ability_scores, hp_max and
+        speed stay the base values in their columns — that is what keeps
+        level-up deltas exactly reversible, and it is why an ASI raises the
+        base while a ring's `set` shows up only in the effective score.
+        """
+        base_scores = character.ability_scores or {}
+        base_modifiers = {
+            ability: rules_5e.ability_modifier(score) for ability, score in base_scores.items()
+        }
         prof_bonus = rules_5e.proficiency_bonus(character.level)
-        dex_score = scores.get("dex", 10)
-        wis_score = scores.get("wis", 10)
-        ac = (
-            character.ac_override
-            if character.ac_override is not None
-            else rules_5e.base_armor_class(dex_score)
+
+        modifiers = await self._collect_modifiers(character, inventory)
+        resolution = rules_5e.resolve_effects(
+            ability_scores=base_scores,
+            level=character.level,
+            speed=character.speed,
+            hp_max=character.hp_max,
+            ac_override=character.ac_override,
+            proficiencies=character.proficiencies or {},
+            modifiers=modifiers,
         )
-        proficient_skills = set((character.proficiencies or {}).get("skills", []))
-        proficient_saves = set((character.proficiencies or {}).get("saves", []))
-        passive_perception = rules_5e.passive_perception(
-            wis_score, "perception" in proficient_skills, prof_bonus
-        )
-        saving_throws = {
-            ability: rules_5e.proficient_modifier(
-                modifiers.get(ability, 0), ability in proficient_saves, prof_bonus
-            )
-            for ability in rules_5e.ABILITIES
-        }
-        skills = {
-            skill: rules_5e.proficient_modifier(
-                modifiers.get(ability, 0), skill in proficient_skills, prof_bonus
-            )
-            for skill, ability in rules_5e.SKILL_ABILITIES.items()
-        }
+        active_effects, effect_sources = self._effect_views(resolution.trace)
+
         xp_to_next = rules_5e.xp_to_next_level(character.level, character.xp)
         xp_level_floor = rules_5e.xp_threshold(character.level)
         xp_next_threshold = (
@@ -534,7 +800,6 @@ class CharacterService:
             if character.level < rules_5e.MAX_LEVEL
             else None
         )
-        level_up_available = xp_next_threshold is not None and character.xp >= xp_next_threshold
         spell_slots = (
             await ContentQueryService(self._db).get_spell_slots(
                 class_id=character.class_id, level=character.level
@@ -544,15 +809,27 @@ class CharacterService:
 
         return ComputedBlock(
             prof_bonus=prof_bonus,
-            modifiers=modifiers,
-            saving_throws=saving_throws,
-            skills=skills,
-            ac=ac,
-            initiative=rules_5e.initiative(dex_score),
-            passive_perception=passive_perception,
+            # Effective values under the original names: existing consumers
+            # (the sheet, the campaign roster, the wizard preview) keep reading
+            # `ac` and `skills` and now get the real numbers.
+            modifiers=resolution.modifiers,
+            saving_throws=resolution.saving_throws,
+            skills=resolution.skills,
+            ac=resolution.ac,
+            initiative=resolution.initiative,
+            passive_perception=resolution.passive_perception,
             xp_to_next=xp_to_next,
             xp_level_floor=xp_level_floor,
             xp_next_threshold=xp_next_threshold,
-            level_up_available=level_up_available,
+            level_up_available=rules_5e.level_up_available(character.level, character.xp),
             spell_slots=spell_slots,
+            base_ability_scores=dict(base_scores),
+            effective_ability_scores=resolution.ability_scores,
+            base_modifiers=base_modifiers,
+            speed_effective=resolution.speed,
+            hp_max_effective=resolution.hp_max,
+            advantage=resolution.advantage,
+            damage_modifiers=resolution.damage,
+            active_effects=active_effects,
+            effect_sources=effect_sources,
         )

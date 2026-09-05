@@ -106,7 +106,51 @@ class CharacterRead(BaseModel):
     updated_at: datetime
 
 
+class ResolvedModifierRead(BaseModel):
+    """One modifier as it ended up: applied, or dropped with a reason the UI
+    can translate (`rules_5e.IGNORE_REASONS`)."""
+
+    target: str
+    op: str
+    value: int | None
+    applied: bool
+    ignored_reason: str | None
+
+
+class ActiveEffectRead(BaseModel):
+    """Everything one source contributed, so the sheet can list effects by the
+    item or effect they came from."""
+
+    source_kind: Literal["item", "effect"]
+    source_id: int
+    name: str
+    modifiers: list[ResolvedModifierRead]
+
+
+class EffectSourceRead(BaseModel):
+    """The inverse view: who contributed to one target. Drives the "откуда
+    бонус" disclosure next to a number on the sheet."""
+
+    source_kind: Literal["item", "effect"]
+    source_id: int
+    name: str
+    op: str
+    value: int | None
+    applied: bool
+    ignored_reason: str | None
+
+
 class ComputedBlock(BaseModel):
+    """Derived numbers for the sheet. The pre-existing fields keep their names
+    and types but now carry *effective* values — what the character actually
+    has with equipped items and active effects applied. Consumers that already
+    read `ac` or `skills` keep working and simply start telling the truth.
+
+    The `base_*` fields exist for the places that must show the unmodified
+    number: the ASI step of the level-up wizard raises the base score, so
+    showing 19 there when the base is 10 would mislead the player into
+    thinking a +1 takes them to 20."""
+
     prof_bonus: int
     modifiers: dict[str, int]
     saving_throws: dict[str, int]
@@ -119,6 +163,18 @@ class ComputedBlock(BaseModel):
     xp_next_threshold: int | None
     level_up_available: bool
     spell_slots: dict[str, Any]
+
+    base_ability_scores: dict[str, int]
+    effective_ability_scores: dict[str, int]
+    base_modifiers: dict[str, int]
+    speed_effective: int
+    hp_max_effective: int
+    # Keyed by full target ("save.dex", "damage.fire") so the frontend needs
+    # one key parser rather than one per map.
+    advantage: dict[str, str]
+    damage_modifiers: dict[str, str]
+    active_effects: list[ActiveEffectRead]
+    effect_sources: dict[str, list[EffectSourceRead]]
 
 
 class InventoryEntryCreate(BaseModel):
@@ -215,3 +271,81 @@ class LevelUpRecordRead(BaseModel):
     to_level: int
     delta: dict[str, Any]
     created_at: datetime
+
+
+# --- Effects (US-13) ---
+# Modifier shape is validated here; whether the target exists and whether the
+# operation accepts a value is checked in the service instead. app/main.py
+# registers no RequestValidationError handler, so a ValueError raised in a
+# Pydantic validator would leave as FastAPI's default 422 {"detail": [...]},
+# bypassing the {error:{code,message}} envelope the frontend translates by
+# code — the player would see "Неизвестная ошибка" instead of what is wrong.
+
+MAX_EFFECTS_PER_CHARACTER = 50
+MAX_MODIFIERS_PER_EFFECT = 20
+
+DurationKind = Literal[
+    "rounds", "minutes", "hours", "until_short_rest", "until_long_rest", "until_removed"
+]
+
+
+class ModifierIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target: str = Field(min_length=1, max_length=60)
+    op: Literal[
+        "set",
+        "bonus",
+        "armor_base",
+        "advantage",
+        "disadvantage",
+        "resistance",
+        "immunity",
+        "vulnerability",
+    ]
+    value: int | None = Field(default=None, ge=-999, le=999)
+    dex_cap: int | None = Field(default=None, ge=0, le=10)
+    stack_group: str | None = Field(default=None, max_length=60)
+    note: str | None = Field(default=None, max_length=200)
+
+
+class CharacterEffectCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    source: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    modifiers: list[ModifierIn] = Field(
+        default_factory=list, max_length=MAX_MODIFIERS_PER_EFFECT
+    )
+    is_active: bool = True
+    duration_kind: DurationKind = "until_removed"
+    duration_amount: int | None = Field(default=None, ge=1, le=9999)
+
+
+class CharacterEffectUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    source: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    modifiers: list[ModifierIn] | None = Field(default=None, max_length=MAX_MODIFIERS_PER_EFFECT)
+    is_active: bool | None = None
+    duration_kind: DurationKind | None = None
+    duration_amount: int | None = Field(default=None, ge=1, le=9999)
+
+
+class CharacterEffectRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    character_id: int
+    name: str
+    source: str | None
+    description: str | None
+    modifiers: list[dict[str, Any]]
+    is_active: bool
+    duration_kind: str
+    duration_amount: int | None
+    created_at: datetime
+    updated_at: datetime
