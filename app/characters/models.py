@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    SmallInteger,
     String,
     Text,
     func,
@@ -18,6 +19,21 @@ from app.core.db import Base
 
 class Character(Base):
     __tablename__ = "characters"
+    # Repeated from migration 0010: autogenerate compares the model against the
+    # database, so a constraint that exists only in a migration gets proposed
+    # for deletion by whoever runs it next.
+    __table_args__ = (
+        CheckConstraint("hit_dice_spent >= 0", name="ck_characters_hit_dice_spent_non_negative"),
+        CheckConstraint(
+            "death_save_successes BETWEEN 0 AND 3",
+            name="ck_characters_death_save_successes_range",
+        ),
+        CheckConstraint(
+            "death_save_failures BETWEEN 0 AND 3",
+            name="ck_characters_death_save_failures_range",
+        ),
+        CheckConstraint("age IS NULL OR age >= 0", name="ck_characters_age_non_negative"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(
@@ -48,6 +64,51 @@ class Character(Base):
     gold: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     silver: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     copper: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+    # --- printable sheet (US-15, migration 0010) ---
+    # The player's own name, kept on the sheet rather than read from the
+    # account: a DM keeps a sheet for an absent player, and auth is another
+    # module's territory.
+    player_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    age: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Strings, not numbers: the sheet shows bare "74", players also write
+    # "1,74 м" and "74 кг", and a numeric column would pick the unit for them.
+    height: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    weight: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    inspiration: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    # Total hit dice is the level; the die itself is the class's. Only the
+    # spent count has nowhere else to live.
+    hit_dice_spent: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    death_save_successes: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    death_save_failures: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=0, server_default="0"
+    )
+    # {"items": [{"name", "bonus", "damage"}], "note"}; bonus and damage are
+    # strings, because the sheet is semi-manual and an attack bonus is a 5e
+    # rule this project deliberately does not compute.
+    attacks: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=lambda: {"items": []}, server_default='{"items": []}'
+    )
+    # {"1": 2, "3": 1} — spent slots only; the totals come from the class.
+    spell_slots_spent: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    personality_traits: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ideals: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bonds: Mapped[str | None] = mapped_column(Text, nullable=True)
+    flaws: Mapped[str | None] = mapped_column(Text, nullable=True)
+    goals: Mapped[str | None] = mapped_column(Text, nullable=True)
+    allies: Mapped[str | None] = mapped_column(Text, nullable=True)
+    feats: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extra_features: Mapped[str | None] = mapped_column(Text, nullable=True)
+    treasures: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
