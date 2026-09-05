@@ -298,6 +298,13 @@ class ComputedBlock(BaseModel):
     active_effects: list[ActiveEffectRead]
     effect_sources: dict[str, list[EffectSourceRead]]
 
+    # Spellcasting, all None for a non-caster. These are 5e formulas
+    # (8 + prof + ability, prof + ability), and code-style keeps 5e arithmetic
+    # off the frontend — so the sheet reads them rather than deriving them.
+    spellcasting_ability: str | None
+    spell_save_dc: int | None
+    spell_attack_bonus: int | None
+
 
 class InventoryEntryCreate(BaseModel):
     """Exactly one of item_id/custom_name must be set — BR US-11."""
@@ -394,8 +401,6 @@ class SheetContentRead(BaseModel):
     subclass_name: str | None
     background_name: str | None
     hit_die: int | None
-    # 'int' | 'wis' | 'cha' from classes.data; None for a non-caster.
-    spellcasting_ability: str | None
     class_features: list[SheetFeatureRead]
     race_traits: list[SheetFeatureRead]
     subclass_features: list[SheetFeatureRead]

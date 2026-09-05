@@ -702,6 +702,22 @@ class CharacterService:
         return features
 
     @staticmethod
+    def _spellcasting_ability(class_data: object) -> str | None:
+        """Spellcasting ability from the class's content row, as a three-letter
+        key. The pack writes it as `data.spellcasting = {ability, type}` with
+        the ability spelled out in full ("charisma"), so it needs normalising
+        before it can index `computed.modifiers`."""
+        if not isinstance(class_data, dict):
+            return None
+        spellcasting = class_data.get("spellcasting")
+        if not isinstance(spellcasting, dict):
+            return None
+        ability = spellcasting.get("ability")
+        if not isinstance(ability, str):
+            return None
+        return rules_5e.ability_key(ability)
+
+    @staticmethod
     def _strings_from(value: object) -> list[str]:
         if not isinstance(value, list):
             return []
@@ -760,11 +776,6 @@ class CharacterService:
             subclass_name=subclass.name if subclass is not None else None,
             background_name=background.name if background is not None else None,
             hit_die=klass.hit_die if klass is not None else None,
-            spellcasting_ability=(
-                class_data.get("spellcasting_ability")
-                if isinstance(class_data.get("spellcasting_ability"), str)
-                else None
-            ),
             class_features=class_features,
             race_traits=self._features_from(race_data.get("traits")),
             subclass_features=self._features_from(
@@ -999,12 +1010,23 @@ class CharacterService:
             if character.level < rules_5e.MAX_LEVEL
             else None
         )
+        content = ContentQueryService(self._db)
         spell_slots = (
-            await ContentQueryService(self._db).get_spell_slots(
-                class_id=character.class_id, level=character.level
-            )
+            await content.get_spell_slots(class_id=character.class_id, level=character.level)
             or {}
         )
+
+        # Whether a character casts is a property of the class in the content
+        # pack, not of having slots this level: a paladin gets none at level 1
+        # and would otherwise lose its spellcasting header until level 2.
+        klass = await content.get_class_by_id(character.class_id)
+        spellcasting_ability = self._spellcasting_ability(klass.data if klass else None)
+        spell_save_dc = None
+        spell_attack_bonus = None
+        if spellcasting_ability is not None:
+            ability_mod = resolution.modifiers.get(spellcasting_ability, 0)
+            spell_save_dc = rules_5e.spell_save_dc(prof_bonus, ability_mod)
+            spell_attack_bonus = rules_5e.spell_attack_bonus(prof_bonus, ability_mod)
 
         return ComputedBlock(
             prof_bonus=prof_bonus,
@@ -1031,4 +1053,7 @@ class CharacterService:
             damage_modifiers=resolution.damage,
             active_effects=active_effects,
             effect_sources=effect_sources,
+            spellcasting_ability=spellcasting_ability,
+            spell_save_dc=spell_save_dc,
+            spell_attack_bonus=spell_attack_bonus,
         )

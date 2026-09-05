@@ -75,8 +75,20 @@ def _content_pack() -> dict:
                 "name": "Волшебник",
                 "hit_die": 6,
                 "primary_ability": "intelligence",
-                "data": {"spellcasting_ability": "int"},
+                "data": {"spellcasting": {"ability": "intelligence", "type": "prepared"}},
                 "levels": [{"level": 1, "features": {}, "spell_slots": {"1": 2}}],
+            },
+            {
+                "slug": "paladin",
+                "name": "Паладин",
+                "hit_die": 10,
+                "primary_ability": "strength",
+                "data": {"spellcasting": {"ability": "charisma", "type": "prepared"}},
+                # No slots at level 1 — exactly like the shipped pack.
+                "levels": [
+                    {"level": 1, "features": {}},
+                    {"level": 2, "features": {}, "spell_slots": {"1": 2}},
+                ],
             },
         ],
         "spells": [
@@ -268,25 +280,47 @@ async def test_sheet_carries_cards_only_for_what_the_character_has(
     assert str(setup["items"]["rope"]) not in content["items"]
 
 
-async def test_spellcasting_ability_is_null_for_a_non_caster(
+async def test_spellcasting_is_absent_for_a_non_caster(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
     setup = await _setup(client, db_session, "sheet-noncaster@example.com")
 
-    content = (await _sheet(client, setup))["content"]
+    body = await _sheet(client, setup)
 
-    assert content["spellcasting_ability"] is None
-    assert content["spells"] == {}
+    assert body["computed"]["spellcasting_ability"] is None
+    assert body["computed"]["spell_save_dc"] is None
+    assert body["computed"]["spell_attack_bonus"] is None
+    assert body["content"]["spells"] == {}
 
 
-async def test_spellcasting_ability_comes_from_the_class(
+async def test_spellcasting_ability_is_normalised_from_the_pack(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
+    # The pack writes data.spellcasting = {"ability": "intelligence"}; the
+    # computed block and ability_scores use three-letter keys.
     setup = await _setup(client, db_session, "sheet-caster@example.com", class_slug="wizard")
 
-    content = (await _sheet(client, setup))["content"]
+    computed = (await _sheet(client, setup))["computed"]
 
-    assert content["spellcasting_ability"] == "int"
+    assert computed["spellcasting_ability"] == "int"
+    # int 10 -> modifier 0, proficiency bonus 2 at level 1.
+    assert computed["spell_save_dc"] == 10
+    assert computed["spell_attack_bonus"] == 2
+
+
+async def test_a_paladin_casts_at_level_one_despite_having_no_slots(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    # "Is a caster" is a property of the class in the pack, not of having slots
+    # this level. Keying it on empty slots would blank a level-1 paladin's
+    # spellcasting header and restore it at level 2.
+    setup = await _setup(client, db_session, "sheet-paladin@example.com", class_slug="paladin")
+
+    computed = (await _sheet(client, setup))["computed"]
+
+    assert computed["spell_slots"] == {}
+    assert computed["spellcasting_ability"] == "cha"
+    assert computed["spell_save_dc"] is not None
 
 
 async def test_sheet_of_another_users_character_is_404(

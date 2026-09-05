@@ -31,6 +31,27 @@ MAX_LEVEL = 20
 
 ABILITIES: tuple[str, ...] = ("str", "dex", "con", "int", "wis", "cha")
 
+# Content packs spell abilities out in full ("charisma"), while ability_scores
+# and the computed block use the three-letter keys. The vocabulary of 5e
+# ability names belongs here, next to ABILITIES, rather than in whichever
+# service happens to read a pack first.
+ABILITY_KEY_BY_FULL_NAME: dict[str, str] = {
+    "strength": "str",
+    "dexterity": "dex",
+    "constitution": "con",
+    "intelligence": "int",
+    "wisdom": "wis",
+    "charisma": "cha",
+}
+
+
+def ability_key(name: str) -> str | None:
+    """Normalise an ability written either way to its three-letter key."""
+    candidate = name.strip().lower()
+    if candidate in ABILITIES:
+        return candidate
+    return ABILITY_KEY_BY_FULL_NAME.get(candidate)
+
 SKILL_ABILITIES: dict[str, str] = {
     "acrobatics": "dex",
     "animal-handling": "wis",
