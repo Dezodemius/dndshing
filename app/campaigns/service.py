@@ -58,9 +58,7 @@ class CampaignService:
             )
         ).all()
 
-        character_ids = [
-            character.id for character in await CharacterService(self._db).list_for_user(user_id)
-        ]
+        character_ids = await CharacterService(self._db).list_ids_for_user(user_id)
         as_player: list[Campaign] = []
         if character_ids:
             player_campaign_ids = (

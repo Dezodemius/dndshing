@@ -106,6 +106,38 @@ class CharacterRead(BaseModel):
     updated_at: datetime
 
 
+class CharacterListRead(BaseModel):
+    """One row of the character list: exactly what a dashboard tile or a
+    character picker draws, and nothing else.
+
+    Deliberately not `from_attributes`: `race_name`, `class_name`, `ac` and
+    `level_up_available` are not columns on Character, so the service builds
+    this by hand and `model_validate(character)` would fail on four missing
+    fields. `race_name`/`class_name` are nullable because a content row can
+    disappear between pack uploads — a dangling reference must render as a
+    blank label, not a 500."""
+
+    id: int
+    name: str
+    race_id: int
+    class_id: int
+    subclass_id: int | None
+    race_name: str | None
+    class_name: str | None
+    level: int
+    xp: int
+    hp_max: int
+    hp_current: int
+    hp_temp: int
+    ac: int
+    gold: int
+    silver: int
+    copper: int
+    level_up_available: bool
+    created_at: datetime
+    updated_at: datetime
+
+
 class ComputedBlock(BaseModel):
     prof_bonus: int
     modifiers: dict[str, int]

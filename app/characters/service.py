@@ -23,6 +23,7 @@ from app.characters.models import Character, CharacterSpell, InventoryEntry, Lev
 from app.characters.schemas import (
     CharacterCreate,
     CharacterDetailRead,
+    CharacterListRead,
     CharacterRead,
     CharacterSpellRead,
     CharacterUpdate,
@@ -46,7 +47,7 @@ class CharacterService:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
-    async def list_for_user(self, user_id: int) -> list[CharacterRead]:
+    async def list_for_user(self, user_id: int) -> list[CharacterListRead]:
         rows = (
             await self._db.scalars(
                 select(Character)
@@ -54,7 +55,51 @@ class CharacterService:
                 .order_by(Character.created_at)
             )
         ).all()
-        return [CharacterRead.model_validate(row) for row in rows]
+        if not rows:
+            return []
+
+        content = ContentQueryService(self._db)
+        race_names = await content.race_names()
+        class_names = await content.class_names()
+        return [self._to_list_row(row, race_names, class_names) for row in rows]
+
+    def _to_list_row(
+        self, character: Character, race_names: dict[int, str], class_names: dict[int, str]
+    ) -> CharacterListRead:
+        return CharacterListRead(
+            id=character.id,
+            name=character.name,
+            race_id=character.race_id,
+            class_id=character.class_id,
+            subclass_id=character.subclass_id,
+            race_name=race_names.get(character.race_id),
+            class_name=class_names.get(character.class_id),
+            level=character.level,
+            xp=character.xp,
+            hp_max=character.hp_max,
+            hp_current=character.hp_current,
+            hp_temp=character.hp_temp,
+            ac=rules_5e.armor_class(
+                character.ac_override, (character.ability_scores or {}).get("dex", 10)
+            ),
+            gold=character.gold,
+            silver=character.silver,
+            copper=character.copper,
+            level_up_available=rules_5e.level_up_available(character.level, character.xp),
+            created_at=character.created_at,
+            updated_at=character.updated_at,
+        )
+
+    async def list_ids_for_user(self, user_id: int) -> list[int]:
+        """Just the ids. Callers that only need to scope a query by ownership
+        (campaigns) must not pay for the content lookups list_for_user does."""
+        return list(
+            (
+                await self._db.scalars(
+                    select(Character.id).where(Character.user_id == user_id)
+                )
+            ).all()
+        )
 
     async def create(self, user_id: int, payload: CharacterCreate) -> CharacterDetailRead:
         character = Character(
@@ -505,11 +550,7 @@ class CharacterService:
         prof_bonus = rules_5e.proficiency_bonus(character.level)
         dex_score = scores.get("dex", 10)
         wis_score = scores.get("wis", 10)
-        ac = (
-            character.ac_override
-            if character.ac_override is not None
-            else rules_5e.base_armor_class(dex_score)
-        )
+        ac = rules_5e.armor_class(character.ac_override, dex_score)
         proficient_skills = set((character.proficiencies or {}).get("skills", []))
         proficient_saves = set((character.proficiencies or {}).get("saves", []))
         passive_perception = rules_5e.passive_perception(
@@ -534,7 +575,7 @@ class CharacterService:
             if character.level < rules_5e.MAX_LEVEL
             else None
         )
-        level_up_available = xp_next_threshold is not None and character.xp >= xp_next_threshold
+        level_up_available = rules_5e.level_up_available(character.level, character.xp)
         spell_slots = (
             await ContentQueryService(self._db).get_spell_slots(
                 class_id=character.class_id, level=character.level

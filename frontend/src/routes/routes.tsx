@@ -1,10 +1,14 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom'
 import Layout from './Layout'
 import RequireAuth from './RequireAuth'
+import RedirectIfAuthenticated from './RedirectIfAuthenticated'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import DashboardPage from './pages/DashboardPage'
+import CharactersPage from './pages/CharactersPage'
+import CampaignsPage from './pages/CampaignsPage'
+import MerchantsPage from './pages/MerchantsPage'
 import CharacterSheetPage from './pages/CharacterSheetPage'
 import CharacterWizardPage from './pages/characterWizard/CharacterWizardPage'
 import LevelUpWizardPage from './pages/levelUpWizard/LevelUpWizardPage'
@@ -21,17 +25,27 @@ export const router = createBrowserRouter([
     element: <Layout />,
     children: [
       { index: true, element: <LandingPage /> },
-      { path: 'login', element: <LoginPage /> },
+      // Pathless wrapper: /login bounces an already signed-in user to /app.
+      { element: <RedirectIfAuthenticated />, children: [{ path: 'login', element: <LoginPage /> }] },
       // Registration is OAuth-only (see LoginPage): both old routes just
       // point here so existing links/bookmarks still land somewhere useful.
+      // Left outside the wrapper — they redirect to /login, which applies it.
       { path: 'register', element: <Navigate to="/login" replace /> },
       { path: 'verify', element: <Navigate to="/login" replace /> },
+      // Also outside: the callback signs the user in and then navigates to
+      // /app itself. Wrapping it would race that with a redirect of our own.
       { path: 'oauth/callback', element: <OAuthCallbackPage /> },
       {
         path: 'app',
         element: <RequireAuth />,
         children: [
           { index: true, element: <DashboardPage /> },
+          // Flat siblings of the index route, not a parent wrapping
+          // characters/new and characters/:id — nesting them would give
+          // /app/characters/new two matching routes.
+          { path: 'characters', element: <CharactersPage /> },
+          { path: 'campaigns', element: <CampaignsPage /> },
+          { path: 'merchants', element: <MerchantsPage /> },
           { path: 'characters/new', element: <CharacterWizardPage /> },
           { path: 'characters/:characterId', element: <CharacterSheetPage /> },
           {
