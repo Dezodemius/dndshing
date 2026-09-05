@@ -10,6 +10,7 @@ import * as charactersApi from '../../api/characters'
 import * as contentApi from '../../api/content'
 import type { Shop } from '../../api/shop'
 import type { CharacterDetail, CharacterSummary } from '../../api/characters'
+import { makeCharacterSummary } from '../../test/fixtures'
 import type { Item } from '../../api/content'
 
 const authState = vi.hoisted(() => ({
@@ -69,7 +70,7 @@ const baseShop: Shop = {
   items: [{ id: 100, item_id: 10, name: 'Длинный меч', price_g: 15, price_s: 0, price_c: 0, quantity: 5 }],
 }
 
-const character: CharacterSummary = { id: 1, name: 'Ари', level: 3, gold: 100, silver: 0, copper: 0 }
+const character: CharacterSummary = makeCharacterSummary({ id: 1, name: 'Ари', level: 3, gold: 100 })
 
 const characterDetail: CharacterDetail = {
   id: 1,

@@ -5,8 +5,12 @@
   "nav": {
     "landing": "Главная",
     "login": "Вход",
-    "dashboard": "Кабинет",
-    "logout": "Выйти"
+    "overview": "Обзор",
+    "characters": "Персонажи",
+    "campaigns": "Кампании",
+    "merchants": "Торговцы",
+    "logout": "Выйти",
+    "primary": "Основная навигация"
   },
   "abilities": {
     "str": "Сила",
@@ -163,7 +167,21 @@
       "characters": {
         "title": "Мои персонажи",
         "empty": "У вас пока нет персонажей.",
-        "create": "Создать первого персонажа"
+        "create": "Создать первого персонажа",
+        "createShort": "Новый персонаж",
+        "all": "Все персонажи ({{count}})",
+        "tile": {
+          "level": "{{level}} ур.",
+          "raceClass": "{{race}} · {{class}}",
+          "unknownRace": "Раса не найдена",
+          "unknownClass": "Класс не найден",
+          "hp": "Хиты",
+          "hpValue": "{{current}} / {{max}}",
+          "ac": "КД",
+          "wallet": "{{gold}} зм · {{silver}} см · {{copper}} мм",
+          "levelUp": "Доступен новый уровень",
+          "levelUpCta": "Прокачать"
+        }
       },
       "campaigns": {
         "title": "Мои кампании",
@@ -171,12 +189,29 @@
         "create": "Создать кампанию",
         "join": "Присоединиться по коду приглашения",
         "asDm": "Я — мастер",
-        "asPlayer": "Я — игрок"
+        "asPlayer": "Я — игрок",
+        "createShort": "Новая кампания",
+        "all": "Все кампании ({{count}})",
+        "tile": {
+          "nextSession": "Следующая игра",
+          "nextSessionValue": "{{date}} · {{place}}",
+          "noNextSession": "Дата игры не назначена",
+          "noDescription": "Без описания",
+          "playerHint": "Страница кампании доступна мастеру"
+        }
       },
       "merchants": {
         "title": "Мои торговцы",
         "empty": "У вас пока нет торговцев.",
-        "create": "Создать первого торговца"
+        "create": "Создать первого торговца",
+        "createShort": "Новый торговец",
+        "all": "Все торговцы ({{count}})",
+        "tile": {
+          "open": "Лавка открыта",
+          "closed": "Лавка закрыта",
+          "shopLink": "Витрина",
+          "noDescription": "Без описания"
+        }
       }
     },
     "characterNew": {

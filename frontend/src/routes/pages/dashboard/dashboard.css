@@ -1,0 +1,337 @@
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-4);
+}
+
+.board__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.board__section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.board__section-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.board__all {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.board__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Mobile first (375px): one column, height driven by content. No spans —
+   a 2-wide tile in a 1-wide grid just overflows. */
+.bento {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.tile:hover {
+  border-color: var(--color-accent);
+}
+
+.tile__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.tile__titles {
+  /* Without this a long character name refuses to wrap and stretches the
+     grid column instead. */
+  min-width: 0;
+  flex: 1;
+}
+
+.tile__emblem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgb(var(--color-accent-rgb) / 0.16);
+  color: var(--color-accent-strong);
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.tile__title {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.tile__title a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.tile__title a:hover {
+  color: var(--color-accent-strong);
+}
+
+/* Stretched link: the whole tile is clickable, while secondary links inside
+   stay separately clickable via z-index below. */
+.tile__title a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.tile__subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tile__badge {
+  flex: none;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.tile__stats {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.tile__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tile__stat-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.tile__stat-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.tile__stat-value--small {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.tile__hp-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgb(var(--color-text-muted-rgb) / 0.2);
+  overflow: hidden;
+}
+
+.tile__hp-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.tile__hp-fill--ok {
+  background: var(--color-success);
+}
+
+.tile__hp-fill--warn {
+  background: var(--color-accent);
+}
+
+.tile__hp-fill--danger {
+  background: var(--color-danger);
+}
+
+.tile__wallet,
+.tile__status,
+.tile__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.tile__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tile__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+
+.tile__dot--closed {
+  background: var(--color-text-muted);
+}
+
+.tile__cta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  margin-top: auto;
+  flex-wrap: wrap;
+}
+
+.tile__flag {
+  font-size: 0.8rem;
+  color: var(--color-accent-strong);
+}
+
+/* Above the stretched link so secondary actions stay reachable. */
+.tile__action {
+  position: relative;
+  z-index: 1;
+  font-size: 0.85rem;
+}
+
+.tile--action {
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  background: transparent;
+  text-align: center;
+  min-height: 96px;
+}
+
+.tile--empty {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.tile__action--primary {
+  font-weight: 600;
+}
+
+.tile--skeleton {
+  min-height: 160px;
+  border-color: var(--color-border-soft, var(--color-border));
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 0%,
+    rgb(var(--color-text-muted-rgb) / 0.08) 50%,
+    var(--color-surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: tile-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes tile-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile--skeleton {
+    animation: none;
+  }
+}
+
+@media (min-width: 700px) {
+  .bento {
+    grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+    /* minmax, not a fixed height: a character tile carries an emblem, two
+       stat blocks, a bar and a wallet line, and clips at a fixed 160px. */
+    grid-auto-rows: minmax(160px, auto);
+    grid-auto-flow: dense;
+  }
+
+  /* Spans need at least three columns to mean anything — at two, "wide" and
+     "hero" both fill the row and the size stops carrying information. */
+  .bento__item--wide {
+    grid-column: span 2;
+  }
+}
+
+@media (min-width: 1000px) {
+  .bento__item--hero {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+
+  /* A 2x2 tile holding 1x1 content is mostly empty space, so the hero scales
+     its own contents up rather than padding them out: bigger monogram, bigger
+     numbers, wallet pushed to the bottom edge. */
+  .bento__item--hero .tile__emblem {
+    width: 88px;
+    height: 88px;
+    font-size: 2.4rem;
+  }
+
+  .bento__item--hero .tile__title {
+    font-size: 1.5rem;
+  }
+
+  .bento__item--hero .tile__stat-value {
+    font-size: 2.2rem;
+  }
+
+  .bento__item--hero .tile__stats {
+    gap: var(--space-5);
+  }
+
+  .bento__item--hero .tile__wallet {
+    margin-top: auto;
+    font-size: 0.95rem;
+  }
+}
