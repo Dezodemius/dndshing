@@ -396,3 +396,117 @@ async def test_characters_require_verified_email(
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "email_not_verified"
+
+
+async def test_list_characters_returns_tile_fields(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    setup = await _player_setup(client, db_session, "tiles@example.com")
+    await client.post(CHARACTERS_URL, json=_character_payload(setup), headers=setup["headers"])
+
+    response = await client.get(CHARACTERS_URL, headers=setup["headers"])
+
+    assert response.status_code == 200, response.text
+    row = response.json()[0]
+    assert row["race_name"] == "Эльф"
+    assert row["class_name"] == "Волшебник"
+    assert row["level"] == 1
+    assert row["hp_max"] == 8
+    assert row["hp_current"] == 8
+    assert (row["gold"], row["silver"], row["copper"]) == (0, 0, 0)
+    # 10 + модификатор Ловкости при dex 14.
+    assert row["ac"] == rules_5e.base_armor_class(ABILITY_SCORES["dex"])
+    assert row["level_up_available"] is False
+
+
+async def test_list_characters_omits_heavy_fields(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    # Регресс-щит: список отдавал полный CharacterRead, и выбор персонажа на
+    # витрине и при входе в кампанию качал предысторию и заметки целиком.
+    setup = await _player_setup(client, db_session, "slim@example.com")
+    await client.post(
+        CHARACTERS_URL,
+        json=_character_payload(setup, backstory="я" * 500, notes="з" * 500),
+        headers=setup["headers"],
+    )
+
+    response = await client.get(CHARACTERS_URL, headers=setup["headers"])
+
+    row = response.json()[0]
+    for absent in ("backstory", "notes", "proficiencies", "ability_scores", "appearance"):
+        assert absent not in row
+
+
+async def test_list_characters_ac_respects_override(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    setup = await _player_setup(client, db_session, "acoverride@example.com")
+    await client.post(
+        CHARACTERS_URL,
+        json=_character_payload(setup, ac_override=18),
+        headers=setup["headers"],
+    )
+
+    response = await client.get(CHARACTERS_URL, headers=setup["headers"])
+
+    assert response.json()[0]["ac"] == 18
+
+
+async def test_list_characters_level_up_flag_matches_detail(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    # Единственный источник правды: флаг в списке и computed на листе не
+    # должны расходиться, иначе на доске появится бейдж, которого нет на листе.
+    setup = await _player_setup(client, db_session, "levelflag@example.com")
+    created = await client.post(
+        CHARACTERS_URL, json=_character_payload(setup), headers=setup["headers"]
+    )
+    character_id = created.json()["id"]
+    await client.patch(
+        f"{CHARACTERS_URL}/{character_id}",
+        json={"xp": rules_5e.xp_threshold(2)},
+        headers=setup["headers"],
+    )
+
+    listed = await client.get(CHARACTERS_URL, headers=setup["headers"])
+    detail = await client.get(f"{CHARACTERS_URL}/{character_id}", headers=setup["headers"])
+
+    assert listed.json()[0]["level_up_available"] is True
+    assert (
+        listed.json()[0]["level_up_available"]
+        == detail.json()["computed"]["level_up_available"]
+    )
+
+
+async def test_list_characters_survives_unresolvable_content_row(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    # Имена резолвятся только среди строк локали "ru" (ARCHITECTURE §4.2), а
+    # характеристики персонажа ссылаются на строку по id без учёта локали.
+    # Значит ссылка может перестать резолвиться, не переставая быть валидной —
+    # и список обязан отрисовать пустую подпись, а не упасть.
+    #
+    # Удалением строки этот случай не воспроизвести: FK characters.race_id не
+    # даёт снести расу, на которую ссылается персонаж.
+    from sqlalchemy import update as sa_update
+
+    from app.content.cache import content_cache
+    from app.content.models import Race
+
+    setup = await _player_setup(client, db_session, "dangling@example.com")
+    await client.post(CHARACTERS_URL, json=_character_payload(setup), headers=setup["headers"])
+
+    await db_session.execute(
+        sa_update(Race).where(Race.id == setup["race_id"]).values(locale="en")
+    )
+    await db_session.commit()
+    content_cache.clear()
+
+    response = await client.get(CHARACTERS_URL, headers=setup["headers"])
+
+    assert response.status_code == 200, response.text
+    row = response.json()[0]
+    assert row["race_name"] is None
+    assert row["race_id"] == setup["race_id"]
+    assert row["class_name"] == "Волшебник"

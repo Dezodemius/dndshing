@@ -2,11 +2,15 @@ import pytest
 
 from app.characters.rules_5e import (
     ABILITIES,
+    MAX_LEVEL,
     SKILL_ABILITIES,
+    XP_THRESHOLDS,
     ability_modifier,
+    armor_class,
     average_hp_gain,
     base_armor_class,
     initiative,
+    level_up_available,
     passive_perception,
     proficiency_bonus,
     proficient_modifier,
@@ -156,3 +160,30 @@ def test_skill_abilities_cover_18_skills():
 
 def test_abilities_lists_the_six_scores():
     assert ABILITIES == ("str", "dex", "con", "int", "wis", "cha")
+
+
+def test_armor_class_uses_manual_override() -> None:
+    # BR §4.1: игрок — источник истины для своего листа.
+    assert armor_class(18, 20) == 18
+
+
+def test_armor_class_falls_back_to_dex_formula() -> None:
+    assert armor_class(None, 14) == base_armor_class(14)
+
+
+def test_armor_class_override_of_zero_is_not_treated_as_absent() -> None:
+    # 0 — валидное значение и не должно проваливаться в формулу через `or`.
+    assert armor_class(0, 14) == 0
+
+
+def test_level_up_available_is_false_below_threshold() -> None:
+    assert level_up_available(3, XP_THRESHOLDS[4] - 1) is False
+
+
+def test_level_up_available_is_true_at_threshold() -> None:
+    assert level_up_available(3, XP_THRESHOLDS[4]) is True
+
+
+def test_level_up_available_is_false_at_max_level() -> None:
+    # Порога 21-го уровня в таблице нет — на границе нельзя падать по KeyError.
+    assert level_up_available(MAX_LEVEL, 10**9) is False
