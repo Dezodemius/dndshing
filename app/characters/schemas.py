@@ -23,7 +23,70 @@ class AbilityScores(BaseModel):
     intelligence: int = Field(ge=1, le=30, alias="int")
 
 
+SHEET_TEXT_MAX = 2000
+
+# Attack rows are free text on purpose: the sheet is semi-manual (BR §4.1) and
+# an attack bonus is a 5e rule this project does not compute. "+5" and
+# "1d12 рубящий" go in as written.
+class AttackRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    bonus: str = Field(default="", max_length=30)
+    damage: str = Field(default="", max_length=60)
+
+
+class Attacks(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[AttackRow] = Field(default_factory=list, max_length=20)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class SheetFieldsMixin(BaseModel):
+    """The printable sheet's own fields, shared by create and update so the two
+    cannot drift. Read schemas take them as plain columns."""
+
+    player_name: str | None = Field(default=None, max_length=200)
+    age: int | None = Field(default=None, ge=0, le=100_000)
+    height: str | None = Field(default=None, max_length=50)
+    weight: str | None = Field(default=None, max_length=50)
+    inspiration: bool | None = None
+    hit_dice_spent: int | None = Field(default=None, ge=0)
+    death_save_successes: int | None = Field(default=None, ge=0, le=3)
+    death_save_failures: int | None = Field(default=None, ge=0, le=3)
+    attacks: Attacks | None = None
+    spell_slots_spent: dict[str, int] | None = None
+    personality_traits: str | None = Field(default=None, max_length=SHEET_TEXT_MAX)
+    ideals: str | None = Field(default=None, max_length=SHEET_TEXT_MAX)
+    bonds: str | None = Field(default=None, max_length=SHEET_TEXT_MAX)
+    flaws: str | None = Field(default=None, max_length=SHEET_TEXT_MAX)
+    goals: str | None = Field(default=None, max_length=SHEET_TEXT_MAX)
+    allies: str | None = Field(default=None, max_length=SHEET_TEXT_MAX)
+    feats: str | None = Field(default=None, max_length=SHEET_TEXT_MAX)
+    extra_features: str | None = Field(default=None, max_length=SHEET_TEXT_MAX)
+    treasures: str | None = Field(default=None, max_length=SHEET_TEXT_MAX)
+
+    @field_validator("spell_slots_spent")
+    @classmethod
+    def _check_slot_levels(cls, value: dict[str, int] | None) -> dict[str, int] | None:
+        if value is None:
+            return value
+        for level, spent in value.items():
+            if level not in {str(n) for n in range(1, 10)}:
+                raise ValueError("spell slot levels must be '1'..'9'")
+            if spent < 0:
+                raise ValueError("spent slots cannot be negative")
+        return value
+
+
 class CharacterCreate(BaseModel):
+    """Creation payload, from the wizard. Deliberately does not inherit
+    SheetFieldsMixin: the wizard collects none of those fields, and accepting
+    them here would mean the service — which builds the row field by field —
+    silently dropped whatever was sent. They are filled in on the sheet, via
+    PATCH."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=200)
@@ -47,9 +110,14 @@ class CharacterCreate(BaseModel):
     copper: int = Field(default=0, ge=0)
 
 
-class CharacterUpdate(BaseModel):
+class CharacterUpdate(SheetFieldsMixin):
     """Partial update. `level` is accepted only so its presence can be detected
-    and rejected with `level_direct_edit_forbidden` — it is never applied."""
+    and rejected with `level_direct_edit_forbidden` — it is never applied.
+
+    Ability scores are *not* editable here from the sheet: rollback_level
+    subtracts an ASI from the current value, so a hand edit between a level-up
+    and its rollback would drive a score below its starting point. Raising a
+    score goes through the level-up wizard."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -102,6 +170,30 @@ class CharacterRead(BaseModel):
     gold: int
     silver: int
     copper: int
+
+    # Sheet fields as stored. Typed loosely on purpose: this schema validates
+    # rows coming *out* of the database, and a strict shape here would turn a
+    # legacy row into a 500 on read rather than a validation error on write.
+    player_name: str | None
+    age: int | None
+    height: str | None
+    weight: str | None
+    inspiration: bool
+    hit_dice_spent: int
+    death_save_successes: int
+    death_save_failures: int
+    attacks: dict[str, Any]
+    spell_slots_spent: dict[str, Any]
+    personality_traits: str | None
+    ideals: str | None
+    bonds: str | None
+    flaws: str | None
+    goals: str | None
+    allies: str | None
+    feats: str | None
+    extra_features: str | None
+    treasures: str | None
+
     created_at: datetime
     updated_at: datetime
 
