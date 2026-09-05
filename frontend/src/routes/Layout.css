@@ -10,8 +10,16 @@
 }
 
 .app-header__brand {
+  /* Now an <a>, so it needs the accent colour and underline from theme.css's
+     global `a` rule reset — the brand is not a body link. */
   color: var(--color-text);
   font-size: 18px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-header__brand:hover {
+  color: var(--color-accent-strong);
 }
 
 .app-header__nav {
@@ -19,6 +27,13 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* Holds the row open while the session is being restored, so the header does
+   not change height when the real navigation appears. Matches the rendered
+   height of a link (line-height + vertical padding). */
+.app-header__nav--pending {
+  min-height: 30px;
 }
 
 .app-header__link {

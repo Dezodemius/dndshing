@@ -5,8 +5,9 @@
   "nav": {
     "landing": "Главная",
     "login": "Вход",
-    "dashboard": "Кабинет",
-    "logout": "Выйти"
+    "overview": "Обзор",
+    "logout": "Выйти",
+    "primary": "Основная навигация"
   },
   "abilities": {
     "str": "Сила",
