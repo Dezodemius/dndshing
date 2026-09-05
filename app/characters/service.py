@@ -41,6 +41,7 @@ from app.characters.schemas import (
     CharacterEffectUpdate,
     CharacterListRead,
     CharacterRead,
+    CharacterSheetRead,
     CharacterSpellRead,
     CharacterUpdate,
     ComputedBlock,
@@ -52,6 +53,10 @@ from app.characters.schemas import (
     LevelUpRequest,
     ModifierIn,
     ResolvedModifierRead,
+    SheetContentRead,
+    SheetFeatureRead,
+    SheetItemRead,
+    SheetSpellRead,
     SpellsUpdate,
 )
 from app.content.service import ContentQueryService
@@ -655,6 +660,143 @@ class CharacterService:
         effect = await self._get_owned_effect(character_id, effect_id, user_id)
         await self._db.delete(effect)
         await self._db.commit()
+
+    # --- printable sheet (US-15, DND-103) --------------------------------
+
+    async def get_sheet(self, character_id: int, user_id: int) -> CharacterSheetRead:
+        character = await self.get_owned(character_id, user_id)
+        return await self._to_sheet(character)
+
+    async def get_sheet_by_id(self, character_id: int) -> CharacterSheetRead:
+        """Sheet without an ownership check — the caller (campaigns service,
+        for the DM's read-only view) must already have verified access.
+        Mirrors get_detail_by_id."""
+        character = await self._db.get(Character, character_id)
+        if character is None:
+            raise CharacterNotFoundError()
+        return await self._to_sheet(character)
+
+    @staticmethod
+    def _features_from(entries: object, *, level: int | None = None) -> list[SheetFeatureRead]:
+        """Content packs store feature lists as [{name, description}]. Anything
+        that is not a dict with a name is skipped rather than raising: the pack
+        is owner-authored data, and one malformed entry must not make a sheet
+        unopenable."""
+        if not isinstance(entries, list):
+            return []
+        features: list[SheetFeatureRead] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("name")
+            if not isinstance(name, str) or not name:
+                continue
+            description = entry.get("description")
+            features.append(
+                SheetFeatureRead(
+                    name=name,
+                    description=description if isinstance(description, str) else None,
+                    level=level,
+                )
+            )
+        return features
+
+    @staticmethod
+    def _strings_from(value: object) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, str)]
+
+    async def _to_sheet(self, character: Character) -> CharacterSheetRead:
+        detail = await self._to_detail(character)
+        content = ContentQueryService(self._db)
+
+        race = await content.get_race_by_id(character.race_id)
+        klass = await content.get_class_by_id(character.class_id)
+        subclass = (
+            await content.get_subclass(character.subclass_id)
+            if character.subclass_id is not None
+            else None
+        )
+        background = (
+            await content.get_background_by_id(character.background_id)
+            if character.background_id is not None
+            else None
+        )
+
+        class_features: list[SheetFeatureRead] = []
+        for class_level in await content.get_class_levels_up_to(
+            class_id=character.class_id, level=character.level
+        ):
+            class_features.extend(
+                self._features_from(
+                    (class_level.features or {}).get("items"), level=class_level.level
+                )
+            )
+
+        class_data = (klass.data if klass is not None else None) or {}
+        background_data = (background.data if background is not None else None) or {}
+        race_data = (race.data if race is not None else None) or {}
+
+        background_feature = None
+        raw_feature = background_data.get("feature")
+        if isinstance(raw_feature, dict):
+            background_feature = next(iter(self._features_from([raw_feature])), None)
+        elif isinstance(raw_feature, str) and raw_feature:
+            background_feature = SheetFeatureRead(name=raw_feature)
+
+        item_ids = [entry.item_id for entry in detail.inventory if entry.item_id is not None]
+        items = await content.get_items_by_ids(item_ids)
+        spells = await content.get_spell_cards([spell.spell_id for spell in detail.spells])
+
+        # Proficiencies come from two places: what the character wrote on their
+        # own sheet, and what the class and background grant. The sheet shows
+        # the union, with the character's own entries first.
+        proficiencies = character.proficiencies or {}
+
+        sheet_content = SheetContentRead(
+            race_name=race.name if race is not None else None,
+            class_name=klass.name if klass is not None else None,
+            subclass_name=subclass.name if subclass is not None else None,
+            background_name=background.name if background is not None else None,
+            hit_die=klass.hit_die if klass is not None else None,
+            spellcasting_ability=(
+                class_data.get("spellcasting_ability")
+                if isinstance(class_data.get("spellcasting_ability"), str)
+                else None
+            ),
+            class_features=class_features,
+            race_traits=self._features_from(race_data.get("traits")),
+            subclass_features=self._features_from(
+                (subclass.data or {}).get("features") if subclass is not None else None
+            ),
+            background_feature=background_feature,
+            languages=self._strings_from(proficiencies.get("languages"))
+            or self._strings_from(race_data.get("languages")),
+            tool_proficiencies=self._strings_from(proficiencies.get("tools"))
+            or self._strings_from(background_data.get("tool_proficiencies")),
+            armor_proficiencies=self._strings_from(proficiencies.get("armor"))
+            or self._strings_from(class_data.get("armor_proficiencies")),
+            weapon_proficiencies=self._strings_from(proficiencies.get("weapons"))
+            or self._strings_from(class_data.get("weapon_proficiencies")),
+            items={
+                item_id: SheetItemRead(
+                    id=item.id,
+                    name=item.name,
+                    type=item.type,
+                    weight=str(item.weight) if item.weight is not None else None,
+                )
+                for item_id, item in items.items()
+            },
+            spells={
+                spell_id: SheetSpellRead(
+                    id=spell.id, name=spell.name, level=spell.level, school=spell.school
+                )
+                for spell_id, spell in spells.items()
+            },
+        )
+
+        return CharacterSheetRead(**detail.model_dump(), content=sheet_content)
 
     async def _to_detail(self, character: Character) -> CharacterDetailRead:
         inventory = (

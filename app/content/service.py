@@ -623,6 +623,86 @@ class ContentQueryService:
         content_cache.set(key, result)
         return result
 
+    # --- printable sheet lookups (US-15, DND-103) ------------------------
+    # All cached: the sheet is re-read on every edit, and the reference data
+    # behind it only changes on a pack import, which clears this cache.
+
+    async def get_race_by_id(self, race_id: int) -> RaceRead | None:
+        key = ("race", race_id)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+        row = await self._db.get(Race, race_id)
+        result = RaceRead.model_validate(row) if row is not None else None
+        content_cache.set(key, result)
+        return result
+
+    async def get_background_by_id(self, background_id: int) -> BackgroundRead | None:
+        key = ("background", background_id)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+        row = await self._db.get(Background, background_id)
+        result = BackgroundRead.model_validate(row) if row is not None else None
+        content_cache.set(key, result)
+        return result
+
+    async def get_class_levels_up_to(self, *, class_id: int, level: int) -> list[ClassLevelRead]:
+        """Class levels 1..level, in order. The sheet lists the features a
+        character has actually unlocked, so the filtering belongs here rather
+        than in the frontend."""
+        key = ("class-levels-up-to", class_id, level)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+        rows = (
+            await self._db.scalars(
+                select(ClassLevel)
+                .where(ClassLevel.class_id == class_id, ClassLevel.level <= level)
+                .order_by(ClassLevel.level)
+            )
+        ).all()
+        result = [ClassLevelRead.model_validate(row) for row in rows]
+        content_cache.set(key, result)
+        return result
+
+    async def get_items_by_ids(self, item_ids: Sequence[int]) -> dict[int, ItemRead]:
+        """Cards for exactly the items a character carries, so the sheet does
+        not download the whole catalogue to print an equipment list."""
+        unique_ids = tuple(sorted(set(item_ids)))
+        if not unique_ids:
+            return {}
+        key = ("items-by-ids", unique_ids)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+        rows = (await self._db.scalars(select(Item).where(Item.id.in_(unique_ids)))).all()
+        result = {row.id: ItemRead.model_validate(row) for row in rows}
+        content_cache.set(key, result)
+        return result
+
+    async def get_spell_cards(self, spell_ids: Sequence[int]) -> dict[int, SpellRead]:
+        """Spells by id with NO class filter.
+
+        Deliberately separate from get_spells_by_ids: that method's class
+        filter is a safety check protecting level_up (ids for another class's
+        spells are silently dropped), and loosening it would weaken a
+        validation path. Printing a sheet needs to render whatever the
+        character already has, including a spell whose class link changed
+        under it after a pack re-import.
+        """
+        unique_ids = tuple(sorted(set(spell_ids)))
+        if not unique_ids:
+            return {}
+        key = ("spell-cards", unique_ids)
+        cached = content_cache.get(key)
+        if cached is not None:
+            return cached
+        rows = (await self._db.scalars(select(Spell).where(Spell.id.in_(unique_ids)))).all()
+        result = {row.id: SpellRead.model_validate(row) for row in rows}
+        content_cache.set(key, result)
+        return result
+
     async def get_class_level(self, *, class_id: int, level: int) -> ClassLevelRead | None:
         row = await self._db.scalar(
             select(ClassLevel).where(ClassLevel.class_id == class_id, ClassLevel.level == level)
