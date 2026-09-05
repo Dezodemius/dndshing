@@ -6,6 +6,9 @@ import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import DashboardPage from './pages/DashboardPage'
+import CharactersPage from './pages/CharactersPage'
+import CampaignsPage from './pages/CampaignsPage'
+import MerchantsPage from './pages/MerchantsPage'
 import CharacterSheetPage from './pages/CharacterSheetPage'
 import CharacterWizardPage from './pages/characterWizard/CharacterWizardPage'
 import LevelUpWizardPage from './pages/levelUpWizard/LevelUpWizardPage'
@@ -37,6 +40,12 @@ export const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           { index: true, element: <DashboardPage /> },
+          // Flat siblings of the index route, not a parent wrapping
+          // characters/new and characters/:id — nesting them would give
+          // /app/characters/new two matching routes.
+          { path: 'characters', element: <CharactersPage /> },
+          { path: 'campaigns', element: <CampaignsPage /> },
+          { path: 'merchants', element: <MerchantsPage /> },
           { path: 'characters/new', element: <CharacterWizardPage /> },
           { path: 'characters/:characterId', element: <CharacterSheetPage /> },
           {

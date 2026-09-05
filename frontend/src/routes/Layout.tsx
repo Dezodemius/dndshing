@@ -17,9 +17,12 @@ const GUEST_NAV: readonly NavItem[] = [
   { to: '/login', labelKey: 'nav.login', end: false },
 ]
 
-// DND-093 adds "Персонажи / Кампании / Торговцы" here, together with the
-// routes that serve them.
-const CABINET_NAV: readonly NavItem[] = [{ to: '/app', labelKey: 'nav.overview', end: true }]
+const CABINET_NAV: readonly NavItem[] = [
+  { to: '/app', labelKey: 'nav.overview', end: true },
+  { to: '/app/characters', labelKey: 'nav.characters', end: false },
+  { to: '/app/campaigns', labelKey: 'nav.campaigns', end: false },
+  { to: '/app/merchants', labelKey: 'nav.merchants', end: false },
+]
 
 export default function Layout() {
   const { t } = useTranslation()

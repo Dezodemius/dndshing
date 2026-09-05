@@ -147,13 +147,30 @@ export interface LevelUpRecord {
   created_at: string
 }
 
+/** One row of GET /characters — mirrors the backend's CharacterListRead.
+ * `race_name`/`class_name` are nullable: a character references a content row
+ * by id regardless of locale, so a reference can stop resolving without ever
+ * becoming invalid, and the tile then renders a blank label. */
 export interface CharacterSummary {
   id: number
   name: string
+  race_id: number
+  class_id: number
+  subclass_id: number | null
+  race_name: string | null
+  class_name: string | null
   level: number
+  xp: number
+  hp_max: number
+  hp_current: number
+  hp_temp: number
+  ac: number
   gold: number
   silver: number
   copper: number
+  level_up_available: boolean
+  created_at: string
+  updated_at: string
 }
 
 export function listCharacters(): Promise<CharacterSummary[]> {

@@ -12,7 +12,14 @@ export default mergeConfig(
         reporter: ['text', 'html', 'json-summary'],
         reportsDirectory: './coverage',
         include: ['src/**/*.{ts,tsx}'],
-        exclude: ['src/main.tsx', 'src/vite-env.d.ts', 'src/**/*.test.{ts,tsx}'],
+        // src/test holds shared test fixtures, not product code — counting it
+        // as uncovered would drag the reported percentage down for nothing.
+        exclude: [
+          'src/main.tsx',
+          'src/vite-env.d.ts',
+          'src/**/*.test.{ts,tsx}',
+          'src/test/**',
+        ],
       },
     },
   }),
