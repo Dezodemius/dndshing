@@ -13564,7 +13564,18 @@
         "category": "лёгкий",
         "ac": "11 + модификатор Ловкости",
         "strength_requirement": 0,
-        "stealth_disadvantage": true
+        "stealth_disadvantage": true,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "armor_base",
+            "value": 11
+          },
+          {
+            "target": "skill.stealth",
+            "op": "disadvantage"
+          }
+        ]
       }
     },
     {
@@ -13582,7 +13593,14 @@
         "category": "лёгкий",
         "ac": "11 + модификатор Ловкости",
         "strength_requirement": 0,
-        "stealth_disadvantage": false
+        "stealth_disadvantage": false,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "armor_base",
+            "value": 11
+          }
+        ]
       }
     },
     {
@@ -13600,7 +13618,14 @@
         "category": "лёгкий",
         "ac": "12 + модификатор Ловкости",
         "strength_requirement": 0,
-        "stealth_disadvantage": false
+        "stealth_disadvantage": false,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "armor_base",
+            "value": 12
+          }
+        ]
       }
     },
     {
@@ -13618,7 +13643,15 @@
         "category": "средний",
         "ac": "12 + модификатор Ловкости (макс. 2)",
         "strength_requirement": 0,
-        "stealth_disadvantage": false
+        "stealth_disadvantage": false,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "armor_base",
+            "value": 12,
+            "dex_cap": 2
+          }
+        ]
       }
     },
     {
@@ -13636,7 +13669,15 @@
         "category": "средний",
         "ac": "13 + модификатор Ловкости (макс. 2)",
         "strength_requirement": 0,
-        "stealth_disadvantage": false
+        "stealth_disadvantage": false,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "armor_base",
+            "value": 13,
+            "dex_cap": 2
+          }
+        ]
       }
     },
     {
@@ -13654,7 +13695,19 @@
         "category": "средний",
         "ac": "14 + модификатор Ловкости (макс. 2)",
         "strength_requirement": 0,
-        "stealth_disadvantage": true
+        "stealth_disadvantage": true,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "armor_base",
+            "value": 14,
+            "dex_cap": 2
+          },
+          {
+            "target": "skill.stealth",
+            "op": "disadvantage"
+          }
+        ]
       }
     },
     {
@@ -13672,7 +13725,15 @@
         "category": "средний",
         "ac": "14 + модификатор Ловкости (макс. 2)",
         "strength_requirement": 0,
-        "stealth_disadvantage": false
+        "stealth_disadvantage": false,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "armor_base",
+            "value": 14,
+            "dex_cap": 2
+          }
+        ]
       }
     },
     {
@@ -13690,7 +13751,19 @@
         "category": "средний",
         "ac": "15 + модификатор Ловкости (макс. 2)",
         "strength_requirement": 0,
-        "stealth_disadvantage": true
+        "stealth_disadvantage": true,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "armor_base",
+            "value": 15,
+            "dex_cap": 2
+          },
+          {
+            "target": "skill.stealth",
+            "op": "disadvantage"
+          }
+        ]
       }
     },
     {
@@ -13708,7 +13781,18 @@
         "category": "тяжёлый",
         "ac": "14",
         "strength_requirement": 0,
-        "stealth_disadvantage": true
+        "stealth_disadvantage": true,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "set",
+            "value": 14
+          },
+          {
+            "target": "skill.stealth",
+            "op": "disadvantage"
+          }
+        ]
       }
     },
     {
@@ -13726,7 +13810,18 @@
         "category": "тяжёлый",
         "ac": "16",
         "strength_requirement": 13,
-        "stealth_disadvantage": true
+        "stealth_disadvantage": true,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "set",
+            "value": 16
+          },
+          {
+            "target": "skill.stealth",
+            "op": "disadvantage"
+          }
+        ]
       }
     },
     {
@@ -13744,7 +13839,18 @@
         "category": "тяжёлый",
         "ac": "17",
         "strength_requirement": 15,
-        "stealth_disadvantage": true
+        "stealth_disadvantage": true,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "set",
+            "value": 17
+          },
+          {
+            "target": "skill.stealth",
+            "op": "disadvantage"
+          }
+        ]
       }
     },
     {
@@ -13762,7 +13868,18 @@
         "category": "тяжёлый",
         "ac": "18",
         "strength_requirement": 15,
-        "stealth_disadvantage": true
+        "stealth_disadvantage": true,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "set",
+            "value": 18
+          },
+          {
+            "target": "skill.stealth",
+            "op": "disadvantage"
+          }
+        ]
       }
     },
     {
@@ -13780,7 +13897,15 @@
         "category": "щит",
         "ac": "+2",
         "strength_requirement": 0,
-        "stealth_disadvantage": false
+        "stealth_disadvantage": false,
+        "effects": [
+          {
+            "target": "ac",
+            "op": "bonus",
+            "value": 2,
+            "stack_group": "shield"
+          }
+        ]
       }
     },
     {
