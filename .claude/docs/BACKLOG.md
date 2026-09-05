@@ -369,12 +369,12 @@ labels: epic:us-13, backend
 depends: DND-090
 
 **Контекст:** вся арифметика эффектов обязана жить чистыми функциями в `app/characters/rules_5e.py` (правило 3), без I/O и без обращения к БД. Эта задача даёт движок и его юнит-тесты, ничего не подключая — так её можно ревьюить как математику, отдельно от API.
-**Скоуп:** словари `EFFECT_TARGETS`, `EFFECT_OPS`, `DAMAGE_TYPES`, `IGNORE_REASONS`; dataclass'ы `Modifier`, `AppliedModifier`, `EffectResolution`; функции `is_known_target`, `modifier_sort_key`, `resolve_numeric`, `resolve_roll_state`, `resolve_damage_state`, `effective_ability_scores`, `resolve_effects`. Девять операций: `set`, `bonus`, `override`, `armor_base`, `advantage`, `disadvantage`, `resistance`, `immunity`, `vulnerability`. Порядок разрешения числовой цели и правила гашения — по `ARCHITECTURE.md` §4.6.
+**Скоуп:** словари `EFFECT_TARGETS`, `EFFECT_OPS`, `DAMAGE_TYPES`, `IGNORE_REASONS`; dataclass'ы `Modifier`, `AppliedModifier`, `EffectResolution`; функции `is_known_target`, `modifier_sort_key`, `resolve_numeric`, `resolve_roll_state`, `resolve_damage_state`, `effective_ability_scores`, `resolve_effects`. Восемь операций: `set`, `bonus`, `armor_base`, `advantage`, `disadvantage`, `resistance`, `immunity`, `vulnerability` (`override` намеренно нет — она дублировала `set`). Порядок разрешения числовой цели и правила гашения — по `ARCHITECTURE.md` §4.6.
 **Обязательно учесть:**
 - `armor_base` несёт `dex_cap` — в боевом паке пять средних доспехов записаны как «12 + модификатор Ловкости (макс. 2)». Без потолка они посчитаются неверно;
 - пассивная внимательность считается из **уже разрешённого** `skill.perception`, а не из голой формулы: иначе `bonus` к навыку в неё не попадёт;
 - `set` не гасит последующие `bonus` (INT set 19 + bonus 1 = 20);
-- ручной `characters.ac_override` побеждает эффект-`override` и `armor_base` (BR §4.1 — игрок источник истины), проигравший уходит в trace с причиной `manual_ac_override`;
+- ручной `characters.ac_override` побеждает `armor_base` и `set` (BR §4.1 — игрок источник истины), проигравший уходит в trace с причиной `manual_ac_override`; бонусы поверх ручного КД применяются;
 - результат коммутативен, ничьи разбираются ключом `(source_kind, source_id, order)`;
 - каждый отброшенный модификатор попадает в `trace` с причиной из `IGNORE_REASONS`.
 `armor_class` и `level_up_available` сюда **не** входят: их выносит в `rules_5e` задача DND-091, которой они нужны раньше. Здесь их не дублировать.
