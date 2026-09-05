@@ -9,6 +9,7 @@ from app.characters.schemas import (
     CharacterEffectRead,
     CharacterEffectUpdate,
     CharacterListRead,
+    CharacterSheetRead,
     CharacterSpellRead,
     CharacterUpdate,
     InventoryEntryCreate,
@@ -50,6 +51,15 @@ async def get_character(
     _user=Depends(get_verified_user),
 ) -> CharacterDetailRead:
     return await CharacterService(db).get_detail(character_id, _user.id)
+
+
+@router.get("/characters/{character_id}/sheet", response_model=CharacterSheetRead)
+async def get_character_sheet(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> CharacterSheetRead:
+    return await CharacterService(db).get_sheet(character_id, _user.id)
 
 
 @router.patch("/characters/{character_id}", response_model=CharacterDetailRead)

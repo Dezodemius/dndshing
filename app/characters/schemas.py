@@ -298,6 +298,13 @@ class ComputedBlock(BaseModel):
     active_effects: list[ActiveEffectRead]
     effect_sources: dict[str, list[EffectSourceRead]]
 
+    # Spellcasting, all None for a non-caster. These are 5e formulas
+    # (8 + prof + ability, prof + ability), and code-style keeps 5e arithmetic
+    # off the frontend — so the sheet reads them rather than deriving them.
+    spellcasting_ability: str | None
+    spell_save_dc: int | None
+    spell_attack_bonus: int | None
+
 
 class InventoryEntryCreate(BaseModel):
     """Exactly one of item_id/custom_name must be set — BR US-11."""
@@ -352,6 +359,63 @@ class CharacterDetailRead(CharacterRead):
     computed: ComputedBlock
     inventory: list[InventoryEntryRead]
     spells: list[CharacterSpellRead]
+
+
+# --- printable sheet (US-15, DND-103) ---
+
+
+class SheetFeatureRead(BaseModel):
+    """One named feature on the sheet's "умения и способности" list."""
+
+    name: str
+    description: str | None = None
+    # Which class level unlocked it; None for race, subclass and background
+    # features, which are not tied to a level.
+    level: int | None = None
+
+
+class SheetItemRead(BaseModel):
+    id: int
+    name: str
+    type: str
+    weight: str | None = None
+
+
+class SheetSpellRead(BaseModel):
+    id: int
+    name: str
+    level: int
+    school: str
+
+
+class SheetContentRead(BaseModel):
+    """Everything the sheet needs from the reference tables, resolved.
+
+    The sheet would otherwise have to fetch the whole catalogue and filter
+    class features by level in the browser — which is a 5e rule, and rule 3
+    keeps those on the server.
+    """
+
+    race_name: str | None
+    class_name: str | None
+    subclass_name: str | None
+    background_name: str | None
+    hit_die: int | None
+    class_features: list[SheetFeatureRead]
+    race_traits: list[SheetFeatureRead]
+    subclass_features: list[SheetFeatureRead]
+    background_feature: SheetFeatureRead | None
+    languages: list[str]
+    tool_proficiencies: list[str]
+    armor_proficiencies: list[str]
+    weapon_proficiencies: list[str]
+    # Keyed by id so the sheet can look a row up without scanning.
+    items: dict[int, SheetItemRead]
+    spells: dict[int, SheetSpellRead]
+
+
+class CharacterSheetRead(CharacterDetailRead):
+    content: SheetContentRead
 
 
 class LevelUpRequest(BaseModel):
