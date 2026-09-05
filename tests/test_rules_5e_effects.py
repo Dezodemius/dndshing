@@ -409,3 +409,74 @@ def test_trace_records_every_modifier_it_was_given() -> None:
     reasons = {entry.modifier.target: entry.ignored_reason for entry in resolution.trace}
     assert reasons["ability.int"] is None
     assert reasons["ability.luck"] == "unknown_target"
+
+
+# --- trace bookkeeping for roll and damage ops ------------------------------
+# These verdicts drive the sheet's "why is this bonus not in my total?"
+# disclosure. Reporting an applied effect as ignored is a bug even when every
+# number is right, so each state gets a test.
+
+
+def _trace_for(target: str, modifiers: list[Modifier]) -> list[tuple[str, bool, str | None]]:
+    resolution = rules_5e.resolve_effects(
+        modifiers=modifiers, **BASE_CHARACTER  # type: ignore[arg-type]
+    )
+    return [
+        (entry.modifier.op, entry.applied, entry.ignored_reason)
+        for entry in resolution.trace
+        if entry.modifier.target == target
+    ]
+
+
+def test_applied_disadvantage_is_reported_as_applied() -> None:
+    # Regression: resolve_numeric used to mark every roll op on a skill
+    # "not_applicable", because a skill is also a numeric target. The sheet
+    # would then claim scale mail's stealth disadvantage was ignored.
+    assert _trace_for("skill.stealth", [Modifier("skill.stealth", "disadvantage")]) == [
+        ("disadvantage", True, None)
+    ]
+
+
+def test_cancelled_pair_is_reported_as_cancelled() -> None:
+    verdicts = _trace_for(
+        "skill.stealth",
+        [
+            Modifier("skill.stealth", "disadvantage", source_id=1),
+            Modifier("skill.stealth", "advantage", source_id=2),
+        ],
+    )
+
+    assert {reason for _, _, reason in verdicts} == {"cancelled_by_opposite"}
+    assert not any(applied for _, applied, _ in verdicts)
+
+
+def test_resistance_beaten_by_immunity_says_so() -> None:
+    verdicts = dict(
+        (op, reason)
+        for op, _, reason in _trace_for(
+            "damage.fire",
+            [
+                Modifier("damage.fire", "resistance", source_id=1),
+                Modifier("damage.fire", "immunity", source_id=2),
+            ],
+        )
+    )
+
+    assert verdicts["resistance"] == "superseded_by_immunity"
+    assert verdicts["immunity"] is None
+
+
+def test_a_skill_can_take_a_bonus_and_disadvantage_at_once() -> None:
+    verdicts = _trace_for(
+        "skill.stealth",
+        [
+            Modifier("skill.stealth", "bonus", 2, source_id=1),
+            Modifier("skill.stealth", "disadvantage", source_id=2),
+        ],
+    )
+
+    assert all(applied for _, applied, _ in verdicts)
+
+
+def test_every_roll_and_damage_reason_is_declared() -> None:
+    assert {"cancelled_by_opposite", "superseded_by_immunity"} <= rules_5e.IGNORE_REASONS
