@@ -116,8 +116,24 @@ def test_medium_armour_caps_the_dex_modifier() -> None:
     assert _value(12, [Modifier("ac", "armor_base", 12, dex_cap=2)], dex_modifier=3) == 14
 
 
-def test_heavy_armour_ignores_dex_through_a_zero_cap() -> None:
-    assert _value(12, [Modifier("ac", "armor_base", 16, dex_cap=0)], dex_modifier=3) == 16
+def test_heavy_armour_is_a_set_because_dex_never_applies() -> None:
+    # Plate is "AC 18", full stop. Expressing it as armor_base with a cap of 0
+    # looks equivalent but is not: min(-2, 0) is -2, so a Dexterity 6 character
+    # in plate would have come out at 16.
+    assert _value(12, [Modifier("ac", "set", 18)], dex_modifier=-2) == 18
+    assert _value(12, [Modifier("ac", "set", 18)], dex_modifier=5) == 18
+
+
+def test_medium_armour_still_takes_a_negative_dex_modifier() -> None:
+    # The counterpart to the rule above: the cap is an upper bound only.
+    # "14 + Dex (max 2)" at Dexterity 8 is 13, not 14.
+    assert _value(9, [Modifier("ac", "armor_base", 14, dex_cap=2)], dex_modifier=-1) == 13
+
+
+def test_armour_replaces_the_unarmored_calculation() -> None:
+    # 5e never hands out the better of "10 + Dex" and worn armour. Hide armour
+    # on a Dexterity 20 character is 14, even though unarmored would be 15.
+    assert _value(15, [Modifier("ac", "armor_base", 12, dex_cap=2)], dex_modifier=5) == 14
 
 
 def test_shield_stacks_on_top_of_armour() -> None:
@@ -136,10 +152,10 @@ def test_better_armour_wins_when_two_are_worn() -> None:
         12,
         [
             Modifier("ac", "armor_base", 11, source_id=1),
-            Modifier("ac", "armor_base", 16, dex_cap=0, source_id=2),
+            Modifier("ac", "armor_base", 14, dex_cap=2, source_id=2),
         ],
         dex_modifier=1,
-    ) == 16
+    ) == 15
 
 
 def test_manual_ac_beats_armour_effects() -> None:
