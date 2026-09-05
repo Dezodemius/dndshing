@@ -479,12 +479,17 @@ async def test_list_characters_level_up_flag_matches_detail(
     )
 
 
-async def test_list_characters_survives_missing_content_row(
+async def test_list_characters_survives_unresolvable_content_row(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    # Строка контента может исчезнуть между перезаливками пака. Висячая ссылка
-    # обязана отрисоваться пустой подписью, а не уронить список в 500.
-    from sqlalchemy import delete as sa_delete
+    # Имена резолвятся только среди строк локали "ru" (ARCHITECTURE §4.2), а
+    # характеристики персонажа ссылаются на строку по id без учёта локали.
+    # Значит ссылка может перестать резолвиться, не переставая быть валидной —
+    # и список обязан отрисовать пустую подпись, а не упасть.
+    #
+    # Удалением строки этот случай не воспроизвести: FK characters.race_id не
+    # даёт снести расу, на которую ссылается персонаж.
+    from sqlalchemy import update as sa_update
 
     from app.content.cache import content_cache
     from app.content.models import Race
@@ -492,12 +497,16 @@ async def test_list_characters_survives_missing_content_row(
     setup = await _player_setup(client, db_session, "dangling@example.com")
     await client.post(CHARACTERS_URL, json=_character_payload(setup), headers=setup["headers"])
 
-    await db_session.execute(sa_delete(Race).where(Race.id == setup["race_id"]))
+    await db_session.execute(
+        sa_update(Race).where(Race.id == setup["race_id"]).values(locale="en")
+    )
     await db_session.commit()
     content_cache.clear()
 
     response = await client.get(CHARACTERS_URL, headers=setup["headers"])
 
     assert response.status_code == 200, response.text
-    assert response.json()[0]["race_name"] is None
-    assert response.json()[0]["class_name"] == "Волшебник"
+    row = response.json()[0]
+    assert row["race_name"] is None
+    assert row["race_id"] == setup["race_id"]
+    assert row["class_name"] == "Волшебник"
