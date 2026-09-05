@@ -1,6 +1,15 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -90,4 +99,55 @@ class LevelUpRecord(Base):
     delta: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class CharacterEffect(Base):
+    """A temporary buff or debuff the player manages by hand (US-13).
+
+    Effects from equipped items live in items.data.effects and are read from
+    the content module; this table is only for the ones a player types in.
+
+    Nothing counts the duration down — AR decision 8 rules out real-time, so
+    duration_kind/duration_amount are a note to the player and is_active is the
+    switch. The CHECK constraints are repeated here so the model and the
+    migration cannot drift; `alembic revision --autogenerate` would otherwise
+    propose dropping them.
+    """
+
+    __tablename__ = "character_effects"
+    __table_args__ = (
+        CheckConstraint(
+            "duration_kind IN ('rounds', 'minutes', 'hours', 'until_short_rest',"
+            " 'until_long_rest', 'until_removed')",
+            name="ck_character_effects_duration_kind",
+        ),
+        CheckConstraint(
+            "duration_amount IS NULL OR duration_amount > 0",
+            name="ck_character_effects_duration_amount",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    character_id: Mapped[int] = mapped_column(
+        ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    source: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    modifiers: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    duration_kind: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="until_removed", server_default="until_removed"
+    )
+    duration_amount: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )

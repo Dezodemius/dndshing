@@ -87,6 +87,18 @@ class ItemRead(BaseModel):
     data: dict[str, Any]
 
 
+class ItemEffectsRead(BaseModel):
+    """An item's effect list, handed to the characters module unparsed.
+
+    `effects` is list[dict], not a typed model: the vocabulary of targets and
+    operations is a 5e rule and belongs to app/characters/rules_5e.py (rule 3).
+    Typing it here would fork that vocabulary into the content module."""
+
+    id: int
+    name: str
+    effects: list[dict[str, Any]]
+
+
 class BackgroundRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -83,3 +83,21 @@ class InsufficientInventoryQuantityError(AppError):
     code = "insufficient_inventory_quantity"
     message = "На складе персонажа недостаточно этого предмета"
     status_code = 400
+
+
+class EffectNotFoundError(AppError):
+    code = "effect_not_found"
+    message = "Эффект не найден"
+    status_code = 404
+
+
+class EffectInvalidModifierError(AppError):
+    code = "effect_invalid_modifier"
+    message = "Некорректный модификатор эффекта"
+    status_code = 400
+
+
+class TooManyEffectsError(AppError):
+    code = "too_many_effects"
+    message = "Слишком много эффектов у персонажа — удалите ненужные"
+    status_code = 400
