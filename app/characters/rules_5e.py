@@ -164,6 +164,8 @@ IGNORE_REASONS: frozenset[str] = frozenset(
         "overridden_by_higher_base",
         "suppressed_by_stack_group",
         "manual_ac_override",
+        "cancelled_by_opposite",
+        "superseded_by_immunity",
     }
 )
 
@@ -305,7 +307,12 @@ def resolve_numeric(
                 applied_dex = min(applied_dex, modifier.dex_cap)
             base_candidates.append(((modifier.value or 0) + applied_dex, modifier))
         else:
-            trace.append(AppliedModifier(modifier, False, "not_applicable"))
+            # A roll or damage op on a target that is also numeric — stealth
+            # can take both a +1 and disadvantage. It is not this function's
+            # business, and resolve_effects records it with the right verdict;
+            # marking it "not_applicable" here would tell the player an
+            # effect that IS applied was ignored.
+            continue
 
     if base_is_manual:
         # BR §4.1: a value the player typed in wins over anything an item says.
@@ -487,15 +494,37 @@ def resolve_effects(
 
     advantage: dict[str, str] = {}
     for target in sorted(ROLL_TARGETS):
-        state = resolve_roll_state([m for m in buckets.get(target, []) if m.op in ROLL_OPS])
+        entries = [m for m in buckets.get(target, []) if m.op in ROLL_OPS]
+        state = resolve_roll_state(entries)
         if state != "normal":
             advantage[target] = state
+        # Record the verdict per modifier: whoever matches the resolved state
+        # applied, the rest were cancelled by their opposite.
+        for modifier in sorted(entries, key=modifier_sort_key):
+            reason = modifier_shape_error(modifier)
+            if reason is not None:
+                trace.append(AppliedModifier(modifier, False, reason))
+            elif modifier.op == state:
+                trace.append(AppliedModifier(modifier, True, None))
+            else:
+                trace.append(AppliedModifier(modifier, False, "cancelled_by_opposite"))
 
     damage: dict[str, str] = {}
     for target in sorted(DAMAGE_TARGETS):
-        state = resolve_damage_state(buckets.get(target, []))
+        entries = buckets.get(target, [])
+        state = resolve_damage_state(entries)
         if state is not None:
             damage[target] = state
+        for modifier in sorted(entries, key=modifier_sort_key):
+            reason = modifier_shape_error(modifier)
+            if reason is not None:
+                trace.append(AppliedModifier(modifier, False, reason))
+            elif modifier.op == state:
+                trace.append(AppliedModifier(modifier, True, None))
+            elif state == "immunity":
+                trace.append(AppliedModifier(modifier, False, "superseded_by_immunity"))
+            else:
+                trace.append(AppliedModifier(modifier, False, "cancelled_by_opposite"))
 
     # Passive perception is 10 + the Perception *check* modifier, so it is
     # built from the already-resolved skill: a cloak granting +2 to Perception
