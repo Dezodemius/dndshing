@@ -106,7 +106,51 @@ class CharacterRead(BaseModel):
     updated_at: datetime
 
 
+class ResolvedModifierRead(BaseModel):
+    """One modifier as it ended up: applied, or dropped with a reason the UI
+    can translate (`rules_5e.IGNORE_REASONS`)."""
+
+    target: str
+    op: str
+    value: int | None
+    applied: bool
+    ignored_reason: str | None
+
+
+class ActiveEffectRead(BaseModel):
+    """Everything one source contributed, so the sheet can list effects by the
+    item or effect they came from."""
+
+    source_kind: Literal["item", "effect"]
+    source_id: int
+    name: str
+    modifiers: list[ResolvedModifierRead]
+
+
+class EffectSourceRead(BaseModel):
+    """The inverse view: who contributed to one target. Drives the "откуда
+    бонус" disclosure next to a number on the sheet."""
+
+    source_kind: Literal["item", "effect"]
+    source_id: int
+    name: str
+    op: str
+    value: int | None
+    applied: bool
+    ignored_reason: str | None
+
+
 class ComputedBlock(BaseModel):
+    """Derived numbers for the sheet. The pre-existing fields keep their names
+    and types but now carry *effective* values — what the character actually
+    has with equipped items and active effects applied. Consumers that already
+    read `ac` or `skills` keep working and simply start telling the truth.
+
+    The `base_*` fields exist for the places that must show the unmodified
+    number: the ASI step of the level-up wizard raises the base score, so
+    showing 19 there when the base is 10 would mislead the player into
+    thinking a +1 takes them to 20."""
+
     prof_bonus: int
     modifiers: dict[str, int]
     saving_throws: dict[str, int]
@@ -119,6 +163,18 @@ class ComputedBlock(BaseModel):
     xp_next_threshold: int | None
     level_up_available: bool
     spell_slots: dict[str, Any]
+
+    base_ability_scores: dict[str, int]
+    effective_ability_scores: dict[str, int]
+    base_modifiers: dict[str, int]
+    speed_effective: int
+    hp_max_effective: int
+    # Keyed by full target ("save.dex", "damage.fire") so the frontend needs
+    # one key parser rather than one per map.
+    advantage: dict[str, str]
+    damage_modifiers: dict[str, str]
+    active_effects: list[ActiveEffectRead]
+    effect_sources: dict[str, list[EffectSourceRead]]
 
 
 class InventoryEntryCreate(BaseModel):
