@@ -9,6 +9,7 @@ import * as campaignsApi from '../../api/campaigns'
 import * as charactersApi from '../../api/characters'
 import { ApiError } from '../../api/client'
 import type { CharacterSummary } from '../../api/characters'
+import { makeCharacterSummary } from '../../test/fixtures'
 
 vi.mock('../../api/campaigns', async () => {
   const actual = await vi.importActual<typeof import('../../api/campaigns')>('../../api/campaigns')
@@ -27,8 +28,8 @@ vi.mock('../../api/characters', async () => {
 })
 
 const characters: CharacterSummary[] = [
-  { id: 1, name: 'Ари', level: 3, gold: 15, silver: 0, copper: 0 },
-  { id: 2, name: 'Бором', level: 5, gold: 40, silver: 5, copper: 0 },
+  makeCharacterSummary({ id: 1, name: 'Ари', level: 3, gold: 15 }),
+  makeCharacterSummary({ id: 2, name: 'Бором', level: 5, gold: 40, silver: 5 }),
 ]
 
 function renderPage() {
