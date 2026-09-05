@@ -41,6 +41,10 @@ EPIC_OPTION = {
     "epic:us-7": "US-7 + US-10 · Торговцы",
     "epic:us-10": "US-7 + US-10 · Торговцы",
     "epic:e9": "E9 · Релиз",
+    "epic:us-13": "US-13 · Эффекты и бафы",
+    "epic:us-14": "US-14 · Хоумбрю-заклинания",
+    "epic:us-15": "US-15 · Лист персонажа и печать",
+    "epic:e10": "E10 · Навигация и дашборд",
 }
 # First match wins: a task labelled backend+docs is a backend task.
 AREA_ORDER = ["infra", "frontend", "backend", "docs"]

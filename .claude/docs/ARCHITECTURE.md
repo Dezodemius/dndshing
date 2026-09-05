@@ -19,8 +19,8 @@
 | 7 | Auth | Email+пароль (с верификацией почты) + OAuth: Яндекс, VK ID, Mail.ru |
 | 8 | Real-time | Нет. WebSocket/SignalR исключены — сайт «до и после игры» |
 | 9 | Игровая система | Только D&D 5e. Механики зашиты в код, контент — данные в БД |
-| 10 | Контент | Загружает админ импортом JSON через защищённый эндпоинт. Хоумбрю мастеров — фаза 2 |
-| 11 | Лист персонажа | Полуручной: базовые расчёты автоматом (модификаторы, проф-бонус), фичи/описания текстом. Система бафов/эффектов — не в MVP |
+| 10 | Контент | Загружает админ импортом JSON через защищённый эндпоинт. Хоумбрю мастеров — фаза 2, кроме заклинаний игрока (§4.7) |
+| 11 | Лист персонажа | Полуручной: базовые расчёты автоматом (модификаторы, проф-бонус), фичи/описания текстом. Эффекты надетых предметов и временные бафы учитываются в `computed` (§4.6). Печатная вёрстка листа — 4 страницы A4 (§4.8) |
 | 12 | Источник истины | Игрок сам редактирует свой лист, включая XP и деньги. Защиты от читерства нет, кроме UX-барьеров на странице торговца |
 | 13 | Прокачка | Level-up хранится дельтами; откат уровня обязателен |
 | 14 | Мультикласс | Нет в MVP. Схема данных не должна его блокировать |
@@ -40,7 +40,9 @@
 
 **Входит:** регистрация/вход, CRUD персонажа с полуавтоматическим листом, прокачка с откатом, инвентарь, книга заклинаний, кошелёк, кампании-визитки с инвайтом, торговцы с покупкой/продажей, импорт контента, мобильная вёрстка листа.
 
-**Не входит (фаза 2+):** AI-генераторы, лог транзакций и CRM-аналитика, хоумбрю-контент мастеров, система эффектов/бафов, мультикласс, автоконвертация валют, коэффициенты скупки, мультиязычность, квесты/сессии/карты мира, монетизация.
+**Не входит (фаза 2+):** AI-генераторы, лог транзакций и CRM-аналитика, хоумбрю-контент мастеров (кроме заклинаний игрока), мультикласс, автоконвертация валют, коэффициенты скупки, мультиязычность, квесты/сессии/карты мира, монетизация.
+
+Перенесено в MVP решением владельца от 2026-09-05: система эффектов/бафов от предметов (§4.6), хоумбрю-заклинания игрока (§4.7), печатный лист персонажа с портретом (§4.8).
 
 Критерий готовности MVP: заказчик ведёт одну реальную кампанию (5 игроков) полностью в системе — игроки создали персонажей по загруженному контенту, прокачались после сессии, закупились у торговца.
 
@@ -146,6 +148,53 @@ Delta фиксирует всё, что изменил level-up:
 
 UX-барьер против читерства: страница `/shop/{code}` не содержит ни одной ссылки на редактирование листа; кошелёк на ней read-only; при уходе со страницы корзина/сессия торговли сбрасывается с предупреждением.
 
+### 4.6 Эффекты и модификаторы (US-13)
+
+Атом движка — **модификатор**: `{target, op, value?, dex_cap?, stack_group?, note?}`.
+
+- `target` — из закрытого словаря: `ability.{str,dex,con,int,wis,cha}`, `ac`, `speed`, `initiative`, `hp_max`, `passive_perception`, `save.{ability}`, `skill.{слаг}`, `attack`, `death_save`, `damage.{тип}`.
+- `op` — одна из девяти операций: `set`, `bonus`, `override`, `armor_base`, `advantage`, `disadvantage`, `resistance`, `immunity`, `vulnerability`.
+- `value` обязателен для `set | bonus | override | armor_base` и запрещён для остальных.
+- `dex_cap` допустим только при `armor_base` (средние доспехи: «12 + модификатор Ловкости (макс. 2)»).
+- `stack_group` — необязательная метка «не складывается само с собой».
+
+Источников два: `items.data.effects` у справочных предметов (применяются, только когда запись инвентаря `equipped = true`) и таблица `character_effects` для временных бафов и дебафов, которые игрок заводит и выключает руками.
+
+**Порядок разрешения одной числовой цели:** база → `armor_base` (побеждает наибольшая база; к ней прибавляется модификатор Ловкости, зажатый `dex_cap`) → `override` (наибольший) → `set` (наибольший; гасит базу и `override`, но **не** гасит бонусы) → сумма `bonus` (внутри одного `stack_group` остаётся один, с наибольшим `abs(value)`) → зажим по цели: `ability.*` в 1..30, `speed` ≥ 0, `hp_max` ≥ 1, `ac` ≥ 0.
+
+Правило «побеждает наибольший `set`» — это RAW 5e: «ваш Интеллект становится 19» не срабатывает, если он уже выше. Следствие: понижающий эффект нельзя выразить через `set`, его оформляют как `bonus` с отрицательным значением.
+
+**Преимущество и помеха** на одну цель взаимно гасятся до `normal`; дубли не усиливают. Преимущество на `skill.perception` даёт +5 к пассивной внимательности, помеха −5. **Пассивная внимательность считается из уже разрешённого `skill.perception`**, иначе бонус к навыку в неё не попадёт.
+
+**Урон:** `immunity` бьёт всё; `resistance` и `vulnerability` взаимно гасятся; дубли одного вида не удваиваются.
+
+Разрешение коммутативно — результат не зависит от порядка входного списка; ничьи разбираются детерминированным ключом `(source_kind, source_id, order)`.
+
+**Инвариант: движок read-only по отношению к модели персонажа.** Колонки `ability_scores`, `hp_max`, `speed`, `ac_override` — это база; эффекты живут только в `computed`, в `delta` уровня не попадают и при откате не трогаются. Поэтому ASI прибавляется к базе, а хиты на уровне начисляются по **базовому** Телосложению, даже если надет пояс «Телосложение = 19».
+
+Вся арифметика — чистые функции в `app/characters/rules_5e.py` (правило 3). Сервис только собирает модификаторы и раскладывает результат по `computed`. Валидация модификатора — в сервисе, а не в Pydantic-схеме: иначе ошибка ушла бы дефолтным 422 мимо формата `{error:{code,message}}`.
+
+### 4.7 Хоумбрю-заклинания (US-14)
+
+- **HomebrewSpell**: id, owner_user_id, name, level (0–9), school, casting_time, range, components, duration, description, created_at, updated_at. `UNIQUE(owner_user_id, name)`.
+- **CharacterHomebrewSpell**: character_id, homebrew_spell_id, prepared. PK — пара.
+
+Отдельная таблица, а не колонка в `spells`: импорт контент-пака — upsert по slug, и пользовательская строка с совпавшим слагом была бы молча перезаписана вместе со своими `spell_classes`. Плюс `/content/spells` кэшируется без разреза по пользователю — одна забытая `WHERE` отдала бы чужой контент всем.
+
+Хоумбрю не привязано к списку классов: проверка `spell_ids_on_class_list` применяется только к справочным `spell_id`, для своих заклинаний вместо неё — проверка владения. Чужое заклинание — 404, не 403.
+
+В дельте уровня хоумбрю едет отдельным ключом: `homebrew_spells_learned: [{id, name}]` — `id` для отката, `name` чтобы история читалась даже после удаления заклинания. Записи без этого ключа (созданные раньше) откатываются как прежде.
+
+### 4.8 Печатный лист персонажа (US-15)
+
+Лист — 4 страницы A4 в вёрстке привычного бумажного листа: (1) характеристики, спасброски, навыки, бой, хиты, снаряжение, черты; (2) внешность, портрет, предыстория, цели, союзники, сокровища; (3) тексты умений от класса и расы; (4) заклинания со счётчиками ячеек.
+
+**Один источник вёрстки.** Тот же React-компонент работает на экране (редактируемый), на печати (`@page A4`, геометрия в миллиметрах) и на мобиле (одноколоночный reflow). Второй разметки под PDF не заводится: тест «печать соответствует экрану» имеет смысл только при одном источнике. Сохранение в файл — через диалог печати браузера.
+
+**Валют на листе три** — ЗМ, СМ, ММ. Ячеек электрума и платины из бумажного оригинала нет вовсе (решение 15 и правило 4): пустая ячейка «ЭМ» — это прямая дорога к автоконвертации из фазы 2.
+
+**Портрет** — таблица `character_portraits` 1:1 с персонажем, BYTEA, до 512 КиБ, тип определяется по магическим байтам файла, а не по заголовку запроса; SVG запрещён.
+
 ---
 
 ## 5. Схема БД (сводно)
@@ -166,10 +215,23 @@ backgrounds(id PK, slug, locale, name, data JSONB, UQ(slug, locale))
 characters(id PK, user_id FK, name, race_id FK, class_id FK, subclass_id FK?, background_id FK?,
            alignment, level, xp, ability_scores JSONB, hp_max, hp_current, hp_temp,
            ac_override?, speed, proficiencies JSONB, appearance TEXT, backstory TEXT, notes TEXT,
-           gold, silver, copper, created_at, updated_at)
+           gold, silver, copper, created_at, updated_at,
+           -- US-15, миграция 0011:
+           player_name?, age?, height?, weight?, inspiration, hit_dice_spent,
+           death_save_successes, death_save_failures, attacks JSONB, spell_slots_spent JSONB,
+           personality_traits TEXT?, ideals TEXT?, bonds TEXT?, flaws TEXT?,
+           goals TEXT?, allies TEXT?, feats TEXT?, extra_features TEXT?, treasures TEXT?)
 character_spells(character_id FK, spell_id FK, prepared, PK(character_id, spell_id))
 inventory_entries(id PK, character_id FK, item_id FK?, custom_name?, quantity, equipped)
 level_up_records(id PK, character_id FK, from_level, to_level, delta JSONB, created_at)
+character_effects(id PK, character_id FK, name, source?, description?, modifiers JSONB,
+                  is_active, duration_kind, duration_amount?, created_at, updated_at)
+character_portraits(character_id PK/FK, content_type, byte_size, data BYTEA, updated_at)
+homebrew_spells(id PK, owner_user_id FK, name, level, school, casting_time, range,
+                components, duration, description, created_at, updated_at,
+                UQ(owner_user_id, name))
+character_homebrew_spells(character_id FK, homebrew_spell_id FK, prepared,
+                          PK(character_id, homebrew_spell_id))
 
 campaigns(id PK, dm_user_id FK, name, description, next_session_at?, next_session_place?, invite_code UQ)
 campaign_characters(campaign_id FK, character_id FK, joined_at, PK(campaign_id, character_id))
@@ -179,6 +241,8 @@ merchant_items(id PK, merchant_id FK, item_id FK, price_g?, price_s?, price_c?, 
 ```
 
 Миграции — Alembic с первого дня. Денормализации нет; на 1000 пользователей индексов по FK и UQ достаточно.
+
+**Номера ревизий закреплены заранее** (задачи DND-094…DND-107 ведутся в параллельных ветках, и четыре миграции от одной базы дали бы четыре головы Alembic): `0009` — `character_effects`, `0010` — хоумбрю-заклинания, `0011` — поля листа персонажа, `0012` — `character_portraits`. Каждая указывает предыдущую как `down_revision`; мержить в этом порядке.
 
 ---
 
@@ -225,8 +289,40 @@ DELETE /characters/{id}/inventory/{entry_id}
 {"computed": {"prof_bonus": 3, "modifiers": {"str": 2}, "ac": 16,
   "initiative": 1, "passive_perception": 13, "xp_to_next": 5000,
   "xp_level_floor": 6500, "xp_next_threshold": 14000,
-  "level_up_available": false, "spell_slots": {"1": 4, "2": 3}}}
+  "level_up_available": false, "spell_slots": {"1": 4, "2": 3},
+
+  "base_ability_scores": {"int": 10}, "effective_ability_scores": {"int": 19},
+  "speed_effective": 30, "hp_max_effective": 38,
+  "advantage": {"save.dex": "advantage"},
+  "damage_modifiers": {"damage.fire": "resistance"},
+  "active_effects": [{"source_kind": "item", "source_id": 12,
+                      "name": "Головной убор интеллекта",
+                      "modifiers": [{"target": "ability.int", "op": "set",
+                                     "value": 19, "applied": true}]}],
+  "effect_sources": {"ability.int": [{"source_kind": "item", "source_id": 12,
+                                      "name": "Головной убор интеллекта",
+                                      "op": "set", "value": 19, "applied": true}]}}}
 ```
+
+### Effects, homebrew spells, sheet (US-13/14/15)
+```
+GET    /characters/{id}/effects                 временные эффекты персонажа
+POST   /characters/{id}/effects                 создать
+PATCH  /characters/{id}/effects/{effect_id}     изменить (в т.ч. is_active)
+DELETE /characters/{id}/effects/{effect_id}
+
+GET    /homebrew/spells · POST /homebrew/spells
+GET|PATCH|DELETE /homebrew/spells/{spell_id}
+
+GET    /characters/{id}/sheet                   лист + блок content для печати
+PUT    /characters/{id}/portrait                multipart, ≤512 КиБ, jpeg|png|webp
+GET    /characters/{id}/portrait
+DELETE /characters/{id}/portrait
+```
+
+`PUT /characters/{id}/spells` принимает записи вида `{spell_id}` **или** `{homebrew_spell_id}` — ровно одно из двух; обе формы несут `prepared`.
+
+`GET /characters/{id}/sheet` отдаёт лист вместе с блоком `content`: имена расы, класса, подкласса и фона, тексты умений до текущего уровня, карточки только тех предметов и заклинаний, что есть у персонажа. Так фронт не фильтрует фичи по уровню и не тянет весь справочник ради печати.
 
 ### Campaigns
 ```
@@ -247,7 +343,7 @@ POST /shop/{share_code}/buy             {character_id, merchant_item_id, quantit
 POST /shop/{share_code}/sell            {character_id, inventory_entry_id, quantity}
 ```
 
-Ошибки — единый формат `{error: {code, message}}`; коды бизнес-ошибок: `insufficient_funds`, `out_of_stock`, `not_your_character`, `shop_closed`, `level_up_not_available`, `rollback_empty`.
+Ошибки — единый формат `{error: {code, message}}`; коды бизнес-ошибок: `insufficient_funds`, `out_of_stock`, `not_your_character`, `shop_closed`, `level_up_not_available`, `rollback_empty`, `effect_not_found`, `effect_invalid_modifier`, `too_many_effects`, `homebrew_spell_not_found`, `homebrew_spell_name_taken`, `spell_selection_invalid`, `portrait_too_large`, `portrait_unsupported_type`.
 
 ---
 
@@ -260,12 +356,18 @@ React 18 + TypeScript + Vite. Состояние сервера — TanStack Que
 ```
 /                       Лендинг (единственная публичная страница кроме витрины)
 /login                  Вход через OAuth (Яндекс/VK) — регистрация тем же действием; /register и /verify редиректят сюда
-/app                    Дашборд: мои персонажи, мои кампании, мои торговцы
+/app                    Дашборд: бенто-грид — персонажи, кампании, торговцы одной доской
+/app/characters         Вкладка «Персонажи»: та же доска, только персонажи
+/app/campaigns          Вкладка «Кампании»
+/app/merchants          Вкладка «Торговцы»
 /app/characters/new     Мастер создания: раса → класс → характеристики (point buy /
                         standard array / броски / вручную) → фон → детали
 /app/characters/{id}    Лист персонажа (главный экран, mobile-first):
-                        табы: Лист · Заклинания · Инвентарь · Кошелёк · История уровней
+                        табы: Лист · Заклинания · Инвентарь · Эффекты · Кошелёк · История уровней
+/app/characters/{id}/sheet       Лист в бумажной вёрстке: 4 страницы A4, редактируемый,
+                        печатается и сохраняется в PDF через диалог печати браузера
 /app/characters/{id}/level-up    Пошаговый визард (стиль BG3: «что нового на уровне N»)
+/app/homebrew/spells    Библиотека своих заклинаний: список, создание, правка, удаление
 /app/campaigns/{id}     DM: игра (дата, место), список персонажей → read-only листы
 /app/campaigns/join     Ввод инвайт-кода + выбор персонажа
 /app/merchants/{id}     Конструктор торговца: карточка + позиции + ссылка для игроков
@@ -275,6 +377,10 @@ React 18 + TypeScript + Vite. Состояние сервера — TanStack Que
 ```
 
 Мобильный приоритет: лист персонажа и витрина (игроки за столом с телефонами). Конструкторы мастера — desktop-first.
+
+Вкладки «Персонажи / Кампании / Торговцы» живут в верхней панели и видны только залогиненному; гость видит «Главная» и «Вход». На витрине `/shop/{code}` вкладки кабинета скрыты — иначе UX-барьер «ни одной ссылки на редактирование листа» нарушается прямо из шапки.
+
+Экран `/app/characters/{id}/sheet` рендерится вне общей шапки приложения и в светлой «бумажной» палитре — единственное исключение из тёмной темы, зафиксированное в `.claude/skills/ux-convention.md`.
 
 i18n: все строки через словарь (i18next), в MVP один locale `ru`.
 
@@ -320,7 +426,7 @@ i18n: все строки через словарь (i18next), в MVP один l
 8. Торговцы: конструктор, витрина, покупка/продажа.
 9. Лендинг, полировка, security-аудит, прод-деплой.
 
-**Фаза 2 (после обкатки на живой кампании):** лог транзакций + CRM мастера, автоконвертация валют, коэффициент скупки, хоумбрю-контент, AI-генераторы (NPC, персонажи) через конфигурируемый endpoint, система эффектов equipped-предметов, мультиязычность.
+**Фаза 2 (после обкатки на живой кампании):** лог транзакций + CRM мастера, автоконвертация валют, коэффициент скупки, хоумбрю-контент (расы, классы, предметы, фоны), AI-генераторы (NPC, персонажи) через конфигурируемый endpoint, мультиязычность.
 
 ---
 
