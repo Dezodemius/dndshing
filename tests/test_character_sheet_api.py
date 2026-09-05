@@ -101,6 +101,7 @@ def _content_pack() -> dict:
                 "range": "36 метров",
                 "components": "В, С",
                 "duration": "Мгновенная",
+                "description": "Метает сгусток огня.",
                 "classes": ["wizard"],
             }
         ],
