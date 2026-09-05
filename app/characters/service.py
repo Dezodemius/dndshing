@@ -321,7 +321,13 @@ class CharacterService:
         if asi:
             ability_scores = dict(character.ability_scores or {})
             for ability, increase in asi.items():
-                ability_scores[ability] = ability_scores.get(ability, 10) - increase
+                # Floor at 1, the same guard hp_current gets below. Scores are
+                # editable by PATCH (BR §4.1 — the player owns their sheet), so
+                # someone can lower a score between the level-up and its
+                # rollback; subtracting blindly would then push it below the
+                # 1..30 range AbilityScores validates on the way in, and
+                # CharacterRead would hand back a 0 or a negative.
+                ability_scores[ability] = max(ability_scores.get(ability, 10) - increase, 1)
             character.ability_scores = ability_scores
 
         if delta.get("subclass_chosen"):
@@ -348,6 +354,13 @@ class CharacterService:
         # of the negatives, which no other code path can produce.
         character.hp_current = max(character.hp_current - hp_gained, 0)
         character.level = record.from_level
+
+        # Hit dice are one per level, so dropping a level can leave more spent
+        # than the character now has. Same shape as the hp_current floor above:
+        # clamp rather than let the sheet show 4 of 3 spent.
+        character.hit_dice_spent = min(
+            character.hit_dice_spent, rules_5e.hit_dice_total(character.level)
+        )
 
         await self._db.delete(record)
 

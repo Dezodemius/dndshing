@@ -589,3 +589,20 @@ def resolve_effects(
         damage=damage,
         trace=tuple(trace),
     )
+
+
+def hit_dice_total(level: int) -> int:
+    """A character has one hit die per level, so the sheet's "total" box is
+    just the level. Named anyway: the sheet should read a rule, not restate
+    one, and multiclassing (out of scope) would change it here."""
+    return level
+
+
+def spell_save_dc(prof_bonus: int, ability_modifier_value: int) -> int:
+    """PHB: 8 + proficiency bonus + spellcasting ability modifier."""
+    return 8 + prof_bonus + ability_modifier_value
+
+
+def spell_attack_bonus(prof_bonus: int, ability_modifier_value: int) -> int:
+    """PHB: proficiency bonus + spellcasting ability modifier."""
+    return prof_bonus + ability_modifier_value
