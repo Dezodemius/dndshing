@@ -5,6 +5,9 @@ from app.auth.dependencies import get_verified_user
 from app.characters.schemas import (
     CharacterCreate,
     CharacterDetailRead,
+    CharacterEffectCreate,
+    CharacterEffectRead,
+    CharacterEffectUpdate,
     CharacterListRead,
     CharacterSpellRead,
     CharacterUpdate,
@@ -147,3 +150,51 @@ async def update_spells(
     _user=Depends(get_verified_user),
 ) -> list[CharacterSpellRead]:
     return await CharacterService(db).update_spells(character_id, _user.id, payload)
+
+
+@router.get("/characters/{character_id}/effects", response_model=list[CharacterEffectRead])
+async def list_effects(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> list[CharacterEffectRead]:
+    return await CharacterService(db).list_effects(character_id, _user.id)
+
+
+@router.post(
+    "/characters/{character_id}/effects",
+    response_model=CharacterEffectRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_effect(
+    character_id: int,
+    payload: CharacterEffectCreate,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> CharacterEffectRead:
+    return await CharacterService(db).create_effect(character_id, _user.id, payload)
+
+
+@router.patch(
+    "/characters/{character_id}/effects/{effect_id}", response_model=CharacterEffectRead
+)
+async def update_effect(
+    character_id: int,
+    effect_id: int,
+    payload: CharacterEffectUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> CharacterEffectRead:
+    return await CharacterService(db).update_effect(character_id, effect_id, _user.id, payload)
+
+
+@router.delete(
+    "/characters/{character_id}/effects/{effect_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_effect(
+    character_id: int,
+    effect_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> None:
+    await CharacterService(db).delete_effect(character_id, effect_id, _user.id)
