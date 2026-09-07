@@ -128,6 +128,9 @@ export default function CharacterSheetPage() {
       <header className="character-sheet__header">
         <h1>{character.name}</h1>
         <p>{t('pages.characterSheet.levelLabel', { level: character.level })}</p>
+        <Link to={`/app/characters/${characterId}/sheet`}>
+          {t('pages.characterSheet.printableLink')}
+        </Link>
       </header>
 
       <div

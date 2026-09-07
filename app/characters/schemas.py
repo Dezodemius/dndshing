@@ -284,6 +284,7 @@ class ComputedBlock(BaseModel):
     xp_level_floor: int
     xp_next_threshold: int | None
     level_up_available: bool
+    hit_dice_total: int
     spell_slots: dict[str, Any]
 
     base_ability_scores: dict[str, int]
