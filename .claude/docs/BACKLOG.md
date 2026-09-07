@@ -441,7 +441,7 @@ depends: DND-096
 labels: epic:us-14, backend
 depends: DND-090
 
-**Скоуп:** миграция `0010` (down_revision `0009`) с таблицами `homebrew_spells` и `character_homebrew_spells`; модели в `app/characters/models.py`; схемы `HomebrewSpellCreate/Update`, `HomebrewSpellRead` (тело) и `HomebrewSpellLibraryRead` (тело + `in_use_by`); `HomebrewSpellService` с `_get_owned` как единственной точкой проверки владения; пять эндпоинтов `/homebrew/spells`; рейт-лимит на создание.
+**Скоуп:** миграция `0012` (down_revision `0011`) с таблицами `homebrew_spells` и `character_homebrew_spells`; модели в `app/characters/models.py`; схемы `HomebrewSpellCreate/Update`, `HomebrewSpellRead` (тело) и `HomebrewSpellLibraryRead` (тело + `in_use_by`); `HomebrewSpellService` с `_get_owned` как единственной точкой проверки владения; пять эндпоинтов `/homebrew/spells`; рейт-лимит на создание.
 **Обязательно учесть:**
 - **две схемы чтения, а не одна.** `in_use_by` — агрегат «в скольких книгах используется», он нужен только списку библиотеки. Если положить его в схему, которая едет в `CharacterDetailRead`, агрегат будет считаться на каждом открытии листа и на каждом просмотре мастером;
 - `owner_user_id` не отдавать в теле, которое попадает в лист персонажа: мастер через `get_detail_by_id` получил бы чужой id без нужды;
@@ -489,7 +489,7 @@ labels: epic:us-15, backend
 depends: DND-090
 
 **Контекст:** эталонный лист (4 страницы A4) содержит примерно вдвое больше полей, чем есть в модели. Эта задача добавляет данные, не трогая вёрстку.
-**Скоуп:** миграция `0011` (down_revision `0010`) — колонки `player_name`, `age`, `height`, `weight`, `inspiration`, `hit_dice_spent`, `death_save_successes`, `death_save_failures`, `attacks` JSONB, `spell_slots_spent` JSONB, `personality_traits`, `ideals`, `bonds`, `flaws`, `goals`, `allies`, `feats`, `extra_features`, `treasures`; расширение `CharacterUpdate`/`CharacterRead`; `rules_5e.hit_dice_total`, `spell_save_dc`, `spell_attack_bonus`; ключ `proficiencies.armor/weapons/resistances` (без миграции — JSONB).
+**Скоуп:** миграция `0010` (down_revision `0009`) — колонки `player_name`, `age`, `height`, `weight`, `inspiration`, `hit_dice_spent`, `death_save_successes`, `death_save_failures`, `attacks` JSONB, `spell_slots_spent` JSONB, `personality_traits`, `ideals`, `bonds`, `flaws`, `goals`, `allies`, `feats`, `extra_features`, `treasures`; расширение `CharacterUpdate`/`CharacterRead`; `rules_5e.hit_dice_total`, `spell_save_dc`, `spell_attack_bonus`; ключ `proficiencies.armor/weapons/resistances` (без миграции — JSONB).
 **Обязательно учесть:**
 - **`proficiencies` в схемах чтения остаётся `dict[str, Any]`.** Типизированная модель с `extra="forbid"` в `CharacterRead` уронит 500 на любой существующей строке с посторонним ключом — она валидирует данные из БД, а не вход;
 - рост и вес — строками: в эталоне «74» и «46» без единиц, игроки пишут и «1,74 м», и «74 кг»;
@@ -509,7 +509,7 @@ depends: DND-102
 **Обязательно учесть:**
 - **не менять сигнатуру `ContentQueryService.get_spells_by_ids`** — фильтр по классу в ней защищает `level_up`. Нужен отдельный метод;
 - все новые запросы к контенту завернуть в `content_cache`, как весь остальной read-слой; `_compute` не должен получить некэшированный запрос на каждый GET листа;
-- у мастера переиспользовать существующую семантику доступа (`403 campaign_dm_access_required` для не-DM, `404` для неприсоединённого персонажа), а не изобретать свою: иначе разойдётся с уже написанным тестом.
+- у мастера переиспользовать существующую семантику доступа, а не изобретать свою. **Она не та, что была тут написана раньше:** аудит безопасности удалил `CampaignDmAccessRequiredError`, потому что 403 сообщал любому залогиненному пользователю, какие id кампаний существуют. Сейчас `get_character_for_dm` зовёт `get_owned`, и чужая кампания отдаёт `404 campaign_not_found`; неприсоединённый персонаж — `404 campaign_character_not_found`.
 **Приёмка:** лист чужого персонажа → 404; мастер видит лист присоединённого персонажа; не-DM → 403; персонаж вне кампании → 404; блок `content` содержит только те карточки, что реально нужны листу; число запросов к БД на один вызов зафиксировано тестом.
 
 ### DND-104 · Редактируемый лист, страницы 1–3
@@ -534,7 +534,8 @@ depends: DND-104
 **Скоуп:** страница 4 эталона — класс заклинателя, базовая характеристика заклинаний, сложность спасброска, бонус атаки, заговоры и уровни 1–9 со счётчиками «всего / потрачено»; кнопка «Скачать PDF» (`window.print()`); `spell_slots_spent` редактируется прямо на странице.
 **Обязательно учесть:**
 - «Всего ячеек» берётся из `computed.spell_slots`, «потрачено» — из `spell_slots_spent`; фронт таблицу слотов не дублирует;
-- базовая характеристика заклинаний приходит из `classes.data.spellcasting_ability` (контент), а не из модели персонажа;
+- базовая характеристика заклинаний, СЛ спасброска и бонус атаки приходят готовыми в `computed` (их считает бэкенд — это формулы 5e). В контент-паке ключ называется `classes.data.spellcasting = {ability, type}`, причём характеристика записана полным словом (`"intelligence"`), а не `classes.data.spellcasting_ability`, как было написано здесь раньше;
+- «кастер или нет» определяется наличием `data.spellcasting` у класса, а **не** непустыми ячейками: у паладина на 1-м уровне ячеек нет, и по ячейкам он потерял бы шапку заклинателя до 2-го уровня;
 - **решить и зафиксировать симметрично: печатается ли страница заклинаний не-кастеру.** В эталоне она есть всегда, пустая. Что бы ни выбрали — экран и печать должны вести себя одинаково, иначе тест паритета из DND-107 не сойдётся;
 - `window.print()` в jsdom не реализован — в тестах его мокать.
 **Приёмка:** кастер видит слоты и заклинания по уровням; счётчик потраченных ячеек сохраняется; поведение для не-кастера одинаково на экране и на печати; кнопка печати вызывает `window.print()`.
@@ -543,7 +544,7 @@ depends: DND-104
 labels: epic:us-15, backend, frontend
 depends: DND-102
 
-**Скоуп:** миграция `0012` — таблица `character_portraits` (1:1, BYTEA, `content_type`, `byte_size`); эндпоинты `PUT|GET|DELETE /characters/{id}/portrait`; показ портрета на листе, в плитке дашборда и у мастера; загрузка и удаление на листе.
+**Скоуп:** миграция `0011` — таблица `character_portraits` (1:1, BYTEA, `content_type`, `byte_size`); эндпоинты `PUT|GET|DELETE /characters/{id}/portrait`; показ портрета на листе, в плитке дашборда и у мастера; загрузка и удаление на листе.
 **Обязательно учесть:**
 - **лимит 512 КиБ, а не 1 МиБ.** `DEFAULT_MAX_BODY_BYTES` — 1 МиБ и режет по `Content-Length` **всего** запроса: multipart с файлом ровно в 1 МиБ всегда больше лимита, и вместо `portrait_too_large` пользователь получит `request_too_large` от middleware. При 512 КиБ обвязка multipart умещается;
 - тип определять по магическим байтам файла, а не по заголовку `Content-Type`; разрешены только jpeg, png, webp; SVG запрещён (это исполняемый контент);

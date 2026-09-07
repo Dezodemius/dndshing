@@ -21,7 +21,7 @@ from app.campaigns.schemas import (
     CampaignsMineRead,
     CampaignUpdate,
 )
-from app.characters.schemas import CharacterDetailRead
+from app.characters.schemas import CharacterDetailRead, CharacterSheetRead
 from app.characters.service import CharacterService
 from app.core.errors import AppError
 
@@ -196,6 +196,22 @@ class CampaignService:
             raise CampaignCharacterNotFoundError()
 
         return await CharacterService(self._db).get_detail_by_id(character_id)
+
+    async def get_character_sheet_for_dm(
+        self, campaign_id: int, character_id: int, user_id: int
+    ) -> CharacterSheetRead:
+        """Printable sheet of a joined character, for the DM. Same access
+        checks as get_character_for_dm — a campaign run by someone else is
+        reported as missing, not forbidden."""
+        await self.get_owned(campaign_id, user_id)
+
+        membership = await self._db.get(
+            CampaignCharacter, {"campaign_id": campaign_id, "character_id": character_id}
+        )
+        if membership is None:
+            raise CampaignCharacterNotFoundError()
+
+        return await CharacterService(self._db).get_sheet_by_id(character_id)
 
     async def _generate_unique_invite_code(self) -> str:
         for _ in range(_INVITE_CODE_MAX_ATTEMPTS):

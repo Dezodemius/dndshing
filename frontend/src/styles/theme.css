@@ -26,6 +26,15 @@
   --radius-md: 8px;
 
   --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  --paper-canvas: #d9d7d2;
+  --paper-surface: #fff;
+  --paper-shade: #ededed;
+  --paper-ink: #181818;
+  --paper-line: #4a4a4a;
+  --paper-rule: #dedede;
+  --paper-muted: #696969;
+  --paper-font: 'PT Sans', Arial, Helvetica, sans-serif;
 }
 
 * {

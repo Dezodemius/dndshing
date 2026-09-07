@@ -218,7 +218,7 @@ characters(id PK, user_id FK, name, race_id FK, class_id FK, subclass_id FK?, ba
            alignment, level, xp, ability_scores JSONB, hp_max, hp_current, hp_temp,
            ac_override?, speed, proficiencies JSONB, appearance TEXT, backstory TEXT, notes TEXT,
            gold, silver, copper, created_at, updated_at,
-           -- US-15, миграция 0011:
+           -- US-15, миграция 0010:
            player_name?, age?, height?, weight?, inspiration, hit_dice_spent,
            death_save_successes, death_save_failures, attacks JSONB, spell_slots_spent JSONB,
            personality_traits TEXT?, ideals TEXT?, bonds TEXT?, flaws TEXT?,
@@ -244,7 +244,9 @@ merchant_items(id PK, merchant_id FK, item_id FK, price_g?, price_s?, price_c?, 
 
 Миграции — Alembic с первого дня. Денормализации нет; на 1000 пользователей индексов по FK и UQ достаточно.
 
-**Номера ревизий закреплены заранее** (задачи DND-094…DND-107 ведутся в параллельных ветках, и четыре миграции от одной базы дали бы четыре головы Alembic): `0009` — `character_effects`, `0010` — хоумбрю-заклинания, `0011` — поля листа персонажа, `0012` — `character_portraits`. Каждая указывает предыдущую как `down_revision`; мержить в этом порядке.
+**Номера ревизий закреплены заранее** (несколько задач эпика ведутся в разных ветках, и две миграции от одной базы дали бы две головы Alembic): `0009` — `character_effects` (DND-095), `0010` — поля печатного листа (DND-102), `0011` — `character_portraits` (DND-106), `0012` — хоумбрю-заклинания (DND-099). Каждая указывает предыдущую как `down_revision`; мержить в этом порядке.
+
+Порядок `0010`/`0012` не тот, что планировался изначально: слот `0010` был зарезервирован под хоумбрю, но раньше приехал печатный лист и занял его. Номера здесь описывают то, что **уже лежит** в `alembic/versions`, а не то, что предполагалось: расхождение между этим списком и каталогом миграций означает, что следующая ветка возьмёт занятый номер и создаст вторую голову.
 
 ---
 

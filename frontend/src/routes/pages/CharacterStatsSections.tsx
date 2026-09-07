@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import type { CharacterDetail } from '../../api/characters'
+import { formatModifier } from '../../features/characters/sheet/formatModifier'
 
 const ABILITY_ORDER = ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const
 
@@ -23,10 +24,6 @@ const SKILL_ORDER = [
   'stealth',
   'survival',
 ] as const
-
-export function formatModifier(value: number): string {
-  return value >= 0 ? `+${value}` : `${value}`
-}
 
 interface CharacterStatsSectionsProps {
   character: CharacterDetail

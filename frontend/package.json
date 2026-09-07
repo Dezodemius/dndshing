@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "brand:generate": "node scripts/generate-brand-assets.mjs"
+    "brand:generate": "node scripts/generate-brand-assets.mjs",
+    "test:e2e": "playwright test --grep-invert @visual",
+    "test:visual": "playwright test --grep @visual",
+    "typecheck:e2e": "tsc --project tsconfig.e2e.json --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -23,6 +26,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

@@ -31,6 +31,27 @@ MAX_LEVEL = 20
 
 ABILITIES: tuple[str, ...] = ("str", "dex", "con", "int", "wis", "cha")
 
+# Content packs spell abilities out in full ("charisma"), while ability_scores
+# and the computed block use the three-letter keys. The vocabulary of 5e
+# ability names belongs here, next to ABILITIES, rather than in whichever
+# service happens to read a pack first.
+ABILITY_KEY_BY_FULL_NAME: dict[str, str] = {
+    "strength": "str",
+    "dexterity": "dex",
+    "constitution": "con",
+    "intelligence": "int",
+    "wisdom": "wis",
+    "charisma": "cha",
+}
+
+
+def ability_key(name: str) -> str | None:
+    """Normalise an ability written either way to its three-letter key."""
+    candidate = name.strip().lower()
+    if candidate in ABILITIES:
+        return candidate
+    return ABILITY_KEY_BY_FULL_NAME.get(candidate)
+
 SKILL_ABILITIES: dict[str, str] = {
     "acrobatics": "dex",
     "animal-handling": "wis",
@@ -288,9 +309,9 @@ def resolve_numeric(
 ) -> tuple[int, list[AppliedModifier]]:
     """Resolve one numeric target.
 
-    Order: the base is the largest of (the character's own value, every
-    armor_base candidate, every set value); then bonuses are summed on top;
-    then the result is clamped.
+    Order: worn armour replaces the character's own base; `set` then competes
+    with whatever that produced, taking the larger; then bonuses are summed on
+    top; then the result is clamped.
 
     Taking the largest is what makes "your Intelligence becomes 19" behave as
     written — it does nothing to a character who already has 20 — and it makes
@@ -304,7 +325,8 @@ def resolve_numeric(
     trace: list[AppliedModifier] = []
     ordered = sorted(modifiers, key=modifier_sort_key)
 
-    base_candidates: list[tuple[int, Modifier]] = []
+    armour_candidates: list[tuple[int, Modifier]] = []
+    set_candidates: list[tuple[int, Modifier]] = []
     bonuses: list[Modifier] = []
 
     for modifier in ordered:
@@ -316,12 +338,17 @@ def resolve_numeric(
         if modifier.op == "bonus":
             bonuses.append(modifier)
         elif modifier.op == "set":
-            base_candidates.append((modifier.value or 0, modifier))
+            set_candidates.append((modifier.value or 0, modifier))
         elif modifier.op == "armor_base":
+            # A negative Dexterity modifier still applies to light and medium
+            # armour ("14 + Dex (max 2)" at Dex 8 is 13), so the cap is an
+            # upper bound only and must not be clamped at zero. Armour that
+            # ignores Dexterity entirely is written as `set`, not as a cap of
+            # 0 — a cap of 0 would still let the penalty through.
             applied_dex = dex_modifier
             if modifier.dex_cap is not None:
                 applied_dex = min(applied_dex, modifier.dex_cap)
-            base_candidates.append(((modifier.value or 0) + applied_dex, modifier))
+            armour_candidates.append(((modifier.value or 0) + applied_dex, modifier))
         else:
             # A roll or damage op on a target that is also numeric — stealth
             # can take both a +1 and disadvantage. It is not this function's
@@ -334,19 +361,29 @@ def resolve_numeric(
         # BR §4.1: a value the player typed in wins over anything an item says.
         # Bonuses still stack on top — the manual entry replaces the
         # derivation, not the arithmetic around it.
-        for _, modifier in base_candidates:
+        for _, modifier in armour_candidates + set_candidates:
             trace.append(AppliedModifier(modifier, False, "manual_ac_override"))
         value = base
-    elif base_candidates:
-        best = max(candidate for candidate, _ in base_candidates)
+    elif armour_candidates or set_candidates:
+        # Worn armour *replaces* the intrinsic calculation rather than
+        # competing with it: 5e gives no one the better of "10 + Dex" and
+        # their armour, so hide armour on a Dexterity 20 character is AC 14,
+        # not 15. `set` still competes on max (see the docstring), so a
+        # "your AC is 18" effect beats worse armour but not better.
+        floor = (
+            max(candidate for candidate, _ in armour_candidates)
+            if armour_candidates
+            else base
+        )
+        best = max([floor, *(candidate for candidate, _ in set_candidates)])
         winner_seen = False
-        for candidate, modifier in base_candidates:
+        for candidate, modifier in armour_candidates + set_candidates:
             if candidate == best and not winner_seen:
                 winner_seen = True
                 trace.append(AppliedModifier(modifier, True, None))
             else:
                 trace.append(AppliedModifier(modifier, False, "overridden_by_higher_base"))
-        value = max(base, best)
+        value = best
     else:
         value = base
 
@@ -573,3 +610,20 @@ def resolve_effects(
         damage=damage,
         trace=tuple(trace),
     )
+
+
+def hit_dice_total(level: int) -> int:
+    """A character has one hit die per level, so the sheet's "total" box is
+    just the level. Named anyway: the sheet should read a rule, not restate
+    one, and multiclassing (out of scope) would change it here."""
+    return level
+
+
+def spell_save_dc(prof_bonus: int, ability_modifier_value: int) -> int:
+    """PHB: 8 + proficiency bonus + spellcasting ability modifier."""
+    return 8 + prof_bonus + ability_modifier_value
+
+
+def spell_attack_bonus(prof_bonus: int, ability_modifier_value: int) -> int:
+    """PHB: proficiency bonus + spellcasting ability modifier."""
+    return prof_bonus + ability_modifier_value

@@ -21,6 +21,17 @@ import NotFoundPage from './pages/NotFoundPage'
 
 export const router = createBrowserRouter([
   {
+    path: '/app/characters/:characterId/sheet',
+    element: <RequireAuth />,
+    children: [{
+      index: true,
+      lazy: async () => {
+        const module = await import('./pages/PrintableCharacterSheetPage')
+        return { Component: module.default }
+      },
+    }],
+  },
+  {
     path: '/',
     element: <Layout />,
     children: [
