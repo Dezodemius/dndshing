@@ -213,6 +213,7 @@ async def test_sheet_carries_the_whole_character(
 
     assert body["name"] == "Магнар"
     assert body["computed"]["prof_bonus"] == 2
+    assert body["computed"]["hit_dice_total"] == 1
     assert "inventory" in body and "spells" in body
     assert body["inspiration"] is False
 

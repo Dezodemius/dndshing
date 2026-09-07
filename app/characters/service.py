@@ -1043,6 +1043,7 @@ class CharacterService:
             xp_level_floor=xp_level_floor,
             xp_next_threshold=xp_next_threshold,
             level_up_available=rules_5e.level_up_available(character.level, character.xp),
+            hit_dice_total=rules_5e.hit_dice_total(character.level),
             spell_slots=spell_slots,
             base_ability_scores=dict(base_scores),
             effective_ability_scores=resolution.ability_scores,

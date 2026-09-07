@@ -34,6 +34,63 @@ export interface ComputedBlock {
   xp_next_threshold: number | null
   level_up_available: boolean
   spell_slots: Record<string, number>
+  /** Present on the complete sheet response. Kept optional here so existing
+   * detail fixtures remain valid while they are migrated. */
+  hit_dice_total?: number
+  base_ability_scores?: AbilityScores
+  effective_ability_scores?: AbilityScores
+  base_modifiers?: AbilityScores
+  speed_effective?: number
+  hp_max_effective?: number
+  advantage?: Record<string, string>
+  damage_modifiers?: Record<string, string>
+  active_effects?: ActiveEffect[]
+  effect_sources?: Record<string, EffectSource[]>
+  spellcasting_ability?: string | null
+  spell_save_dc?: number | null
+  spell_attack_bonus?: number | null
+}
+
+export interface ResolvedModifier {
+  target: string
+  op: string
+  value: number | null
+  applied: boolean
+  ignored_reason: string | null
+}
+
+export interface ActiveEffect {
+  source_kind: 'item' | 'effect'
+  source_id: number
+  name: string
+  modifiers: ResolvedModifier[]
+}
+
+export interface EffectSource {
+  source_kind: 'item' | 'effect'
+  source_id: number
+  name: string
+  op: string
+  value: number | null
+  applied: boolean
+  ignored_reason: string | null
+}
+
+/** Complete computed block returned by GET /characters/:id/sheet. */
+export interface CharacterSheetComputedBlock extends ComputedBlock {
+  hit_dice_total: number
+  base_ability_scores: AbilityScores
+  effective_ability_scores: AbilityScores
+  base_modifiers: AbilityScores
+  speed_effective: number
+  hp_max_effective: number
+  advantage: Record<string, string>
+  damage_modifiers: Record<string, string>
+  active_effects: ActiveEffect[]
+  effect_sources: Record<string, EffectSource[]>
+  spellcasting_ability: string | null
+  spell_save_dc: number | null
+  spell_attack_bonus: number | null
 }
 
 export interface InventoryEntry {
@@ -76,6 +133,114 @@ export interface CharacterDetail {
   inventory: InventoryEntry[]
 }
 
+export interface AttackRow {
+  name: string
+  bonus: string
+  damage: string
+}
+
+export interface Attacks {
+  items: AttackRow[]
+  note: string | null
+}
+
+export interface CharacterSheetFields {
+  player_name: string | null
+  age: number | null
+  height: string | null
+  weight: string | null
+  inspiration: boolean
+  hit_dice_spent: number
+  death_save_successes: number
+  death_save_failures: number
+  attacks: Attacks
+  spell_slots_spent: Record<string, number>
+  personality_traits: string | null
+  ideals: string | null
+  bonds: string | null
+  flaws: string | null
+  goals: string | null
+  allies: string | null
+  feats: string | null
+  extra_features: string | null
+  treasures: string | null
+}
+
+/** Mirrors the backend CharacterRead schema, including stored sheet fields. */
+export interface CharacterRead extends CharacterSheetFields {
+  id: number
+  user_id: number
+  name: string
+  race_id: number
+  class_id: number
+  subclass_id: number | null
+  background_id: number | null
+  alignment: string
+  level: number
+  xp: number
+  ability_scores: AbilityScores
+  hp_max: number
+  hp_current: number
+  hp_temp: number
+  ac_override: number | null
+  speed: number
+  proficiencies: Proficiencies
+  appearance: string | null
+  backstory: string | null
+  notes: string | null
+  gold: number
+  silver: number
+  copper: number
+  created_at: string
+  updated_at: string
+}
+
+export interface SheetFeature {
+  name: string
+  description: string | null
+  level: number | null
+}
+
+export interface SheetItem {
+  id: number
+  name: string
+  type: string
+  weight: string | null
+}
+
+export interface SheetSpell {
+  id: number
+  name: string
+  level: number
+  school: string
+}
+
+export interface SheetContent {
+  race_name: string | null
+  class_name: string | null
+  subclass_name: string | null
+  background_name: string | null
+  hit_die: number | null
+  class_features: SheetFeature[]
+  race_traits: SheetFeature[]
+  subclass_features: SheetFeature[]
+  background_feature: SheetFeature | null
+  languages: string[]
+  tool_proficiencies: string[]
+  armor_proficiencies: string[]
+  weapon_proficiencies: string[]
+  items: Record<string, SheetItem>
+  spells: Record<string, SheetSpell>
+}
+
+/** Complete, owner-only response from GET /characters/:id/sheet. */
+export interface CharacterSheet extends CharacterRead {
+  computed: CharacterSheetComputedBlock
+  spells: CharacterSpell[]
+  inventory: InventoryEntry[]
+  content: SheetContent
+}
+
 export interface CharacterCreate {
   name: string
   race_id: number
@@ -98,15 +263,51 @@ export interface CharacterCreate {
   copper?: number
 }
 
-export interface CharacterPatch {
+export interface CharacterUpdate {
+  name?: string | null
+  race_id?: number | null
+  class_id?: number | null
+  subclass_id?: number | null
+  background_id?: number | null
+  alignment?: string | null
+  level?: number | null
   xp?: number
+  ability_scores?: AbilityScores | null
+  hp_max?: number
   hp_current?: number
   hp_temp?: number
-  notes?: string
+  ac_override?: number | null
+  speed?: number
+  proficiencies?: Proficiencies | null
+  appearance?: string | null
+  backstory?: string | null
+  notes?: string | null
   gold?: number
   silver?: number
   copper?: number
+  player_name?: string | null
+  age?: number | null
+  height?: string | null
+  weight?: string | null
+  inspiration?: boolean | null
+  hit_dice_spent?: number | null
+  death_save_successes?: number | null
+  death_save_failures?: number | null
+  attacks?: Attacks | null
+  spell_slots_spent?: Record<string, number> | null
+  personality_traits?: string | null
+  ideals?: string | null
+  bonds?: string | null
+  flaws?: string | null
+  goals?: string | null
+  allies?: string | null
+  feats?: string | null
+  extra_features?: string | null
+  treasures?: string | null
 }
+
+/** Backwards-compatible name used by existing detail screens. */
+export type CharacterPatch = CharacterUpdate
 
 export interface InventoryEntryCreate {
   item_id?: number
@@ -185,9 +386,13 @@ export function getCharacter(characterId: string): Promise<CharacterDetail> {
   return apiClient.get<CharacterDetail>(`/characters/${characterId}`)
 }
 
+export function getCharacterSheet(characterId: string): Promise<CharacterSheet> {
+  return apiClient.get<CharacterSheet>(`/characters/${characterId}/sheet`)
+}
+
 export function patchCharacter(
   characterId: string,
-  payload: CharacterPatch,
+  payload: CharacterUpdate,
 ): Promise<CharacterDetail> {
   return apiClient.patch<CharacterDetail>(`/characters/${characterId}`, payload)
 }
