@@ -205,6 +205,24 @@ async def test_manual_level_up_does_not_require_xp(
     assert response.json()["to_level"] == 2
 
 
+async def test_level_up_idempotency_key_returns_same_record(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    setup = await _player_setup(client, db_session, "idempotent-level@example.com")
+    character_id = await _create_character(client, setup)
+    headers = {**setup["headers"], "Idempotency-Key": "level-up-action-1"}
+    payload = {"mode": "manual", "hp_method": "average"}
+
+    first = await client.post(_url(character_id), json=payload, headers=headers)
+    second = await client.post(_url(character_id), json=payload, headers=headers)
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert second.json()["id"] == first.json()["id"]
+    detail = await client.get(f"{CHARACTERS_URL}/{character_id}", headers=setup["headers"])
+    assert detail.json()["level"] == 2
+
+
 async def test_level_up_preview_reports_manual_sections(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:

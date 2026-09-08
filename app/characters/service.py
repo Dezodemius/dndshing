@@ -255,9 +255,25 @@ class CharacterService:
         )
 
     async def level_up(
-        self, character_id: int, user_id: int, payload: LevelUpRequest
+        self,
+        character_id: int,
+        user_id: int,
+        payload: LevelUpRequest,
+        idempotency_key: str | None = None,
     ) -> LevelUpRecordRead:
         character = await self.get_owned(character_id, user_id, for_update=True)
+        if idempotency_key:
+            previous_records = (
+                await self._db.scalars(
+                    select(LevelUpRecord)
+                    .where(LevelUpRecord.character_id == character.id)
+                    .order_by(LevelUpRecord.id.desc())
+                    .limit(20)
+                )
+            ).all()
+            for previous in previous_records:
+                if previous.delta.get("_idempotency_key") == idempotency_key:
+                    return LevelUpRecordRead.model_validate(previous)
         from_level = character.level
         to_level = from_level + 1
 
@@ -344,6 +360,8 @@ class CharacterService:
             "spells_learned": [spell.slug for spell in newly_learned_spells],
             "spells_forgotten": [],
         }
+        if idempotency_key:
+            delta["_idempotency_key"] = idempotency_key
         record = LevelUpRecord(
             character_id=character.id, from_level=from_level, to_level=to_level, delta=delta
         )
