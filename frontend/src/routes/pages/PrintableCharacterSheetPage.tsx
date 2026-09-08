@@ -64,15 +64,14 @@ const BLOCK_ROWS: Record<string, number> = {
   flaws: 4,
   'features-summary': 5,
   portrait: 1,
-  appearance: 2,
-  backstory: 3,
-  goals: 4,
+  backstory: 2,
+  goals: 3,
   allies: 1,
   feats: 2,
   extra_features: 3,
   treasures: 4,
-  features: 1,
   notes: 1,
+  appearance: 1,
   spells: 1,
 }
 
@@ -397,7 +396,7 @@ function PageOne({ fields, register, t }: {
           </PaperBlock>
         </div>
 
-        <div className="printable-sheet__column" data-sheet-page-column="right">
+      <div className="printable-sheet__column" data-sheet-page-column="right">
           <TextBlock id="personality" path="personality_traits" title={t('pages.printableSheet.blocks.personality')} fields={fields} register={register} t={t} />
           <TextBlock id="ideals" path="ideals" title={t('pages.printableSheet.blocks.ideals')} fields={fields} register={register} t={t} />
           <TextBlock id="bonds" path="bonds" title={t('pages.printableSheet.blocks.bonds')} fields={fields} register={register} t={t} />
@@ -405,11 +404,16 @@ function PageOne({ fields, register, t }: {
           <TextBlock id="features-summary" path="extra_features" title={t('pages.printableSheet.blocks.features')} fields={fields} register={register} t={t} grow />
         </div>
       </div>
+      <div className="printable-sheet__model-fields" aria-hidden="true">
+        {Object.entries(fields)
+          .filter(([id]) => id.startsWith('feature.'))
+          .map(([id, value]) => <output data-sheet-field={id} key={id}>{String(value)}</output>)}
+      </div>
     </article>
   )
 }
 
-function PageTwo({ fields, register, t }: { fields: SheetFields; register: FormRegister; t: Translate }) {
+function PageTwo({ fields, register, t, portraitUrl }: { fields: SheetFields; register: FormRegister; t: Translate; portraitUrl?: string }) {
   return (
     <article className="printable-sheet__page printable-sheet__page--two" data-sheet-page="2">
       <header className="printable-sheet__header" data-sheet-block="identity" data-sheet-row="1" data-sheet-page-column="all">
@@ -422,8 +426,11 @@ function PageTwo({ fields, register, t }: { fields: SheetFields; register: FormR
       </header>
       <div className="printable-sheet__page-grid printable-sheet__page-grid--two">
         <div className="printable-sheet__column" data-sheet-page-column="left">
-          <PaperBlock id="portrait" title={t('pages.printableSheet.blocks.portrait')} className="printable-sheet__portrait"><span aria-hidden="true" /></PaperBlock>
-          <TextBlock id="appearance" path="appearance" title={t('pages.printableSheet.blocks.appearance')} fields={fields} register={register} t={t} />
+          <PaperBlock id="portrait" title={t('pages.printableSheet.blocks.portrait')} className="printable-sheet__portrait">
+            {portraitUrl
+              ? <img src={portraitUrl} alt="" />
+              : <span aria-hidden="true" />}
+          </PaperBlock>
           <TextBlock id="backstory" path="backstory" title={t('pages.printableSheet.blocks.backstory')} fields={fields} register={register} t={t} grow />
           <TextBlock id="goals" path="goals" title={t('pages.printableSheet.blocks.goals')} fields={fields} register={register} t={t} grow />
         </div>
@@ -439,18 +446,17 @@ function PageTwo({ fields, register, t }: { fields: SheetFields; register: FormR
 }
 
 function PageThree({ fields, register, t }: { fields: SheetFields; register: FormRegister; t: Translate }) {
-  const features = Object.keys(fields).filter((id) => id.startsWith('feature.'))
   return (
     <article className="printable-sheet__page printable-sheet__page--three" data-sheet-page="3">
       <header className="printable-sheet__header" data-sheet-block="identity" data-sheet-row="1" data-sheet-page-column="all">
         <div className="printable-sheet__name"><DisplayField fields={fields} id="identity.name" /><span>{t('pages.printableSheet.labels.characterName')}</span></div>
       </header>
       <div className="printable-sheet__page-grid printable-sheet__page-grid--notes">
-        <PaperBlock id="features" title={t('pages.printableSheet.blocks.features')} className="printable-sheet__block--feature-text" column="left">
-          <div data-overflow-watch>{features.map((id) => <DisplayField fields={fields} id={id} key={id} />)}</div>
-        </PaperBlock>
-        <PaperBlock id="notes" title={t('pages.printableSheet.blocks.notes')} className="printable-sheet__block--grow" column="right">
+        <PaperBlock id="notes" title={t('pages.printableSheet.blocks.notes')} className="printable-sheet__block--grow" column="left">
           <EditableText id="notes" path="notes" register={register} ariaLabel={t('pages.printableSheet.labels.editField', { field: t('pages.printableSheet.blocks.notes') })} printValue={fieldValue(fields, 'notes')} />
+        </PaperBlock>
+        <PaperBlock id="appearance" title={t('pages.printableSheet.blocks.notes')} className="printable-sheet__block--grow" column="right">
+          <EditableText id="appearance" path="appearance" register={register} ariaLabel={t('pages.printableSheet.labels.editField', { field: t('pages.printableSheet.blocks.notes') })} printValue={fieldValue(fields, 'appearance')} />
         </PaperBlock>
       </div>
     </article>
@@ -480,7 +486,7 @@ function PageFour({ fields, register, t, isCaster }: { fields: SheetFields; regi
           {levels.map((column, columnIndex) => (
             <div className="printable-sheet__spell-column" data-sheet-page-column={columnIndex === 0 ? 'left' : columnIndex === 1 ? 'center' : 'right'} key={columnIndex}>
               {column.map((level) => (
-                <section className="printable-sheet__spell-level" key={level}>
+                <section className="printable-sheet__spell-level" data-spell-level={level} key={level}>
                   <header>
                     <strong>{level}</strong>
                     {level === 0 ? <span>{t('pages.printableSheet.labels.cantrips')}</span> : (
@@ -608,8 +614,8 @@ export default function PrintableCharacterSheetPage() {
         {mutation.isError && <p role="alert">{translateApiError(t, mutation.error)}</p>}
       </div>
       <form noValidate onSubmit={(event) => { event.preventDefault(); void save() }}>
-        <PageOne fields={model.fields} register={form.register} t={t} />
-        <PageTwo fields={model.fields} register={form.register} t={t} />
+      <PageOne fields={model.fields} register={form.register} t={t} />
+        <PageTwo fields={model.fields} register={form.register} t={t} portraitUrl={model.portraitUrl} />
         <PageThree fields={model.fields} register={form.register} t={t} />
         <PageFour fields={model.fields} register={form.register} t={t} isCaster={model.isCaster} />
       </form>

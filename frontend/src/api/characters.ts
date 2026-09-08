@@ -239,6 +239,10 @@ export interface CharacterSheet extends CharacterRead {
   spells: CharacterSpell[]
   inventory: InventoryEntry[]
   content: SheetContent
+  /** Optional image URL used by the printable sheet. The portrait upload API
+   * will make this field unconditional in DND-106; keeping it optional lets
+   * older API deployments remain compatible. */
+  portrait_url?: string | null
 }
 
 export interface CharacterCreate {

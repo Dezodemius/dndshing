@@ -1,4 +1,6 @@
 import type { Page } from '@playwright/test'
+import fs from 'node:fs'
+import path from 'node:path'
 import type { CharacterSheet } from '../../src/api/characters'
 
 const timestamp = '2026-09-06T12:00:00Z'
@@ -207,6 +209,14 @@ export function getEmptySheet(): CharacterSheet {
 }
 
 export async function mockAuthenticatedSheet(page: Page, sheet: CharacterSheet): Promise<void> {
+  if (sheet.portrait_url === '/__fixtures/zlatobrad-portrait.png') {
+    const portrait = fs.readFileSync(
+      path.resolve(process.cwd(), 'tests/references/zlatobrad/portrait.png'),
+    )
+    await page.route('**/__fixtures/zlatobrad-portrait.png', async (route) => {
+      await route.fulfill({ body: portrait, contentType: 'image/png' })
+    })
+  }
   await page.route('**/api/v1/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname
     if (pathname === '/api/v1/auth/refresh') {
