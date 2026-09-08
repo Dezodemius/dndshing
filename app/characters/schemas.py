@@ -430,6 +430,7 @@ class LevelUpRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    mode: Literal["xp", "manual"] = "xp"
     hp_method: Literal["average", "rolled"]
     hp_rolled: int | None = Field(default=None, ge=1)
     asi: dict[str, int] | None = None
@@ -447,6 +448,15 @@ class LevelUpRequest(BaseModel):
         if any(increase <= 0 for increase in value.values()):
             raise ValueError("asi values must be positive")
         return value
+
+
+class LevelUpPreviewRead(BaseModel):
+    from_level: int
+    to_level: int
+    mode: Literal["xp", "manual"]
+    available: bool
+    sections: list[Literal["hp", "ability", "subclass", "spells", "features"]]
+    features: list[str]
 
 
 class LevelUpRecordRead(BaseModel):

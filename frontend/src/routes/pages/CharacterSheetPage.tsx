@@ -180,14 +180,17 @@ export default function CharacterSheetPage() {
               <Link to={`/app/characters/${characterId}/level-up`}>
                 {t('pages.characterSheet.levelUpBanner.cta')}
               </Link>
+              <Link to={`/app/characters/${characterId}/level-up?mode=manual`}>
+                {t('pages.characterSheet.levelUpBanner.manualCta')}
+              </Link>
             </div>
           )}
 
-          <CharacterStatsSections character={character} />
+          <CharacterStatsSections character={character} upgradeAvailable={computed.level_up_available} />
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate>
-            <section className="character-sheet__section" aria-labelledby="sheet-xp-heading">
-              <h2 id="sheet-xp-heading">{t('pages.characterSheet.sections.xp')}</h2>
+            <section className={`character-sheet__section${computed.level_up_available ? ' character-sheet__section--upgrade-available' : ''}`} aria-labelledby="sheet-xp-heading">
+              <h2 id="sheet-xp-heading">{t('pages.characterSheet.sections.xp')}{computed.level_up_available && <span className="character-sheet__upgrade-marker" aria-hidden="true">✦</span>}</h2>
               <div className="character-sheet__xp-row">
                 <div className="character-sheet__field">
                   <label htmlFor="sheet-xp">{t('pages.characterSheet.xp.label')}</label>
@@ -228,8 +231,8 @@ export default function CharacterSheetPage() {
               )}
             </section>
 
-            <section className="character-sheet__section" aria-labelledby="sheet-hp-heading">
-              <h2 id="sheet-hp-heading">{t('pages.characterSheet.sections.hp')}</h2>
+            <section className={`character-sheet__section${computed.level_up_available ? ' character-sheet__section--upgrade-available' : ''}`} aria-labelledby="sheet-hp-heading">
+              <h2 id="sheet-hp-heading">{t('pages.characterSheet.sections.hp')}{computed.level_up_available && <span className="character-sheet__upgrade-marker" aria-hidden="true">✦</span>}</h2>
               <div className="character-sheet__hp-row">
                 <div className="character-sheet__field">
                   <label htmlFor="sheet-hp-current">{t('pages.characterSheet.hp.current')}</label>
