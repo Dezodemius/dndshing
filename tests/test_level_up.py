@@ -174,10 +174,72 @@ async def _give_xp_for_level(
 
 
 LEVEL_UP_URL = "{characters_url}/{character_id}/level-up"
+LEVEL_UP_PREVIEW_URL = "{characters_url}/{character_id}/level-up-preview"
 
 
 def _url(character_id: int) -> str:
     return LEVEL_UP_URL.format(characters_url=CHARACTERS_URL, character_id=character_id)
+
+
+def _preview_url(character_id: int, mode: str = "xp") -> str:
+    base = LEVEL_UP_PREVIEW_URL.format(
+        characters_url=CHARACTERS_URL, character_id=character_id
+    )
+    return f"{base}?mode={mode}"
+
+
+async def test_manual_level_up_does_not_require_xp(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    setup = await _player_setup(client, db_session, "manual-level@example.com")
+    character_id = await _create_character(client, setup)
+
+    response = await client.post(
+        _url(character_id),
+        json={"mode": "manual", "hp_method": "average"},
+        headers=setup["headers"],
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["from_level"] == 1
+    assert response.json()["to_level"] == 2
+
+
+async def test_level_up_idempotency_key_returns_same_record(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    setup = await _player_setup(client, db_session, "idempotent-level@example.com")
+    character_id = await _create_character(client, setup)
+    headers = {**setup["headers"], "Idempotency-Key": "level-up-action-1"}
+    payload = {"mode": "manual", "hp_method": "average"}
+
+    first = await client.post(_url(character_id), json=payload, headers=headers)
+    second = await client.post(_url(character_id), json=payload, headers=headers)
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert second.json()["id"] == first.json()["id"]
+    detail = await client.get(f"{CHARACTERS_URL}/{character_id}", headers=setup["headers"])
+    assert detail.json()["level"] == 2
+
+
+async def test_level_up_preview_reports_manual_sections(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    setup = await _player_setup(client, db_session, "preview-level@example.com")
+    character_id = await _create_character(client, setup)
+
+    response = await client.get(
+        _preview_url(character_id, "manual"), headers=setup["headers"]
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["available"] is True
+    assert body["mode"] == "manual"
+    assert body["to_level"] == 2
+    assert body["sections"] == ["hp", "features", "subclass", "spells"]
+    assert body["features"] == ["Восстановление сил"]
 
 
 async def test_level_up_without_xp_is_not_available(

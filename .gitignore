@@ -24,6 +24,8 @@ venv/
 .coverage
 htmlcov/
 frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
 
 # local tooling
 .idea/

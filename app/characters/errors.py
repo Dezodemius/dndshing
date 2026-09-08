@@ -25,6 +25,12 @@ class LevelUpNotAvailableError(AppError):
     status_code = 400
 
 
+class LevelUpModeInvalidError(AppError):
+    code = "level_up_mode_invalid"
+    message = "Для ручного повышения уровня нужно явно выбрать режим manual"
+    status_code = 400
+
+
 class AsiFeatConflictError(AppError):
     code = "asi_feat_conflict"
     message = "Нельзя выбрать одновременно улучшение характеристик и черту"

@@ -201,6 +201,23 @@ describe('CharacterWizardPage', () => {
     expect(screen.getByRole('button', { name: 'Далее' })).toBeEnabled()
   })
 
+  it('keeps future steps disabled and allows returning to a completed step', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await screen.findByRole('radio')
+    expect(screen.getByRole('button', { name: 'Класс' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Раса' })).toHaveAttribute('aria-current', 'step')
+
+    await user.click(screen.getByRole('radio'))
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(await screen.findByRole('heading', { name: 'Выберите класс' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Раса' }))
+    expect(await screen.findByRole('heading', { name: 'Выберите расу' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Эльф/ })).toBeChecked()
+  })
+
   it('advances race -> class -> background -> abilities, accumulating the selection', async () => {
     const user = userEvent.setup()
     renderWizard()

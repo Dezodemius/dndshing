@@ -239,6 +239,10 @@ export interface CharacterSheet extends CharacterRead {
   spells: CharacterSpell[]
   inventory: InventoryEntry[]
   content: SheetContent
+  /** Optional image URL used by the printable sheet. The portrait upload API
+   * will make this field unconditional in DND-106; keeping it optional lets
+   * older API deployments remain compatible. */
+  portrait_url?: string | null
 }
 
 export interface CharacterCreate {
@@ -322,12 +326,22 @@ export interface InventoryEntryUpdate {
 }
 
 export interface LevelUpRequest {
+  mode?: 'xp' | 'manual'
   hp_method: 'average' | 'rolled'
   hp_rolled?: number
   asi?: Partial<AbilityScores>
   feat?: string
   subclass_id?: number
   spells_learned: number[]
+}
+
+export interface LevelUpPreview {
+  from_level: number
+  to_level: number
+  mode: 'xp' | 'manual'
+  available: boolean
+  sections: Array<'hp' | 'ability' | 'subclass' | 'spells' | 'features'>
+  features: string[]
 }
 
 export interface LevelUpRecord {
@@ -430,7 +444,19 @@ export function postLevelUp(
   characterId: string,
   payload: LevelUpRequest,
 ): Promise<LevelUpRecord> {
-  return apiClient.post<LevelUpRecord>(`/characters/${characterId}/level-up`, payload)
+  const idempotencyKey = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
+  return apiClient.post<LevelUpRecord>(`/characters/${characterId}/level-up`, payload, {
+    'Idempotency-Key': idempotencyKey,
+  })
+}
+
+export function getLevelUpPreview(
+  characterId: string,
+  mode: 'xp' | 'manual' = 'xp',
+): Promise<LevelUpPreview> {
+  return apiClient.get<LevelUpPreview>(
+    `/characters/${characterId}/level-up-preview?mode=${mode}`,
+  )
 }
 
 export function getLevelHistory(characterId: string): Promise<LevelUpRecord[]> {

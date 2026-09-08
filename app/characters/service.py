@@ -18,6 +18,7 @@ from app.characters.errors import (
     InventoryEntryNotFoundError,
     InventoryPayloadInvalidError,
     LevelDirectEditForbiddenError,
+    LevelUpModeInvalidError,
     LevelUpNotAvailableError,
     RollbackEmptyError,
     SpellNotInClassListError,
@@ -49,6 +50,7 @@ from app.characters.schemas import (
     InventoryEntryCreate,
     InventoryEntryRead,
     InventoryEntryUpdate,
+    LevelUpPreviewRead,
     LevelUpRecordRead,
     LevelUpRequest,
     ModifierIn,
@@ -208,14 +210,78 @@ class CharacterService:
         await self._db.delete(character)
         await self._db.commit()
 
+    async def level_up_preview(
+        self, character_id: int, user_id: int, mode: str = "xp"
+    ) -> LevelUpPreviewRead:
+        if mode not in {"xp", "manual"}:
+            raise LevelUpModeInvalidError()
+        character = await self.get_owned(character_id, user_id)
+        from_level = character.level
+        to_level = from_level + 1
+        content = ContentQueryService(self._db)
+        class_level = (
+            await content.get_class_level(class_id=character.class_id, level=to_level)
+            if to_level <= rules_5e.MAX_LEVEL
+            else None
+        )
+        raw_features = (class_level.features if class_level is not None else None) or {}
+        features = [
+            feature["name"]
+            for feature in raw_features.get("items", [])
+            if isinstance(feature, dict) and feature.get("name")
+        ]
+        sections: list[str] = ["hp"]
+        if to_level % 4 == 0:
+            sections.append("ability")
+        if features:
+            sections.append("features")
+        subclasses = await content.get_subclasses_for_level(
+            class_id=character.class_id, unlock_level=to_level
+        )
+        if subclasses:
+            sections.append("subclass")
+        if class_level is not None and class_level.spell_slots is not None:
+            sections.append("spells")
+        available = from_level < rules_5e.MAX_LEVEL and (
+            mode == "manual" or character.xp >= rules_5e.xp_threshold(to_level)
+        )
+        return LevelUpPreviewRead(
+            from_level=from_level,
+            to_level=to_level,
+            mode=mode,
+            available=available,
+            sections=sections,
+            features=features,
+        )
+
     async def level_up(
-        self, character_id: int, user_id: int, payload: LevelUpRequest
+        self,
+        character_id: int,
+        user_id: int,
+        payload: LevelUpRequest,
+        idempotency_key: str | None = None,
     ) -> LevelUpRecordRead:
         character = await self.get_owned(character_id, user_id, for_update=True)
+        if idempotency_key:
+            previous_records = (
+                await self._db.scalars(
+                    select(LevelUpRecord)
+                    .where(LevelUpRecord.character_id == character.id)
+                    .order_by(LevelUpRecord.id.desc())
+                    .limit(20)
+                )
+            ).all()
+            for previous in previous_records:
+                if previous.delta.get("_idempotency_key") == idempotency_key:
+                    return LevelUpRecordRead.model_validate(previous)
         from_level = character.level
         to_level = from_level + 1
 
-        if from_level >= rules_5e.MAX_LEVEL or character.xp < rules_5e.xp_threshold(to_level):
+        if payload.mode not in {"xp", "manual"}:
+            raise LevelUpModeInvalidError()
+        if from_level >= rules_5e.MAX_LEVEL or (
+            payload.mode == "xp" and character.xp < rules_5e.xp_threshold(to_level)
+        ):
             raise LevelUpNotAvailableError()
         if payload.asi is not None and payload.feat is not None:
             raise AsiFeatConflictError()
@@ -294,6 +360,8 @@ class CharacterService:
             "spells_learned": [spell.slug for spell in newly_learned_spells],
             "spells_forgotten": [],
         }
+        if idempotency_key:
+            delta["_idempotency_key"] = idempotency_key
         record = LevelUpRecord(
             character_id=character.id, from_level=from_level, to_level=to_level, delta=delta
         )

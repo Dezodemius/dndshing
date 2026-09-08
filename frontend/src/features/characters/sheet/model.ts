@@ -18,6 +18,7 @@ export interface CharacterSheetModel {
   fields: Record<string, SheetFieldValue>
   blocks: readonly SheetBlock[]
   isCaster: boolean
+  portraitUrl?: string
 }
 
 export interface SheetModelFallbacks {
@@ -45,16 +46,15 @@ export const SHEET_BLOCKS: readonly SheetBlock[] = [
   { id: 'features-summary', page: 1, column: 3, row: 5 },
   { id: 'identity', page: 2, column: 'all', row: 1 },
   { id: 'portrait', page: 2, column: 1, row: 1 },
-  { id: 'appearance', page: 2, column: 1, row: 2 },
-  { id: 'backstory', page: 2, column: 1, row: 3 },
-  { id: 'goals', page: 2, column: 1, row: 4 },
+  { id: 'backstory', page: 2, column: 1, row: 2 },
+  { id: 'goals', page: 2, column: 1, row: 3 },
   { id: 'allies', page: 2, column: 2, row: 1 },
   { id: 'feats', page: 2, column: 2, row: 2 },
   { id: 'extra_features', page: 2, column: 2, row: 3 },
   { id: 'treasures', page: 2, column: 2, row: 4 },
   { id: 'identity', page: 3, column: 'all', row: 1 },
-  { id: 'features', page: 3, column: 1, row: 1 },
-  { id: 'notes', page: 3, column: 2, row: 1 },
+  { id: 'notes', page: 3, column: 1, row: 1 },
+  { id: 'appearance', page: 3, column: 2, row: 1 },
   { id: 'spells', page: 4, column: 'all', row: 1 },
 ]
 
@@ -225,5 +225,6 @@ export function buildSheetModel(
     fields,
     blocks: SHEET_BLOCKS,
     isCaster: sheet.computed.spellcasting_ability !== null,
+    portraitUrl: sheet.portrait_url ?? undefined,
   }
 }
