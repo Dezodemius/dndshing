@@ -41,7 +41,7 @@ export default function CharacterStatsSections({ character, upgradeAvailable = f
 
   return (
     <>
-      <section className="character-sheet__section" aria-labelledby="sheet-abilities-heading">
+      <section className="character-sheet__section character-sheet__section--abilities" aria-labelledby="sheet-abilities-heading">
         <h2 id="sheet-abilities-heading">{t('pages.characterSheet.sections.abilities')}{upgradeAvailable && <span className="character-sheet__upgrade-marker" aria-hidden="true">✦</span>}</h2>
         <div className="character-sheet__ability-grid">
           {ABILITY_ORDER.map((ability) => (
@@ -60,7 +60,7 @@ export default function CharacterStatsSections({ character, upgradeAvailable = f
         </div>
       </section>
 
-      <section className="character-sheet__section" aria-labelledby="sheet-saves-heading">
+      <section className="character-sheet__section character-sheet__section--saves" aria-labelledby="sheet-saves-heading">
         <h2 id="sheet-saves-heading">{t('pages.characterSheet.sections.savingThrows')}{upgradeAvailable && <span className="character-sheet__upgrade-marker" aria-hidden="true">✦</span>}</h2>
         <ul className="character-sheet__list">
           {ABILITY_ORDER.map((ability) => (
@@ -82,7 +82,7 @@ export default function CharacterStatsSections({ character, upgradeAvailable = f
         </ul>
       </section>
 
-      <section className="character-sheet__section" aria-labelledby="sheet-skills-heading">
+      <section className="character-sheet__section character-sheet__section--skills" aria-labelledby="sheet-skills-heading">
         <h2 id="sheet-skills-heading">{t('pages.characterSheet.sections.skills')}{upgradeAvailable && <span className="character-sheet__upgrade-marker" aria-hidden="true">✦</span>}</h2>
         <ul className="character-sheet__list">
           {SKILL_ORDER.map((skill) => (
@@ -104,7 +104,7 @@ export default function CharacterStatsSections({ character, upgradeAvailable = f
         </ul>
       </section>
 
-      <section className="character-sheet__section" aria-labelledby="sheet-combat-heading">
+      <section className="character-sheet__section character-sheet__section--combat" aria-labelledby="sheet-combat-heading">
         <h2 id="sheet-combat-heading">{t('pages.characterSheet.sections.combat')}{upgradeAvailable && <span className="character-sheet__upgrade-marker" aria-hidden="true">✦</span>}</h2>
         <div className="character-sheet__combat-row">
           <div className="character-sheet__combat-stat">
