@@ -444,7 +444,10 @@ export function postLevelUp(
   characterId: string,
   payload: LevelUpRequest,
 ): Promise<LevelUpRecord> {
-  return apiClient.post<LevelUpRecord>(`/characters/${characterId}/level-up`, payload)
+  const idempotencyKey = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
+  return apiClient.post<LevelUpRecord>(`/characters/${characterId}/level-up`, payload, {
+    'Idempotency-Key': idempotencyKey,
+  })
 }
 
 export function getLevelUpPreview(
