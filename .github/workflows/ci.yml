@@ -173,11 +173,10 @@ jobs:
           retention-days: 14
 
   frontend-sheet-visual:
-    # Reference PNGs originate from PDF rasterisation and intentionally do not
-    # gate review. This job publishes an honest diff without changing its fixed
-    # tolerance or threshold to manufacture a passing result.
+    # The supplied PDF pages are immutable visual fixtures. The test gates
+    # the four-page geometry at a fixed three-pixel tolerance and publishes
+    # the pixel diff as a review artifact.
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     defaults:
       run:
