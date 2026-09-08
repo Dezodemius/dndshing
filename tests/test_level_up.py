@@ -182,7 +182,10 @@ def _url(character_id: int) -> str:
 
 
 def _preview_url(character_id: int, mode: str = "xp") -> str:
-    return f"{LEVEL_UP_PREVIEW_URL.format(characters_url=CHARACTERS_URL, character_id=character_id)}?mode={mode}"
+    base = LEVEL_UP_PREVIEW_URL.format(
+        characters_url=CHARACTERS_URL, character_id=character_id
+    )
+    return f"{base}?mode={mode}"
 
 
 async def test_manual_level_up_does_not_require_xp(
