@@ -59,6 +59,18 @@
   letter-spacing: 0.04em;
 }
 
+.character-sheet__section--upgrade-available {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 1px rgb(var(--color-accent-rgb) / .18);
+}
+
+.character-sheet__upgrade-marker {
+  display: inline-block;
+  margin-left: var(--space-1);
+  color: var(--color-accent-strong);
+  font-size: 1rem;
+}
+
 .character-sheet__ability-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getCharacter,
+  getLevelUpPreview,
   postLevelUp,
   type LevelUpRecord,
   type LevelUpRequest,
@@ -55,6 +56,8 @@ function buildPayload(selection: LevelUpSelection): LevelUpRequest {
 export default function LevelUpWizardPage() {
   const { t } = useTranslation()
   const { characterId } = useParams<{ characterId: string }>()
+  const [searchParams] = useSearchParams()
+  const mode = searchParams.get('mode') === 'manual' ? 'manual' : 'xp'
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -66,6 +69,12 @@ export default function LevelUpWizardPage() {
     queryKey: ['character', characterId],
     queryFn: () => getCharacter(characterId as string),
     enabled: Boolean(characterId),
+  })
+
+  const previewQuery = useQuery({
+    queryKey: ['character', characterId, 'level-up-preview', mode],
+    queryFn: () => getLevelUpPreview(characterId as string, mode),
+    enabled: Boolean(characterId) && mode === 'manual',
   })
 
   const classesQuery = useQuery({ queryKey: ['content', 'classes'], queryFn: listClasses })
@@ -83,14 +92,17 @@ export default function LevelUpWizardPage() {
   })
 
   const levelUpMutation = useMutation({
-    mutationFn: (payload: LevelUpRequest) => postLevelUp(characterId as string, payload),
+    mutationFn: (payload: LevelUpRequest) => postLevelUp(
+      characterId as string,
+      mode === 'manual' ? { ...payload, mode } : payload,
+    ),
     onSuccess: (created) => {
       setRecord(created)
       queryClient.invalidateQueries({ queryKey: ['character', characterId] })
     },
   })
 
-  if (characterQuery.isLoading || classesQuery.isLoading) {
+  if (characterQuery.isLoading || classesQuery.isLoading || previewQuery.isLoading) {
     return <p>{t('common.loading')}</p>
   }
 
@@ -98,7 +110,7 @@ export default function LevelUpWizardPage() {
     return <p role="alert">{translateApiError(t, characterQuery.error)}</p>
   }
 
-  if (classesQuery.isError) {
+  if (classesQuery.isError || previewQuery.isError) {
     return <p role="alert">{translateApiError(t, classesQuery.error)}</p>
   }
 
@@ -110,7 +122,11 @@ export default function LevelUpWizardPage() {
 
   const fromLevel = character.level
 
-  if (!record && !character.computed.level_up_available) {
+  const previewAvailable = mode === 'manual'
+    ? previewQuery.data?.available === true
+    : character.computed.level_up_available
+
+  if (!record && !previewAvailable) {
     return (
       <section className="level-up-wizard">
         <p role="alert">{t('pages.levelUp.notAvailable')}</p>
@@ -119,7 +135,9 @@ export default function LevelUpWizardPage() {
     )
   }
 
-  const featuresUnlocked = classLevel?.features.items ?? []
+  const featuresUnlocked = (previewQuery.data?.features ?? classLevel?.features.items ?? []).map((feature) => (
+    typeof feature === 'string' ? { name: feature, description: '' } : feature
+  ))
   const unlockingSubclasses = klass.subclasses.filter((sub) => sub.unlock_level === toLevel)
   const spellBySlug = new Map((spellsQuery.data ?? []).map((spell) => [spell.slug, spell]))
 

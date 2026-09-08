@@ -15,6 +15,7 @@ from app.characters.schemas import (
     InventoryEntryCreate,
     InventoryEntryRead,
     InventoryEntryUpdate,
+    LevelUpPreviewRead,
     LevelUpRecordRead,
     LevelUpRequest,
     SpellsUpdate,
@@ -89,6 +90,16 @@ async def level_up_character(
     _user=Depends(get_verified_user),
 ) -> LevelUpRecordRead:
     return await CharacterService(db).level_up(character_id, _user.id, payload)
+
+
+@router.get("/characters/{character_id}/level-up-preview", response_model=LevelUpPreviewRead)
+async def preview_level_up(
+    character_id: int,
+    mode: str = "xp",
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_verified_user),
+) -> LevelUpPreviewRead:
+    return await CharacterService(db).level_up_preview(character_id, _user.id, mode)
 
 
 @router.post("/characters/{character_id}/level-rollback", response_model=CharacterDetailRead)

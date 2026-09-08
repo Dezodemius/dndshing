@@ -713,6 +713,18 @@ class ContentQueryService:
         row = await self._db.get(Subclass, subclass_id)
         return SubclassRead.model_validate(row) if row is not None else None
 
+    async def get_subclasses_for_level(
+        self, *, class_id: int, unlock_level: int
+    ) -> list[SubclassRead]:
+        rows = (
+            await self._db.scalars(
+                select(Subclass).where(
+                    Subclass.class_id == class_id, Subclass.unlock_level == unlock_level
+                )
+            )
+        ).all()
+        return [SubclassRead.model_validate(row) for row in rows]
+
     async def get_spells_by_ids(self, spell_ids: list[int], *, class_id: int) -> list[SpellRead]:
         """Only spells on the given class's spell list are returned — ids for
         another class's spells are silently dropped, same as unknown ids."""
