@@ -183,10 +183,11 @@ export default function CharacterSheetPage() {
             </div>
           )}
 
-          <CharacterStatsSections character={character} />
+          <div className="character-sheet__overview-grid">
+            <CharacterStatsSections character={character} />
 
-          <form onSubmit={handleSubmit(onSubmit)} noValidate>
-            <section className="character-sheet__section" aria-labelledby="sheet-xp-heading">
+            <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <section className="character-sheet__section character-sheet__section--xp" aria-labelledby="sheet-xp-heading">
               <h2 id="sheet-xp-heading">{t('pages.characterSheet.sections.xp')}</h2>
               <div className="character-sheet__xp-row">
                 <div className="character-sheet__field">
@@ -228,7 +229,7 @@ export default function CharacterSheetPage() {
               )}
             </section>
 
-            <section className="character-sheet__section" aria-labelledby="sheet-hp-heading">
+            <section className="character-sheet__section character-sheet__section--hp" aria-labelledby="sheet-hp-heading">
               <h2 id="sheet-hp-heading">{t('pages.characterSheet.sections.hp')}</h2>
               <div className="character-sheet__hp-row">
                 <div className="character-sheet__field">
@@ -248,7 +249,7 @@ export default function CharacterSheetPage() {
               </div>
             </section>
 
-            <section className="character-sheet__section" aria-labelledby="sheet-notes-heading">
+            <section className="character-sheet__section character-sheet__section--notes" aria-labelledby="sheet-notes-heading">
               <h2 id="sheet-notes-heading">{t('pages.characterSheet.sections.notes')}</h2>
               <div className="character-sheet__field">
                 <label htmlFor="sheet-notes">{t('pages.characterSheet.notesLabel')}</label>
@@ -268,7 +269,8 @@ export default function CharacterSheetPage() {
                 <p>{t('pages.characterSheet.saved')}</p>
               )}
             </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
 
