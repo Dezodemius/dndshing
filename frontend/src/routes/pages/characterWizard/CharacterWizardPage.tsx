@@ -8,6 +8,7 @@ import DetailsStep from './DetailsStep'
 import PreviewStep from './PreviewStep'
 import { POINT_BUY_DEFAULT_SCORES } from './abilityRules'
 import { WIZARD_STEPS, type WizardSelection, type WizardStep } from './types'
+import CharacterWorkspaceShell, { type WorkspaceStep } from './CharacterWorkspaceShell'
 import './characterWizard.css'
 
 const INITIAL_SELECTION: WizardSelection = {
@@ -46,24 +47,43 @@ export default function CharacterWizardPage() {
     setStepIndex((index) => Math.min(WIZARD_STEPS.length, index + 1))
   }
 
+  function handleStepSelect(index: number) {
+    if (index <= stepIndex) setStepIndex(index)
+  }
+
+  const workspaceSteps: WorkspaceStep[] = WIZARD_STEPS.map((step, index) => ({
+    key: step,
+    label: t(`pages.characterNew.steps.${step}`),
+    status: index === stepIndex ? 'current' : index < stepIndex ? 'complete' : 'available',
+    disabled: index > stepIndex,
+  }))
+
   return (
-    <section className="character-wizard">
-      <h1>{t('pages.characterNew.title')}</h1>
-
-      <ol className="character-wizard__progress" aria-label={t('pages.characterNew.title')}>
-        {WIZARD_STEPS.map((step, index) => (
-          <li
-            key={step}
-            className={`character-wizard__progress-item${
-              index === stepIndex ? ' character-wizard__progress-item--current' : ''
-            }`}
-            aria-current={index === stepIndex ? 'step' : undefined}
-          >
-            {t(`pages.characterNew.steps.${step}`)}
-          </li>
-        ))}
-      </ol>
-
+    <CharacterWorkspaceShell
+      title={t('pages.characterNew.title')}
+      steps={workspaceSteps}
+      currentStep={stepIndex}
+      onStepSelect={handleStepSelect}
+      actions={(
+        <div className="character-wizard__nav">
+          {stepIndex > 0 && (
+            <button type="button" onClick={handleBack}>
+              {t('pages.characterNew.back')}
+            </button>
+          )}
+          {!isSummary && (
+            <button
+              type="button"
+              disabled={currentStep !== null && !canGoNext(currentStep, selection)}
+              onClick={handleNext}
+            >
+              {t('pages.characterNew.next')}
+            </button>
+          )}
+        </div>
+      )}
+    >
+      <h1 className="character-wizard__title">{t('pages.characterNew.title')}</h1>
       {currentStep === 'race' && (
         <RaceStep
           selected={selection.race}
@@ -107,22 +127,6 @@ export default function CharacterWizardPage() {
 
       {isSummary && <PreviewStep selection={selection} />}
 
-      <div className="character-wizard__nav">
-        {stepIndex > 0 && (
-          <button type="button" onClick={handleBack}>
-            {t('pages.characterNew.back')}
-          </button>
-        )}
-        {!isSummary && (
-          <button
-            type="button"
-            disabled={currentStep !== null && !canGoNext(currentStep, selection)}
-            onClick={handleNext}
-          >
-            {t('pages.characterNew.next')}
-          </button>
-        )}
-      </div>
-    </section>
+    </CharacterWorkspaceShell>
   )
 }
